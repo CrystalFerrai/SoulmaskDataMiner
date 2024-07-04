@@ -20,6 +20,8 @@ Options
 
 This will also print a list of the names of all available miners.
 
+Soulmask encrypts its pak file, so you will need to obtain the proper AES key and supply it to the program via the `key` parameter. How you obtain the key is your business. Do not contact me asking for the key. I will not give it to you.
+
 ## Releases
 
 There are no releases of this tool for the time being. If you wish to try it, you will need to build it.
