@@ -31,8 +31,9 @@ namespace SoulmaskDataMiner
 		/// <param name="providerManager">Provides access to gata resources</param>
 		/// <param name="config">Application config containing (among other things) the location of a directory which the miner can write to</param>
 		/// <param name="logger">For logging any output messages while running</param>
+		/// <param name="sqlWriter">Add sql statements needed to perform a database update to this writer</param>
 		/// <returns>Whether the miner was successful (true) or encountered errors (false)</returns>
-		bool Run(IProviderManager providerManager, Config config, Logger logger);
+		bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter);
 	}
 
 	/// <summary>
@@ -49,6 +50,20 @@ namespace SoulmaskDataMiner
 		public DefaultEnabledAttribute(bool isEnabled)
 		{
 			IsEnabled = isEnabled;
+		}
+	}
+
+	/// <summary>
+	/// Indicates whether a data miner requires the use of the blueprint heirarchy.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class)]
+	internal class RequireHeirarchyAttribute : Attribute
+	{
+		public bool IsRequired { get; set; }
+
+		public RequireHeirarchyAttribute(bool isRequired)
+		{
+			IsRequired = isRequired;
 		}
 	}
 }

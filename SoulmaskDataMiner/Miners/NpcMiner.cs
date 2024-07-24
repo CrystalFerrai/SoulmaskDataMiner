@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Text;
+
 namespace SoulmaskDataMiner.Miners
 {
 	/// <summary>
@@ -25,17 +27,56 @@ namespace SoulmaskDataMiner.Miners
 
 		private const string BaseClassName_NonHuman = "HCharacterDongWu";
 		private const string BaseClassName_Human = "HCharacterRen";
-		private const string BaseClassName_Other = "HCharacterBase";
+		//private const string BaseClassName_Other = "HCharacterBase";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
-			BlueprintHeirarchy blueprintHeirarchy = BlueprintHeirarchy.GetOrLoad(providerManager, logger);
+			IEnumerable<ObjectInfo> nonHumanClasses = FindObjects(BaseClassName_NonHuman.AsEnumerable());
+			IEnumerable<ObjectInfo> humanClasses = FindObjects(BaseClassName_Human.AsEnumerable());
 
-			ProcessClasses(blueprintHeirarchy, BaseClassName_NonHuman.AsEnumerable(), "nonhuman", config, logger);
-			ProcessClasses(blueprintHeirarchy, BaseClassName_Human.AsEnumerable(), "human", config, logger);
-			ProcessClasses(blueprintHeirarchy, BaseClassName_Other.AsEnumerable(), "other", config, logger);
+			WriteCsv(nonHumanClasses, "NonHuman.csv", config, logger);
+			WriteCsv(humanClasses, "Human.csv", config, logger);
+
+			WriteSql(nonHumanClasses, humanClasses, sqlWriter, logger);
 
 			return true;
+		}
+
+		private void WriteCsv(IEnumerable<ObjectInfo> items, string filename, Config config, Logger logger)
+		{
+			string outPath = Path.Combine(config.OutputDirectory, Name, filename);
+			using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
+			using (StreamWriter writer = new(outFile))
+			{
+				writer.WriteLine("name,class");
+				foreach (ObjectInfo info in items)
+				{
+					writer.WriteLine($"\"{info.Name}\",\"{info.ClassName}\"");
+				}
+			}
+		}
+
+		private void WriteSql(IEnumerable<ObjectInfo> nonhumans, IEnumerable<ObjectInfo> humans, TextWriter sqlWriter, Logger logger)
+		{
+			// Schema
+			// create table `npc` (`human` bool, `name` varchar(255), `class` varchar(255))
+
+			sqlWriter.WriteLine("truncate table `npc`;");
+
+			string dbStr(string? value)
+			{
+				if (value is null) return "null";
+				return $"'{value.Replace("\'", "\'\'")}'";
+			}
+
+			foreach (ObjectInfo objectInfo in nonhumans)
+			{
+				sqlWriter.WriteLine($"insert into `npc` values (false, {dbStr(objectInfo.Name)}, {dbStr(objectInfo.ClassName)});");
+			}
+			foreach (ObjectInfo objectInfo in humans)
+			{
+				sqlWriter.WriteLine($"insert into `npc` values (true, {dbStr(objectInfo.Name)} ,  {dbStr(objectInfo.ClassName)});");
+			}
 		}
 	}
 }

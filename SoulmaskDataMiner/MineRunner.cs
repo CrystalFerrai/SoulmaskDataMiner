@@ -32,12 +32,15 @@ namespace SoulmaskDataMiner
 
 		private readonly List<IDataMiner> mMiners;
 
+		private bool mRequireHeirarchy;
+
 		public MineRunner(Config config, Logger logger)
 		{
 			mConfig = config;
 			mLogger = logger;
 			mProviderManager = new ProviderManager(config);
 			mMiners = new();
+			mRequireHeirarchy = false;
 		}
 
 		public bool Initialize()
@@ -91,22 +94,36 @@ namespace SoulmaskDataMiner
 
 		public bool Run()
 		{
+			if (mRequireHeirarchy)
+			{
+				BlueprintHeirarchy.Load(mProviderManager, mLogger);
+			}
+
+			string sqlPath = Path.Combine(mConfig.OutputDirectory, "update.sql");
+			using FileStream sqlFile = IOUtil.CreateFile(sqlPath, mLogger);
+			using StreamWriter sqlWriter = new(sqlFile);
+
 			bool success = true;
 			foreach (IDataMiner miner in mMiners)
 			{
 				mLogger.Log(LogLevel.Important, $"Running data miner [{miner.Name}]...");
+
+				sqlWriter.WriteLine("/* ========================================================================== */");
+				sqlWriter.WriteLine($"-- {miner.Name}");
+				sqlWriter.WriteLine();
+
 				Stopwatch timer = new Stopwatch();
 				timer.Start();
 				if (Debugger.IsAttached)
 				{
 					// Allow exceptions to escape for easier debugging
-					success &= miner.Run(mProviderManager, mConfig, mLogger);
+					success &= miner.Run(mProviderManager, mConfig, mLogger, sqlWriter);
 				}
 				else
 				{
 					try
 					{
-						success &= miner.Run(mProviderManager, mConfig, mLogger);
+						success &= miner.Run(mProviderManager, mConfig, mLogger, sqlWriter);
 					}
 					catch (Exception ex)
 					{
@@ -115,6 +132,9 @@ namespace SoulmaskDataMiner
 					}
 				}
 				timer.Stop();
+
+				sqlWriter.WriteLine();
+
 				mLogger.Log(LogLevel.Information, $"[{miner.Name}] completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
 			}
 			return success;
@@ -172,6 +192,8 @@ namespace SoulmaskDataMiner
 
 		private void CreateMiners(IEnumerable<string>? minersToInclude)
 		{
+			mRequireHeirarchy = false;
+
 			HashSet<string>? includeMiners = minersToInclude == null ? null : new HashSet<string>(minersToInclude.Select(m => m.ToLowerInvariant()));
 			bool forceInclude = includeMiners?.Contains("all", StringComparer.OrdinalIgnoreCase) ?? false;
 
@@ -190,6 +212,9 @@ namespace SoulmaskDataMiner
 							continue;
 						}
 					}
+
+					RequireHeirarchyAttribute? requireHeirarchyAttribute = type.GetCustomAttribute<RequireHeirarchyAttribute>();
+					bool requireHeirarchy = requireHeirarchyAttribute?.IsRequired ?? false;
 
 					IDataMiner? miner;
 					try
@@ -211,6 +236,7 @@ namespace SoulmaskDataMiner
 					{
 						includeMiners?.Remove(name);
 						mMiners.Add(miner);
+						mRequireHeirarchy |= requireHeirarchy;
 					}
 					else if (miner is IDisposable disposable)
 					{

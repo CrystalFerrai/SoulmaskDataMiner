@@ -23,11 +23,12 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Base class for miners that gather information about specific class heirarchies
 	/// </summary>
+	[RequireHeirarchy(true)]
 	internal abstract class SubclassMinerBase : IDataMiner
 	{
 		public abstract string Name { get; }
 
-		public abstract bool Run(IProviderManager providerManager, Config config, Logger logger);
+		public abstract bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter);
 
 		/// <summary>
 		/// The name of the property that stores the name to associate with the class.
@@ -35,14 +36,14 @@ namespace SoulmaskDataMiner.Miners
 		protected abstract string NameProperty { get; }
 
 		/// <summary>
-		/// Gathers and outputs a list of classes which derive from a specific class
+		/// Gathers a list of classes which derive from a specific class
 		/// </summary>
-		protected void ProcessClasses(BlueprintHeirarchy blueprintHeirarchy, IEnumerable<string> baseClassNames, string outFileNamePrefix, Config config, Logger logger)
+		protected IEnumerable<ObjectInfo> FindObjects(IEnumerable<string> baseClassNames)
 		{
 			List<ObjectInfo> infos = new();
 			foreach (string className in baseClassNames)
 			{
-				foreach (BlueprintClassInfo classInfo in blueprintHeirarchy.GetDerivedClasses(className))
+				foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Get().GetDerivedClasses(className))
 				{
 					if (classInfo.Export?.ExportObject.Value is UClass classObj)
 					{
@@ -51,19 +52,9 @@ namespace SoulmaskDataMiner.Miners
 					}
 				}
 			}
-
 			infos.Sort();
 
-			string outPath = Path.Combine(config.OutputDirectory, Name, $"{outFileNamePrefix}_classes.csv");
-			using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
-			using (StreamWriter writer = new(outFile))
-			{
-				writer.WriteLine("Name,Class");
-				foreach (ObjectInfo info in infos)
-				{
-					writer.WriteLine($"{info.Name},{info.ClassName}");
-				}
-			}
+			return infos;
 		}
 
 		private string? FindObjectName(UClass classObj)
@@ -101,7 +92,7 @@ namespace SoulmaskDataMiner.Miners
 			return null;
 		}
 
-		private struct ObjectInfo : IComparable<ObjectInfo>
+		protected struct ObjectInfo : IComparable<ObjectInfo>
 		{
 			public string ClassName;
 			public string? Name;

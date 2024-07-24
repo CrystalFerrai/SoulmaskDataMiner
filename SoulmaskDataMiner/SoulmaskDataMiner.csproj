@@ -6,6 +6,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Platforms>x64</Platforms>
+	<ProductName>SoulmaskDataMiner</ProductName>
+	<Description>SoulmaskDataMiner</Description>
+    <Authors>Crystal Ferrai</Authors>
+    <Copyright>Copyright © 2024 Crystal Ferrai</Copyright>
+	<Version>0.1.0.0</Version>
+	<ProductVersion>$(Version)</ProductVersion>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+	<InformationalVersion>$(Version)</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

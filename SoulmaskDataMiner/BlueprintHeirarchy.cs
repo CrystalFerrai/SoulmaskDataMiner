@@ -14,6 +14,7 @@
 
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Objects.UObject;
+using System.Diagnostics;
 
 namespace SoulmaskDataMiner
 {
@@ -32,18 +33,24 @@ namespace SoulmaskDataMiner
 		}
 
 		/// <summary>
-		/// Returns the blueprint heiarchy. Will return a cached copy if this is not the first time
-		/// calling this method during this run of the program. Otherwise, will load and build the
-		/// heirarchy, which may take a minute (literally).
+		/// Returns the loaded blueprint heiarchy.
 		/// </summary>
-		public static BlueprintHeirarchy GetOrLoad(IProviderManager providerManager, Logger logger)
+		/// <exception cref="InvalidOperationException">The hierarchy has not been loaded</exception>
+		public static BlueprintHeirarchy Get()
 		{
-			if (sInstance is not null)
-			{
-				return sInstance;
-			}
+			if (sInstance is null) throw new InvalidOperationException("BluePrintHierarchy has not been loaded. Any miner needing this resource shoudl declare so by adding the RequireHierarchy attribute to the class.");
+			return sInstance;
+		}
 
+		/// <summary>
+		/// Loads the blueprint heirarchy, making it ready for miners to make use of
+		/// </summary>
+		public static void Load(IProviderManager providerManager, Logger logger)
+		{
 			logger.Log(LogLevel.Information, "Loading blueprint heirarchy...");
+
+			Stopwatch timer = new Stopwatch();
+			timer.Start();
 
 			Dictionary<string, InternalClassInfo> superMap = new();
 
@@ -102,7 +109,9 @@ namespace SoulmaskDataMiner
 			}
 
 			sInstance = new(superMap);
-			return sInstance;
+
+			timer.Stop();
+			logger.Log(LogLevel.Information, $"Blueprint hierarchy load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency):0.###}s");
 		}
 
 		/// <summary>

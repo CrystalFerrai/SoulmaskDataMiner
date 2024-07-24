@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Text;
+
 namespace SoulmaskDataMiner.Miners
 {
 	/// <summary>
@@ -23,12 +25,8 @@ namespace SoulmaskDataMiner.Miners
 
 		protected override string NameProperty => "Name";
 
-		private const string BaseClassName = "HDaoJuBase";
-
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
-			BlueprintHeirarchy blueprintHeirarchy = BlueprintHeirarchy.GetOrLoad(providerManager, logger);
-
 			string[] baseClassNames = new string[]
 			{
 				"HDaoJuBase",
@@ -56,9 +54,45 @@ namespace SoulmaskDataMiner.Miners
 					"HDaoJuZhaoMingMoKuai"
 			};
 
-			ProcessClasses(blueprintHeirarchy, baseClassNames, "item", config, logger);
+			var items = FindObjects(baseClassNames);
+
+			WriteCsv(items, config, logger);
+			WriteSql(items, sqlWriter, logger);
 
 			return true;
+		}
+
+		private void WriteCsv(IEnumerable<ObjectInfo> items, Config config, Logger logger)
+		{
+			string outPath = Path.Combine(config.OutputDirectory, Name, $"{Name}.csv");
+			using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
+			using (StreamWriter writer = new(outFile))
+			{
+				writer.WriteLine("name,class");
+				foreach (ObjectInfo info in items)
+				{
+					writer.WriteLine($"\"{info.Name}\",\"{info.ClassName}\"");
+				}
+			}
+		}
+
+		private void WriteSql(IEnumerable<ObjectInfo> items, TextWriter sqlWriter, Logger logger)
+		{
+			// Schema
+			// create table `item` (`name` varchar(255), `class` varchar(255))
+
+			sqlWriter.WriteLine("truncate table `item`;");
+
+			string dbStr(string? value)
+			{
+				if (value is null) return "null";
+				return $"'{value.Replace("\'", "\'\'")}'";
+			}
+
+			foreach (ObjectInfo objectInfo in items)
+			{
+				sqlWriter.WriteLine($"insert into `item` values ({dbStr(objectInfo.Name)}, {dbStr(objectInfo.ClassName)});");
+			}
 		}
 	}
 }
