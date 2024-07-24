@@ -14,6 +14,7 @@
 
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 
 namespace SoulmaskDataMiner
 {
@@ -101,7 +102,10 @@ namespace SoulmaskDataMiner
 
 			string sqlPath = Path.Combine(mConfig.OutputDirectory, "update.sql");
 			using FileStream sqlFile = IOUtil.CreateFile(sqlPath, mLogger);
-			using StreamWriter sqlWriter = new(sqlFile);
+			using StreamWriter sqlWriter = new(sqlFile, Encoding.UTF8);
+
+			sqlWriter.WriteLine("set names utf8mb4;");
+			sqlWriter.WriteLine();
 
 			bool success = true;
 			foreach (IDataMiner miner in mMiners)

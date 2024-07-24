@@ -59,13 +59,13 @@ namespace SoulmaskDataMiner.Miners
 		private void WriteSql(IEnumerable<ObjectInfo> nonhumans, IEnumerable<ObjectInfo> humans, TextWriter sqlWriter, Logger logger)
 		{
 			// Schema
-			// create table `npc` (`human` bool, `name` varchar(255), `class` varchar(255))
+			// create table `npc` (`human` bool not null, `name` varchar(255) not null, `class` varchar(255) not null)
 
 			sqlWriter.WriteLine("truncate table `npc`;");
 
 			string dbStr(string? value)
 			{
-				if (value is null) return "null";
+				if (value is null) return "''";
 				return $"'{value.Replace("\'", "\'\'")}'";
 			}
 

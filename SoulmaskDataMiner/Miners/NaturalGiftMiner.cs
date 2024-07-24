@@ -175,7 +175,7 @@ namespace SoulmaskDataMiner.Miners
 		private void WriteSql(IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>> combinedGifts, TextWriter sqlWriter, Logger logger)
 		{
 			// Schema
-			// create table `ng` (`positive` bool, `source` int, `id1` int, `id2` int, `id3` int, `title` varchar(255), `description` varchar(1023))
+			// create table `ng` (`positive` bool, `source` int, `id1` int, `id2` int, `id3` int, `title` varchar(255) not null, `description` varchar(1023))
 
 			sqlWriter.WriteLine("truncate table `ng`;");
 

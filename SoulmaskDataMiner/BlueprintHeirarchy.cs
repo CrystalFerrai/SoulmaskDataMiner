@@ -47,7 +47,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public static void Load(IProviderManager providerManager, Logger logger)
 		{
-			logger.Log(LogLevel.Information, "Loading blueprint heirarchy...");
+			logger.Log(LogLevel.Important, "Loading blueprint heirarchy...");
 
 			Stopwatch timer = new Stopwatch();
 			timer.Start();
