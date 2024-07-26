@@ -1,4 +1,4 @@
-Command line program to extra data from the game Soulmask. This is mainly just for my own use to update data each week when the game updates.
+Command line program to extra data from the game Soulmask. This is mainly just for my own use to update data when the game updates.
 
 ## Usage
 
