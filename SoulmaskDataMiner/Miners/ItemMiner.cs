@@ -25,6 +25,10 @@ namespace SoulmaskDataMiner.Miners
 
 		protected override string NameProperty => "Name";
 
+		protected override string? DescriptionProperty => "Description";
+
+		protected override string? IconProperty => "Icon";
+
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			string[] baseClassNames = new string[]
@@ -58,6 +62,7 @@ namespace SoulmaskDataMiner.Miners
 
 			WriteCsv(items, config, logger);
 			WriteSql(items, sqlWriter, logger);
+			WriteTextures(items, config, logger);
 
 			return true;
 		}
@@ -68,10 +73,10 @@ namespace SoulmaskDataMiner.Miners
 			using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
 			using (StreamWriter writer = new(outFile))
 			{
-				writer.WriteLine("name,class");
-				foreach (ObjectInfo info in items)
+				writer.WriteLine("name,class,desc,icon");
+				foreach (ObjectInfo obj in items)
 				{
-					writer.WriteLine($"\"{info.Name}\",\"{info.ClassName}\"");
+					writer.WriteLine($"\"{obj.Name}\",\"{obj.ClassName}\",\"{obj.Description}\",\"{obj.Icon?.Name}\"");
 				}
 			}
 		}
@@ -79,19 +84,34 @@ namespace SoulmaskDataMiner.Miners
 		private void WriteSql(IEnumerable<ObjectInfo> items, TextWriter sqlWriter, Logger logger)
 		{
 			// Schema
-			// create table `item` (`name` varchar(255) not null, `class` varchar(255) not null)
+			// create table `item` (
+			//     `name` varchar(255) not null,
+			//     `class` varchar(255) not null
+			//     `desc` varchar(511),
+			//     `icon` varchar(255)
+			// )
 
 			sqlWriter.WriteLine("truncate table `item`;");
 
-			string dbStr(string? value)
+			string dbStr(string? value, bool canBeNull = true)
 			{
-				if (value is null) return "''";
+				if (value is null) return canBeNull ? "null" : "''";
 				return $"'{value.Replace("\'", "\'\'")}'";
 			}
 
-			foreach (ObjectInfo objectInfo in items)
+			foreach (ObjectInfo obj in items)
 			{
-				sqlWriter.WriteLine($"insert into `item` values ({dbStr(objectInfo.Name)}, {dbStr(objectInfo.ClassName)});");
+				sqlWriter.WriteLine($"insert into `item` values ({dbStr(obj.Name, false)}, {dbStr(obj.ClassName)}, {dbStr(obj.Description)}, {dbStr(obj.Icon?.Name)});");
+			}
+		}
+
+		private void WriteTextures(IEnumerable<ObjectInfo> items, Config config, Logger logger)
+		{
+			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
+			foreach (ObjectInfo obj in items)
+			{
+				if (obj.Icon is null) continue;
+				TextureExporter.ExportTexture(obj.Icon!, false, logger, outDir);
 			}
 		}
 	}

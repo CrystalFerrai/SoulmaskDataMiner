@@ -13,8 +13,10 @@
 // limitations under the License.
 
 using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
+using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 
@@ -36,6 +38,16 @@ namespace SoulmaskDataMiner.Miners
 		protected abstract string NameProperty { get; }
 
 		/// <summary>
+		/// The name of the property that stores the description to associate with the class.
+		/// </summary>
+		protected virtual string? DescriptionProperty => null;
+
+		/// <summary>
+		/// The name of the property that stores the icon to associate with the class.
+		/// </summary>
+		protected virtual string? IconProperty => null;
+
+		/// <summary>
 		/// Gathers a list of classes which derive from a specific class
 		/// </summary>
 		protected IEnumerable<ObjectInfo> FindObjects(IEnumerable<string> baseClassNames)
@@ -47,8 +59,9 @@ namespace SoulmaskDataMiner.Miners
 				{
 					if (classInfo.Export?.ExportObject.Value is UClass classObj)
 					{
-						string? name = FindObjectName(classObj);
-						infos.Add(new() { ClassName = classInfo.Name, Name = name });
+						ObjectInfo obj = new() { ClassName = classInfo.Name };
+						FindObjectProperties(classObj, ref obj);
+						infos.Add(obj);
 					}
 				}
 			}
@@ -57,45 +70,50 @@ namespace SoulmaskDataMiner.Miners
 			return infos;
 		}
 
-		private string? FindObjectName(UClass classObj)
+		private void FindObjectProperties(UClass classObj, ref ObjectInfo obj)
 		{
 			if (classObj.ClassDefaultObject.TryLoad(out UObject? defaults))
 			{
-				string? name = GetObjectName(defaults!);
-				if (name is not null) return name;
+				foreach (FPropertyTag property in defaults!.Properties)
+				{
+					if (obj.Name is null && string.Equals(property.Name.Text, NameProperty, StringComparison.OrdinalIgnoreCase))
+					{
+						obj.Name = property.Tag?.GetValue<FText>()?.Text;
+					}
+					else if (obj.Description is null && string.Equals(property.Name.Text, DescriptionProperty, StringComparison.OrdinalIgnoreCase))
+					{
+						obj.Description = property.Tag?.GetValue<FText>()?.Text;
+					}
+					else if (obj.Icon is null && string.Equals(property.Name.Text, IconProperty, StringComparison.OrdinalIgnoreCase))
+					{
+						obj.Icon = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+					}
+				}
+
+				if (obj.Name is not null &&
+					(obj.Description is not null || DescriptionProperty is null) &&
+					(obj.Icon is not null || IconProperty is null))
+				{
+					// Found everything
+					return;
+				}
 
 				if (classObj.Super is not null &&
 					classObj.Super.TryLoad(out UObject? super) &&
 					super is UBlueprintGeneratedClass superBlueprint)
 				{
-					return FindObjectName(superBlueprint);
+					// Search parents for anything we didn't find
+					FindObjectProperties(superBlueprint, ref obj);
 				}
 			}
-
-			return null;
-		}
-
-		private string? GetObjectName(UObject obj)
-		{
-			foreach (FPropertyTag property in obj.Properties)
-			{
-				if (!property.Name.Text.Equals(NameProperty)) continue;
-
-				if (property.Tag is TextProperty textProperty)
-				{
-					return textProperty.Value?.Text;
-				}
-
-				break;
-			}
-
-			return null;
 		}
 
 		protected struct ObjectInfo : IComparable<ObjectInfo>
 		{
 			public string ClassName;
 			public string? Name;
+			public string? Description;
+			public UTexture2D? Icon;
 
 			public int CompareTo(ObjectInfo other)
 			{

@@ -15,6 +15,7 @@
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Engine;
+using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.UObject;
@@ -42,6 +43,8 @@ namespace SoulmaskDataMiner.Miners
 
 			string sqlPath = Path.Combine(config.OutputDirectory, Name, "NaturalGifts.sql");
 			WriteSql(combinedGifts, sqlWriter, logger);
+
+			WriteTextures(combinedGifts, config, logger);
 
 			return true;
 		}
@@ -74,6 +77,7 @@ namespace SoulmaskDataMiner.Miners
 				int level = 0;
 				ENaturalGiftSource source = ENaturalGiftSource.Normal;
 				string? title = null, description = null;
+				UTexture2D? icon = null;
 
 				foreach (FPropertyTag property in row.Value.Properties)
 				{
@@ -91,6 +95,9 @@ namespace SoulmaskDataMiner.Miners
 						case "Desc":
 							description = property.Tag!.GetValue<FText>()!.Text;
 							break;
+						case "Pic":
+							icon = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+							break;
 					}
 				}
 
@@ -106,7 +113,8 @@ namespace SoulmaskDataMiner.Miners
 					Level = level,
 					IsGood = isGood,
 					Title = title,
-					Description = description
+					Description = description,
+					Icon = icon
 				});
 			}
 
@@ -132,7 +140,8 @@ namespace SoulmaskDataMiner.Miners
 					giftsToCombine.Add(a);
 
 					if (!string.Equals(a.Title, b.Title, StringComparison.OrdinalIgnoreCase) ||
-						!descriptionComparer.Equals(a.Description, b.Description))
+						!descriptionComparer.Equals(a.Description, b.Description) ||
+						!string.Equals(a.Icon?.Name, b.Icon?.Name, StringComparison.OrdinalIgnoreCase))
 					{
 						combinedList.Add(CombinedGiftData.CombineGifts(giftsToCombine, logger));
 						giftsToCombine.Clear();
@@ -161,13 +170,13 @@ namespace SoulmaskDataMiner.Miners
 				using StreamWriter writerGood = new(streamGood, Encoding.UTF8);
 				using StreamWriter writerBad = new(streamBad, Encoding.UTF8);
 
-				writerGood.WriteLine("Level 1,Level 2, Level 3,Title,Description");
-				writerBad.WriteLine("Level 1,Level 2, Level 3,Title,Description");
+				writerGood.WriteLine("Level 1,Level 2, Level 3,Title,Description,Icon");
+				writerBad.WriteLine("Level 1,Level 2, Level 3,Title,Description,Icon");
 
 				foreach (CombinedGiftData gift in pair.Value)
 				{
 					StreamWriter writer = gift.IsGood ? writerGood : writerBad;
-					writer.WriteLine($"{gift.Level1},{gift.Level2},{gift.Level3},\"{gift.Title}\",\"{gift.Description}\"");
+					writer.WriteLine($"{gift.Level1},{gift.Level2},{gift.Level3},\"{gift.Title}\",\"{gift.Description}\",{gift.Icon?.Name}");
 				}
 			}
 		}
@@ -175,7 +184,7 @@ namespace SoulmaskDataMiner.Miners
 		private void WriteSql(IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>> combinedGifts, TextWriter sqlWriter, Logger logger)
 		{
 			// Schema
-			// create table `ng` (`positive` bool, `source` int, `id1` int, `id2` int, `id3` int, `title` varchar(255) not null, `description` varchar(1023))
+			// create table `ng` (`positive` bool, `source` int, `id1` int, `id2` int, `id3` int, `title` varchar(255) not null, `description` varchar(1023), `icon` varchar(255))
 
 			sqlWriter.WriteLine("truncate table `ng`;");
 
@@ -194,7 +203,23 @@ namespace SoulmaskDataMiner.Miners
 			{
 				foreach (CombinedGiftData gift in pair.Value)
 				{
-					sqlWriter.WriteLine($"insert into `ng` values ({gift.IsGood}, {(int)pair.Key}, {dbInt(gift.Level1)}, {dbInt(gift.Level2)}, {dbInt(gift.Level3)}, {dbStr(gift.Title)}, {dbStr(gift.Description)});");
+					sqlWriter.WriteLine($"insert into `ng` values ({gift.IsGood}, {(int)pair.Key}, {dbInt(gift.Level1)}, {dbInt(gift.Level2)}, {dbInt(gift.Level3)}, {dbStr(gift.Title)}, {dbStr(gift.Description)}, {dbStr(gift.Icon?.Name)});");
+				}
+			}
+		}
+
+		private void WriteTextures(IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>> combinedGifts, Config config, Logger logger)
+		{
+			HashSet<string> seenTextures = new();
+			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
+			foreach (var pair in combinedGifts)
+			{
+				foreach (CombinedGiftData data in pair.Value)
+				{
+					if (data.Icon is null) continue;
+					if (!seenTextures.Add(data.Icon!.Name)) continue;
+
+					TextureExporter.ExportTexture(data.Icon!, false, logger, outDir);
 				}
 			}
 		}
@@ -213,7 +238,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			return id < 200000
 				|| id >= 300000 && id < 510000
-				|| id >= 600000 && id < 900000 && id != 600051 && id != 600054 && id != 600055 && id != 600056;
+				|| id >= 600000 && id < 900000 && id != 600051 && id != 600054 && id != 600056;
 		}
 
 		private static string TranslateGiftSource(ENaturalGiftSource source)
@@ -244,6 +269,8 @@ namespace SoulmaskDataMiner.Miners
 			public string? Title;
 			public string? Description;
 
+			public UTexture2D? Icon;
+
 			public int CompareTo(GiftData other)
 			{
 				return ID.CompareTo(other.ID);
@@ -267,6 +294,8 @@ namespace SoulmaskDataMiner.Miners
 
 			public string? Title;
 			public string? Description;
+
+			public UTexture2D? Icon;
 
 			public static CombinedGiftData CombineGifts(IReadOnlyList<GiftData> gifts, Logger logger)
 			{
@@ -350,7 +379,8 @@ namespace SoulmaskDataMiner.Miners
 					Level3 = level3,
 					IsGood = gifts[0].IsGood,
 					Title = gifts[0].Title,
-					Description = description
+					Description = description,
+					Icon = gifts[0].Icon
 				};
 
 				return instance;
