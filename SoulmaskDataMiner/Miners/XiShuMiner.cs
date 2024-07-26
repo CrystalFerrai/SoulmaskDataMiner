@@ -29,9 +29,9 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Mines data about game coefficient settings
 	/// </summary>
-	internal class XishuMiner : IDataMiner
+	internal class XiShuMiner : IDataMiner
 	{
-		public string Name => "Xishu";
+		public string Name => "XiShu";
 
 		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
