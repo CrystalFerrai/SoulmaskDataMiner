@@ -78,15 +78,15 @@ namespace SoulmaskDataMiner.Miners
 				{
 					if (obj.Name is null && string.Equals(property.Name.Text, NameProperty, StringComparison.OrdinalIgnoreCase))
 					{
-						obj.Name = property.Tag?.GetValue<FText>()?.Text;
+						obj.Name = GameUtil.ReadTextProperty(property);
 					}
 					else if (obj.Description is null && string.Equals(property.Name.Text, DescriptionProperty, StringComparison.OrdinalIgnoreCase))
 					{
-						obj.Description = property.Tag?.GetValue<FText>()?.Text;
+						obj.Description = GameUtil.ReadTextProperty(property);
 					}
 					else if (obj.Icon is null && string.Equals(property.Name.Text, IconProperty, StringComparison.OrdinalIgnoreCase))
 					{
-						obj.Icon = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+						obj.Icon = GameUtil.ReadTextureProperty(property);
 					}
 				}
 

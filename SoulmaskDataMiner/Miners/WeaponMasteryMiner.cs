@@ -106,7 +106,7 @@ namespace SoulmaskDataMiner.Miners
 							data.ID = property.Tag!.GetValue<int>();
 							break;
 						case "UseWuQiLeiXing":
-							if (TryParseEnum<EWuQiLeiXing>(property.Tag!.GetValue<FName>(), out EWuQiLeiXing wt))
+							if (GameUtil.TryParseEnum<EWuQiLeiXing>(property, out EWuQiLeiXing wt))
 							{
 								weaponType = wt;
 							}
@@ -222,22 +222,16 @@ namespace SoulmaskDataMiner.Miners
 				switch (property.Name.Text)
 				{
 					case "AbilityIcon":
-						mastery.Icon = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+						mastery.Icon = GameUtil.ReadTextureProperty(property);
 						break;
 					case "AbilityName":
-						mastery.Name = property.Tag?.GetValue<FText>()?.Text;
+						mastery.Name = GameUtil.ReadTextProperty(property);
 						break;
 					case "JinengMiaoshu":
-						mastery.Description = property.Tag?.GetValue<FText>()?.Text;
+						mastery.Description = GameUtil.ReadTextProperty(property);
 						break;
 				}
 			}
-		}
-
-		private static bool TryParseEnum<T>(FName value, out T result) where T : struct
-		{
-			string name = value.Text.Substring(value.Text.LastIndexOf(':') + 1);
-			return Enum.TryParse<T>(name, out result);
 		}
 
 		private struct MasteryData

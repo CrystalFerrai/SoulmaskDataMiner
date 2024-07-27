@@ -80,11 +80,11 @@ namespace SoulmaskDataMiner.Miners
 					FName xishuName;
 					if (assetsData.TextNameMap.TryGetValue(xishuData.Name, out xishuName))
 					{
-						xishuData.Description = assetsData.TextTable.RowMap[xishuName].Properties[0].Tag!.GetValue<FText>()!.Text;
+						xishuData.Description = GameUtil.ReadTextProperty(assetsData.TextTable.RowMap[xishuName].Properties[0])!;
 					}
 					if (assetsData.TipsNameMap.TryGetValue(xishuData.Name, out xishuName))
 					{
-						xishuData.Tip = assetsData.TipsTable.RowMap[xishuName].Properties[0].Tag!.GetValue<FText>()!.Text;
+						xishuData.Tip = GameUtil.ReadTextProperty(assetsData.TipsTable.RowMap[xishuName].Properties[0]);
 					}
 
 					list.Add(xishuData);

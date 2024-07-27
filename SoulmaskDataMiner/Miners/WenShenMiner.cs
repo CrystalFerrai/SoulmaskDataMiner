@@ -111,7 +111,7 @@ namespace SoulmaskDataMiner.Miners
 					{
 						case "CaiHuiIcon":
 							{
-								UTexture2D? icon = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+								UTexture2D? icon = GameUtil.ReadTextureProperty(property);
 								if (icon is not null)
 								{
 									string[] parts = icon.Name.Split('_');
@@ -133,29 +133,15 @@ namespace SoulmaskDataMiner.Miners
 							}
 							break;
 						case "XingBie":
+							if (GameUtil.TryParseEnum<EXingBieType>(property, out EXingBieType gender))
 							{
-								if (property.Tag is null)
-								{
-									continue;
-								}
-								FName genderName = property.Tag.GetValue<FName>();
-								if (TryParseEnum<EXingBieType>(genderName, out EXingBieType gender))
-								{
-									data.Gender = gender;
-								}
+								data.Gender = gender;
 							}
 							break;
 						case "BuWei":
+							if (GameUtil.TryParseEnum<EHWenShenBuWei>(property, out EHWenShenBuWei location))
 							{
-								if (property.Tag is null)
-								{
-									continue;
-								}
-								FName locationName = property.Tag.GetValue<FName>();
-								if (TryParseEnum<EHWenShenBuWei>(locationName, out EHWenShenBuWei location))
-								{
-									data.Location = location;
-								}
+								data.Location = location;
 							}
 							break;
 						case "YiXingCaiHuiIndex":
@@ -259,12 +245,6 @@ namespace SoulmaskDataMiner.Miners
 				TextureExporter.ExportTexture(ws.Arm.Icon, false, logger, outDir);
 				TextureExporter.ExportTexture(ws.Leg.Icon, false, logger, outDir);
 			}
-		}
-
-		private static bool TryParseEnum<T>(FName value, out T result) where T : struct
-		{
-			string name = value.Text.Substring(value.Text.LastIndexOf(':') + 1);
-			return Enum.TryParse<T>(name, out result);
 		}
 
 		private static bool TryParseIntFromEnd(string value, [NotNullWhen(true)] out string? truncated, out int result)

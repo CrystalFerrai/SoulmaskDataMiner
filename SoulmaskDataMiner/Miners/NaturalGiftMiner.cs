@@ -90,13 +90,13 @@ namespace SoulmaskDataMiner.Miners
 							source = ParseSource(property.Tag!.GetValue<FName>()!.Text, id, logger);
 							break;
 						case "Title":
-							title = property.Tag!.GetValue<FText>()!.Text;
+							title = GameUtil.ReadTextProperty(property);
 							break;
 						case "Desc":
-							description = property.Tag!.GetValue<FText>()!.Text;
+							description = GameUtil.ReadTextProperty(property);
 							break;
 						case "Pic":
-							icon = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+							icon = GameUtil.ReadTextureProperty(property);
 							break;
 					}
 				}
