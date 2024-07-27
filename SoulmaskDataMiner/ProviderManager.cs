@@ -15,6 +15,9 @@
 using CUE4Parse.Encryption.Aes;
 using CUE4Parse.FileProvider;
 using CUE4Parse.UE4.Versions;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Diagnostics;
 
 namespace SoulmaskDataMiner
 {
@@ -29,7 +32,11 @@ namespace SoulmaskDataMiner
 
 		private readonly DefaultFileProvider mProvider;
 
+		private Dictionary<string, MetaClass>? mClassMetadata;
+
 		public IFileProvider Provider => mProvider;
+
+		public IReadOnlyDictionary<string, MetaClass>? ClassMetadata => mClassMetadata;
 
 		public ProviderManager(Config config)
 		{
@@ -40,6 +47,10 @@ namespace SoulmaskDataMiner
 		public bool Initialize(Logger logger)
 		{
 			InitializeProvider(mProvider);
+			if (!LoadClassMetaData(logger))
+			{
+				return false;
+			}
 
 			return true;
 		}
@@ -91,6 +102,117 @@ namespace SoulmaskDataMiner
 			}
 
 			provider.LoadLocalization(ELanguage.English);
+		}
+
+		private bool LoadClassMetaData(Logger logger)
+		{
+			if (mConfig.ClassesPath is null) return true;
+
+			try
+			{
+				logger.Log(LogLevel.Information, "Loading class metadata...");
+
+				Stopwatch timer = new();
+				timer.Start();
+
+				JObject root;
+
+				using (FileStream file = File.OpenRead(mConfig.ClassesPath))
+				using (StreamReader sr = new(file))
+				using (JsonReader reader = new JsonTextReader(sr))
+				{
+					root = JObject.Load(reader);
+				}
+
+				JArray classArray = (JArray)root["data"]!;
+
+				Dictionary<string, MetaClass> classes = new();
+
+				HashSet<string> propertiesToIgnore = new()
+				{
+					"__MDKClassSize"
+				};
+				foreach (JObject classObj in classArray)
+				{
+					foreach (JProperty @class in classObj.Properties())
+					{
+						string className = @class.Name;
+						if (classes.ContainsKey(className))
+						{
+							logger.Log(LogLevel.Debug, $"Found an additional instance of class \"{className}\" in metadata. Skipping.");
+							continue;
+						}
+
+						string? classSuper = null;
+						List<MetaClassProperty> classProperties = new();
+
+						JArray classPropertyArray = (JArray)@class.Value;
+						foreach (JObject classPropertyObj in classPropertyArray)
+						{
+							foreach (JProperty classProperty in classPropertyObj.Properties())
+							{
+								string propertyName = classProperty.Name;
+								if (propertiesToIgnore.Contains(propertyName)) continue;
+
+								if (propertyName.Equals("__InheritInfo"))
+								{
+									JArray classSuperArray = (JArray)classProperty.Value;
+									if (classSuperArray.Count > 0)
+									{
+										classSuper = (string)classSuperArray[0]!;
+									}
+									continue;
+								}
+
+								JArray propertyValue = (JArray)classProperty.Value;
+								JArray propertyValue0 = (JArray)propertyValue[0];
+
+								string propertyType = (string)propertyValue0[0]!;
+
+								classProperties.Add(new() { Name = propertyName, Type = propertyType });
+							}
+						}
+
+						classes.Add(className, new() { Name = className, Super = classSuper!, Properties = classProperties });
+					}
+				}
+
+				mClassMetadata = classes;
+
+				timer.Stop();
+
+				logger.Log(LogLevel.Information, $"Class metadata loaded in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
+
+				return true;
+			}
+			catch (Exception ex)
+			{
+				logger.LogError($"Failed to load class metadata. [{ex.GetType().FullName}] {ex.Message}");
+				return false;
+			}
+		}
+	}
+
+	internal struct MetaClass
+	{
+		public string Name;
+		public string? Super;
+		public IReadOnlyList<MetaClassProperty> Properties;
+
+		public override string ToString()
+		{
+			return $"{Name} ({Properties.Count} properties)";
+		}
+	}
+
+	internal struct MetaClassProperty
+	{
+		public string Name;
+		public string Type;
+
+		public override string ToString()
+		{
+			return $"{Name} [{Type}]";
 		}
 	}
 }

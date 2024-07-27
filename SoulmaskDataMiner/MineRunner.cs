@@ -220,6 +220,19 @@ namespace SoulmaskDataMiner
 					RequireHeirarchyAttribute? requireHeirarchyAttribute = type.GetCustomAttribute<RequireHeirarchyAttribute>();
 					bool requireHeirarchy = requireHeirarchyAttribute?.IsRequired ?? false;
 
+					RequireClassDataAttribute? requireClassDataAttribute = type.GetCustomAttribute<RequireClassDataAttribute>();
+					if ((requireClassDataAttribute?.IsRequired ?? false) && mProviderManager.ClassMetadata is null)
+					{
+						IDataMiner? temp = (IDataMiner?)Activator.CreateInstance(type);
+						mLogger.Log(LogLevel.Warning, $"Skipping miner \"{temp?.Name ?? type.Name}\" because class metadata has not been loaded. Use the --classes parameter to specify a class metadata file to load.");
+
+						if (temp is not null)
+						{
+							includeMiners?.RemoveWhere(n => n.Equals(temp.Name, StringComparison.OrdinalIgnoreCase));
+						}
+						continue;
+					}
+
 					IDataMiner? miner;
 					try
 					{
@@ -257,7 +270,7 @@ namespace SoulmaskDataMiner
 			}
 			if (mMiners.Count == 0)
 			{
-				mLogger.Log(LogLevel.Error, "No data miners were found which match the passed in filter");
+				mLogger.Log(LogLevel.Error, "No data miners which match the passed in filter could run.");
 			}
 			else
 			{

@@ -25,5 +25,16 @@ namespace SoulmaskDataMiner
 		/// Gets the provider associated with the game's content directory
 		/// </summary>
 		IFileProvider Provider { get; }
+
+		/// <summary>
+		/// Metadata for game classes, if it was passed to the program. Mapped by class name.
+		/// </summary>
+		/// <remarks>
+		/// A miner which requires this data should declare the attribute [RequireClassData(true)]. This will
+		/// cause the miner to be skipped if the data is not available, thus it is safe to assume the data
+		/// exists during the run of the miner. A miner that can optionally use the data should first null
+		/// check the property to ensure it exists.
+		/// </remarks>
+		IReadOnlyDictionary<string, MetaClass>? ClassMetadata { get; }
 	}
 }

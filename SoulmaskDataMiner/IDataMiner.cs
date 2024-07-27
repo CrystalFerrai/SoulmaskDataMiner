@@ -66,4 +66,18 @@ namespace SoulmaskDataMiner
 			IsRequired = isRequired;
 		}
 	}
+
+	/// <summary>
+	/// Indicates whether a data miner requires that class metadata is avaialble.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class)]
+	internal class RequireClassDataAttribute : Attribute
+	{
+		public bool IsRequired { get; set; }
+
+		public RequireClassDataAttribute(bool isRequired)
+		{
+			IsRequired = isRequired;
+		}
+	}
 }

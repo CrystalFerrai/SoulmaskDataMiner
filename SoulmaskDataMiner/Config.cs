@@ -38,6 +38,11 @@ namespace SoulmaskDataMiner
 		public string? EncryptionKey { get; set; }
 
 		/// <summary>
+		/// Path to a ClassesInfo.json file output by Dumper-7
+		/// </summary>
+		public string? ClassesPath { get; set; }
+
+		/// <summary>
 		/// A list of miners to run
 		/// </summary>
 		public IReadOnlyList<string>? Miners { get; set; }
@@ -74,6 +79,19 @@ namespace SoulmaskDataMiner
 							if (i < args.Length - 1 && !args[i + 1].StartsWith("--"))
 							{
 								instance.EncryptionKey = args[i + 1];
+								++i;
+							}
+							else
+							{
+								logger.LogError("Missing parameter for --key argument");
+								result = null;
+								return false;
+							}
+							break;
+						case "classes":
+							if (i < args.Length - 1 && !args[i + 1].StartsWith("--"))
+							{
+								instance.ClassesPath = args[i + 1];
 								++i;
 							}
 							else
@@ -163,6 +181,13 @@ namespace SoulmaskDataMiner
 				return false;
 			}
 
+			if (instance.ClassesPath is not null && !File.Exists(instance.ClassesPath))
+			{
+				logger.LogError($"The specified classes path \"{instance.ClassesPath}\" does not exist or is inaccessible");
+				result = null;
+				return false;
+			}
+
 			result = instance;
 			return true;
 		}
@@ -187,6 +212,9 @@ namespace SoulmaskDataMiner
 			logger.Log(logLevel, $"{indent}Options");
 			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}  --key [key]       The AES encryption key for the game's data.");
+			logger.LogEmptyLine(logLevel);
+			logger.Log(logLevel, $"{indent}  --classes [path]  Path to a ClassesInfo.json file output from running Dumper-7.");
+			logger.Log(logLevel, $"{indent}                    If not specified, miners that require it will be skipped.");
 			logger.LogEmptyLine(logLevel);
 			logger.Log(logLevel, $"{indent}  --miners [miners] Comma separated list of miners to run. If not specified,");
 			logger.Log(logLevel, $"{indent}                    default miners will run.");

@@ -127,6 +127,7 @@ namespace SoulmaskDataMiner.Miners
 			proficiencies = allProfs;
 			return true;
 		}
+
 		private void WriteCsv(IEnumerable<ProficiencyData> proficiencies, Config config, Logger logger)
 		{
 			string outPath = Path.Combine(config.OutputDirectory, Name, $"{Name}.csv");
