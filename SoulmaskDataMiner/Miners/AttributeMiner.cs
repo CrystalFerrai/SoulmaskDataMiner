@@ -92,8 +92,9 @@ namespace SoulmaskDataMiner.Miners
 		{
 			// Schema
 			// create table `attr` (
+			//     `idx` int not null,
 			//     `name` varchar(127) not null,
-			//     primary key (`name`)
+			//     primary key (`idx`)
 			// );
 
 			string dbStr(string? value)
@@ -103,9 +104,10 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			sqlWriter.WriteLine("truncate table `attr`;");
+			int i = 0;
 			foreach (string attribute in attributes)
 			{
-				sqlWriter.WriteLine($"insert into `attr` values ({dbStr(attribute)});");
+				sqlWriter.WriteLine($"insert into `attr` values ({i++}, {dbStr(attribute)});");
 			}
 		}
 	}
