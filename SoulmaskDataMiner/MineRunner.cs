@@ -102,9 +102,10 @@ namespace SoulmaskDataMiner
 
 			string sqlPath = Path.Combine(mConfig.OutputDirectory, "update.sql");
 			using FileStream sqlFile = IOUtil.CreateFile(sqlPath, mLogger);
-			using StreamWriter sqlWriter = new(sqlFile, Encoding.UTF8);
+			using StreamWriter sqlWriter = new(sqlFile, Encoding.UTF8) { NewLine = "\n" };
 
 			sqlWriter.WriteLine("set names utf8mb4;");
+			sqlWriter.WriteLine("start transaction;");
 			sqlWriter.WriteLine();
 
 			bool success = true;
@@ -141,6 +142,9 @@ namespace SoulmaskDataMiner
 
 				mLogger.Log(LogLevel.Information, $"[{miner.Name}] completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
 			}
+
+			sqlWriter.WriteLine("commit;");
+
 			return success;
 		}
 
