@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using CUE4Parse.UE4.Assets;
+using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
+using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.i18N;
+using CUE4Parse.UE4.Objects.Core.Math;
+using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 
 namespace SoulmaskDataMiner
@@ -71,6 +76,53 @@ namespace SoulmaskDataMiner
 		public static UTexture2D? ReadTextureProperty(FPropertyTag property)
 		{
 			return property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+		}
+
+		/// <summary>
+		/// Attempts to read a property value as a texture
+		/// </summary>
+		/// <param name="property">The property to read</param>
+		/// <returns>The texture, or null if failure</returns>
+		public static UTexture2D? ReadTextureProperty(FPropertyTagType? property)
+		{
+			return property?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+		}
+
+		public static UObject? FindBlueprintDefaultsObject(Package package)
+		{
+			foreach (FObjectExport export in package.ExportMap)
+			{
+				if (!export.ClassName.Equals("BlueprintGeneratedClass")) continue;
+
+				UBlueprintGeneratedClass? exportObj = export.ExportObject.Value as UBlueprintGeneratedClass;
+				if (exportObj is null) continue;
+
+				return exportObj.ClassDefaultObject.ResolvedObject?.Load();
+			}
+
+			return null;
+		}
+
+		/// <summary>
+		/// Converts a location from world space to map space
+		/// </summary>
+		/// <param name="world">The coordinate to convert</param>
+		/// <param name="worldSize">The full width/height of the world</param>
+		/// <param name="mapSize">The full width/height of the map texture</param>
+		public static FVector2D WorldToMap(FVector world, float worldSize = 816000.0f, float mapSize = 4096.0f)
+		{
+			return new(WorldToMap(world.X, worldSize, mapSize), WorldToMap(world.Y, worldSize, mapSize));
+		}
+
+		/// <summary>
+		/// Converts a coordinate value from world space to map space
+		/// </summary>
+		/// <param name="world">The value to convert</param>
+		/// <param name="worldSize">The full width/height of the world</param>
+		/// <param name="mapSize">The full width/height of the map texture</param>
+		public static float WorldToMap(float world, float worldSize = 816000.0f, float mapSize = 4096.0f)
+		{
+			return (float)Math.Round((world + worldSize * 0.5f) / worldSize * mapSize);
 		}
 	}
 }
