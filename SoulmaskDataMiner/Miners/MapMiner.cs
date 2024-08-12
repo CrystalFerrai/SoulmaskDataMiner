@@ -199,7 +199,7 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
-				MapPoi tabletData = new() { Type = "Ancient Tablet", Name = "Ancient Tablet" };
+				MapPoi tabletData = new() { Name = "Ancient Tablet", Type = "Ancient Tablet" };
 				foreach (FPropertyTag property in tabletDataObj.Properties)
 				{
 					switch (property.Name.Text)
@@ -216,9 +216,16 @@ namespace SoulmaskDataMiner.Miners
 						case "TextureIcon":
 							tabletData.Icon = GameUtil.ReadTextureProperty(property)!;
 							break;
+						case "NumberParam1":
+							if (property.Tag!.GetValue<int>() == 1)
+							{
+								tabletData.Name = "Divine Tablet";
+								tabletData.Type = "Divine Tablet";
+							}
+							break;
 					}
 				}
-				if (tabletData.Name is null || tabletData.Icon is null)
+				if (tabletData.Icon is null)
 				{
 					logger.Log(LogLevel.Warning, $"Unable to find all data for tablet POI {className}");
 					continue;
