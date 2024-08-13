@@ -127,6 +127,25 @@ namespace SoulmaskDataMiner
 			return Enumerable.Empty<BlueprintClassInfo>();
 		}
 
+		/// <summary>
+		/// Returns whether the passed in class is or derives from a specific super class
+		/// </summary>
+		/// <param name="className">The class to check</param>
+		/// <param name="superName">The class to search for</param>
+		/// <returns>True if the passed in class is or derives from the specified super class, else false</returns>
+		public bool IsDerivedFrom(string className, string superName)
+		{
+			if (className == superName) return true;
+
+			string? current = className;
+			while (current != null && mSuperMap.TryGetValue(current, out InternalClassInfo classInfo))
+			{
+				if (classInfo.SuperName == superName) return true;
+				current = classInfo.SuperName;
+			}
+			return false;
+		}
+
 		private IEnumerable<BlueprintClassInfo> InternalGetDerivedClasses(InternalClassInfo classInfo)
 		{
 			foreach (string name in classInfo.DerivedNames)

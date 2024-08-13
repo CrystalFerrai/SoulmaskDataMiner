@@ -13,10 +13,7 @@
 // limitations under the License.
 
 using CUE4Parse.FileProvider;
-using CUE4Parse.FileProvider.Objects;
-using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Texture;
-using CUE4Parse.UE4.Objects.UObject;
 using CUE4Parse_Conversion.Textures;
 using SkiaSharp;
 
@@ -38,28 +35,10 @@ namespace SoulmaskDataMiner
 		/// <returns>True if the export succeeded, false on failure or if no texture was found</returns>
 		public static bool ExportFirstTexture(IFileProvider provider, string assetPath, bool includePath, Logger logger, string outDir)
 		{
-			if (!provider.TryFindGameFile(assetPath, out GameFile file))
-			{
-				logger.LogError($"Unable to locate asset {assetPath}.");
-				return false;
-			}
+			UTexture2D? texture = GameUtil.LoadFirstTexture(provider, assetPath, logger);
+			if (texture is null) return false;
 
-			Package package = (Package)provider.LoadPackage(file);
-
-			bool success = false;
-			foreach (FObjectExport export in package.ExportMap)
-			{
-				if (!export.ClassName.Equals("Texture2D")) continue;
-
-				UTexture2D? texture = export.ExportObject.Value as UTexture2D;
-				if (texture is null) continue;
-
-				success = ExportTexture(texture, includePath, logger, outDir);
-
-				break;
-			}
-
-			return success;
+			return ExportTexture(texture, includePath, logger, outDir);
 		}
 
 		/// <summary>
