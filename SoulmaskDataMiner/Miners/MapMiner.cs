@@ -49,7 +49,7 @@ namespace SoulmaskDataMiner.Miners
 				return false;
 			}
 
-			logger.Log(LogLevel.Information, "Exporting POI data...");
+			logger.Log(LogLevel.Information, "Exporting location data...");
 			WriteIcons(mapLocations, config, logger);
 			WriteCsv(mapLocations, config, logger);
 			WriteSql(mapLocations, sqlWriter, logger);
@@ -543,7 +543,7 @@ namespace SoulmaskDataMiner.Miners
 						searchProperties(obj);
 						if ((scgClasses.Count == 0 || rootComponent is null) && obj.Class is UBlueprintGeneratedClass objClass)
 						{
-							SearchHierarchy(objClass, (current) =>
+							BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 							{
 								UObject? currentObj = current.ClassDefaultObject.Load();
 								if (currentObj is null) return true;
@@ -553,190 +553,12 @@ namespace SoulmaskDataMiner.Miners
 							});
 						}
 
-						List<FStructFallback> scgDataList = new();
-						HashSet<string> humanNames = new();
-						foreach (UBlueprintGeneratedClass scgClass in scgClasses)
+						MultiSpawnData? spawnData = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, defaultScgObj);
+						if (spawnData is null)
 						{
-							FStructFallback? scgData = null;
-							string? humanName = null;
-
-							SearchHierarchy(scgClass, (current) =>
-							{
-								UObject? scgObj = current.ClassDefaultObject.Load();
-								if (scgObj is null)
-								{
-									scgObj = defaultScgObj;
-									if (scgObj is null)
-									{
-										logger.Log(LogLevel.Warning, $"[{export.ObjectName}] No data found for spawner class.");
-										return false;
-									}
-								}
-
-								foreach (FPropertyTag property in scgObj.Properties)
-								{
-									switch (property.Name.Text)
-									{
-										case "SCGInfoList":
-											if (scgData is null)
-											{
-												scgData = property.Tag?.GetValue<UScriptArray>()?.Properties[0].GetValue<FStructFallback>();
-												if (scgData is not null)
-												{
-													scgDataList.Add(scgData);
-												}
-											}
-											break;
-										case "ManRenMingZi":
-											if (humanName is null)
-											{
-												humanName = GameUtil.ReadTextProperty(property);
-												if (humanName is not null)
-												{
-													humanNames.Add(humanName);
-												}
-											}
-											break;
-									}
-								}
-
-								return scgData is not null && humanName is not null;
-							});
-						}
-
-						if (scgDataList.Count == 0 || rootComponent is null)
-						{
-							if (!BlueprintHeirarchy.Get().IsDerivedFrom(export.ClassName, "HJianZhuBuLuoQiuLong"))
-							{
-								logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Failed to load spawn point data");
-							}
 							continue;
 						}
-
-						List<UScriptArray> sgbLists = new();
-						foreach (FStructFallback scgData in scgDataList)
-						{
-							foreach (FPropertyTag property in scgData.Properties)
-							{
-								switch (property.Name.Text)
-								{
-									case "SGBList":
-										{
-											UScriptArray? sgbList = property.Tag?.GetValue<UScriptArray>();
-											if (sgbList is not null)
-											{
-												sgbLists.Add(sgbList);
-											}
-										}
-										break;
-								}
-							}
-						}
-
-						if (sgbLists.Count == 0)
-						{
-							logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Failed to load spawn point data");
-							continue;
-						}
-
-						List<UBlueprintGeneratedClass> npcClasses = new();
-						int minLevel = int.MaxValue, maxLevel = int.MinValue;
-						foreach (UScriptArray sgbList in sgbLists)
-						{
-							foreach (FPropertyTagType item in sgbList.Properties)
-							{
-								FStructFallback itemStruct = item.GetValue<FStructFallback>()!;
-								foreach (FPropertyTag property in itemStruct.Properties)
-								{
-									switch (property.Name.Text)
-									{
-										case "GuaiWuClass":
-											{
-												UBlueprintGeneratedClass? npcClass = property.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
-												if (npcClass is not null)
-												{
-													npcClasses.Add(npcClass);
-												}
-											}
-											break;
-										case "SCGZuiXiaoDengJi":
-											{
-												int value = property.Tag!.GetValue<int>();
-												if (minLevel > value) minLevel = value;
-											}
-											break;
-										case "SCGZuiDaDengJi":
-											{
-												int value = property.Tag!.GetValue<int>();
-												if (maxLevel < value) maxLevel = value;
-											}
-											break;
-									}
-								}
-							}
-						}
-
-						if (npcClasses.Count == 0)
-						{
-							logger.Log(LogLevel.Warning, $"[{export.ObjectName}] No NPC classes found for spawn point");
-							continue;
-						}
-
-						if (minLevel == int.MaxValue)
-						{
-							minLevel = (maxLevel == int.MinValue) ? 0 : maxLevel;
-						}
-						if (maxLevel == int.MinValue)
-						{
-							maxLevel = (minLevel == int.MaxValue) ? 0 : minLevel;
-						}
-
-						bool isHumanSpawner = humanNames.Count > 0;
-
-						string poiName = null!;
-						if (isHumanSpawner)
-						{
-							poiName = string.Join(", ",  humanNames);
-						}
-						else
-						{
-							HashSet<string> npcNames = new(npcClasses.Count);
-							foreach (UBlueprintGeneratedClass npcClass in npcClasses)
-							{
-								SearchHierarchy(npcClass, (current =>
-								{
-									UObject? npcObj = current?.ClassDefaultObject.Load();
-									if (npcObj is null)
-									{
-										return false;
-									}
-
-									string? npcName = null;
-									foreach (FPropertyTag property in npcObj.Properties)
-									{
-										if (property.Name.Text.Equals("MoRenMingZi"))
-										{
-											npcName = GameUtil.ReadTextProperty(property);
-											break;
-										}
-									}
-
-									if (npcName is null)
-									{
-										return false;
-									}
-
-									npcNames.Add(npcName);
-									return true;
-								}));
-							}
-							if (npcNames.Count == 0)
-							{
-								logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Failed to locate NPC name for spawn point");
-								continue;
-							}
-							poiName = string.Join(", ", npcNames);
-						}
+						string poiName = string.Join(", ", spawnData.NpcNames);
 
 						FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 						if (locationProperty is null)
@@ -747,7 +569,7 @@ namespace SoulmaskDataMiner.Miners
 
 						FVector location = locationProperty.Tag!.GetValue<FVector>();
 
-						string npcClassName = npcClasses[0].Name;
+						string npcClassName = spawnData.NpcClasses.First().Name;
 						SpawnLayerType layerType = SpawnLayerType.Unknown;
 						if (BlueprintHeirarchy.Get().IsDerivedFrom(npcClassName, "BP_JiXie_Base_C"))
 						{
@@ -763,7 +585,7 @@ namespace SoulmaskDataMiner.Miners
 						}
 						SpawnLayerInfo layerInfo = spawnLayerMap[layerType];
 
-						string levelText = (minLevel == maxLevel) ? minLevel.ToString() : $"{minLevel} - {maxLevel}";
+						string levelText = (spawnData.MinLevel == spawnData.MaxLevel) ? spawnData.MinLevel.ToString() : $"{spawnData.MinLevel} - {spawnData.MaxLevel}";
 
 						SpawnLayerGroup group = SpawnLayerGroup.Npc;
 						string type = layerInfo.Name;
@@ -798,20 +620,6 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			return true;
-		}
-
-		private void SearchHierarchy(UBlueprintGeneratedClass start, Predicate<UBlueprintGeneratedClass> searchFunc)
-		{
-			UBlueprintGeneratedClass? current = start;
-			while (current != null)
-			{
-				if (searchFunc(current))
-				{
-					break;
-				}
-
-				current = current.Super?.Load() as UBlueprintGeneratedClass;
-			}
 		}
 
 		private void FindPoiTextures(MapPoiLookups lookups, IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons, Logger logger)
@@ -1025,16 +833,16 @@ namespace SoulmaskDataMiner.Miners
 				ETanSuoDianType.ETSD_TYPE_NOT_DEFINE => "Unknown",
 				ETanSuoDianType.ETSD_TYPE_JINZITA => "Ancient Pyramid",
 				ETanSuoDianType.ETSD_TYPE_YIJI => "Ruins (Holy)",
-				ETanSuoDianType.ETSD_TYPE_DIXIA_YIJI => "Dungeon (Ancient Ruins)",
-				ETanSuoDianType.ETSD_TYPE_YEWAI_YIJI => "Ruins (Ancient)",
-				ETanSuoDianType.ETSD_TYPE_YEWAI_YIZHI => "Ruins (Ancient)",
+				ETanSuoDianType.ETSD_TYPE_DIXIA_YIJI => "Dungeon (Ruins)",
+				ETanSuoDianType.ETSD_TYPE_YEWAI_YIJI => "Ruins (Large)",
+				ETanSuoDianType.ETSD_TYPE_YEWAI_YIZHI => "Ruins",
 				ETanSuoDianType.ETSD_TYPE_BULUO_CHENGZHAI_BIG => "Barbarian Fortress",
 				ETanSuoDianType.ETSD_TYPE_BULUO_CHENGZHAI_MIDDLE => "Barbarian Barrack",
 				ETanSuoDianType.ETSD_TYPE_BULUO_CHENGZHAI_SMALL => "Barbarian Camp",
 				ETanSuoDianType.ETSD_TYPE_CHAOXUE => "Beast Lair",
 				ETanSuoDianType.ETSD_TYPE_KUANGCHUANG_BIG => "Mine (Large)",
 				ETanSuoDianType.ETSD_TYPE_KUANGCHUANG_MIDDLE => "Mine",
-				ETanSuoDianType.ETSD_TYPE_DIXIACHENG => "Dungeon (Ancient)",
+				ETanSuoDianType.ETSD_TYPE_DIXIACHENG => "Dungeon",
 				ETanSuoDianType.ETSD_TYPE_CHUANSONGMEN => "Mysterious Portal",
 				ETanSuoDianType.ETSD_TYPE_KUANGCHUANG_SMALL => "Mine (Small)",
 				ETanSuoDianType.ETSD_TYPE_SHEN_MIAO => "Ruins (Mysterious)",

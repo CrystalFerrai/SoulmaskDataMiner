@@ -16,12 +16,14 @@
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using Serilog.Core;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -57,10 +59,10 @@ namespace SoulmaskDataMiner.Miners
 				masteries = null;
 				return false;
 			}
-
 			Package package = (Package)providerManager.Provider.LoadPackage(file);
 
 			List<FPropertyTagType>? masteryArray = null;
+			List<FPropertyTagType>? startMasteryArray = null;
 			foreach (FObjectExport export in package.ExportMap)
 			{
 				if (export.ClassName.Equals("BP_ZiYuanGuanLiQi_C"))
@@ -68,25 +70,36 @@ namespace SoulmaskDataMiner.Miners
 					UObject classDefaultObject = export.ExportObject.Value;
 					foreach (FPropertyTag prop in classDefaultObject.Properties)
 					{
-						if (prop.Name.Text.Equals("ZhuanJingArray"))
+						switch (prop.Name.Text)
 						{
-							if (prop.Tag is ArrayProperty arr)
-							{
-								masteryArray = arr.Value?.Properties;
-							}
-							break;
+							case "ZhuanJingArray":
+								masteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
+								break;
+							case "ZhuanJingAbilitySets":
+								startMasteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
+								break;
 						}
 					}
 					break;
 				}
 			}
 
-			// TODO: Ivestigate the "fixed mastery map" - GuDingZJAbilityMap -  which seems to specify a mastery
-			// per weapon type for each mastery level (30, 60 and 90). What does this get used for?
-
-			if (masteryArray is null)
+			if (masteryArray is null || startMasteryArray is null)
 			{
-				logger.LogError("Unable to locate ZhuanJingArray in BP_ZiYuanGuanLiQi");
+				logger.LogError("Unable to locate ZhuanJingArray or ZhuanJingAbilitySets in BP_ZiYuanGuanLiQi");
+				masteries = null;
+				return false;
+			}
+
+			HashSet<int> startingAbilities = new();
+			foreach (IntProperty property in startMasteryArray)
+			{
+				startingAbilities.Add(property.Value);
+			}
+
+			IReadOnlyDictionary<EWuQiLeiXing, Dictionary<int, Dictionary<int, float>>>? masteryAcquireMap = GetMasteryAcquireMap(providerManager, logger);
+			if (masteryAcquireMap is null)
+			{
 				masteries = null;
 				return false;
 			}
@@ -139,6 +152,30 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
+				data.IsStartingAbility = startingAbilities.Contains(data.ID);
+				Dictionary<int, float>? acquireChances;
+				if (masteryAcquireMap[weaponType].TryGetValue(data.ID, out acquireChances))
+				{
+					foreach (var pair in acquireChances)
+					{
+						switch (pair.Key)
+						{
+							case 30:
+								data.Chance30 = pair.Value;
+								break;
+							case 60:
+								data.Chance60 = pair.Value;
+								break;
+							case 90:
+								data.Chance90 = pair.Value;
+								break;
+							case 120:
+								data.Chance120 = pair.Value;
+								break;
+						}
+					}
+				}
+
 				List<MasteryData>? list;
 				if (!masteryMap.TryGetValue(weaponType, out list))
 				{
@@ -153,20 +190,105 @@ namespace SoulmaskDataMiner.Miners
 			return true;
 		}
 
+		private IReadOnlyDictionary<EWuQiLeiXing, Dictionary<int, Dictionary<int, float>>>? GetMasteryAcquireMap(IProviderManager providerManager, Logger logger)
+		{
+			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_ZhuanJingSLD.uasset", out GameFile file2))
+			{
+				logger.LogError("Unable to locate asset DT_ZhuanJingSLD.");
+				return null;
+			}
+			Package package2 = (Package)providerManager.Provider.LoadPackage(file2);
+
+			UDataTable? abilitySetTable = package2.ExportMap[0].ExportObject.Value as UDataTable;
+			if (abilitySetTable is null)
+			{
+				logger.LogError("Error loading DT_ZhuanJingSLD");
+				return null;
+			}
+
+			Dictionary<EWuQiLeiXing, Dictionary<int, Dictionary<int, float>>> masteryAcquireMap = new();
+			foreach (var row in abilitySetTable.RowMap)
+			{
+				EWuQiLeiXing masteryType = EWuQiLeiXing.WUQI_LEIXING_NONE;
+				Dictionary<FPropertyTagType, FPropertyTagType?>? acquireLevelMap = null;
+				foreach (FPropertyTag property in row.Value.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "UseWuQiLeiXing":
+							GameUtil.TryParseEnum<EWuQiLeiXing>(property, out masteryType);
+							break;
+						case "SLDGaiLv":
+							acquireLevelMap = property.Tag!.GetValue<UScriptMap>()!.Properties;
+							break;
+					}
+				}
+				if (masteryType == EWuQiLeiXing.WUQI_LEIXING_NONE || acquireLevelMap is null)
+				{
+					logger.Log(LogLevel.Warning, "Failed to load some mastery level acquisition data.");
+					continue;
+				}
+
+				Dictionary<int, Dictionary<int, float>>? mapForType;
+				if (!masteryAcquireMap.TryGetValue(masteryType, out mapForType))
+				{
+					mapForType = new();
+					masteryAcquireMap.Add(masteryType, mapForType);
+				}
+
+				foreach (var pair in acquireLevelMap)
+				{
+					int level = pair.Key.GetValue<int>();
+					FStructFallback value = pair.Value!.GetValue<FStructFallback>()!;
+					Dictionary<FPropertyTagType, FPropertyTagType?>? chanceMap = value.Properties.FirstOrDefault(p => p.Name.Text.Equals("JiNengChi"))?.Tag?.GetValue<UScriptMap>()?.Properties;
+					if (chanceMap is null)
+					{
+						logger.Log(LogLevel.Warning, "Failed to load some mastery level acquisition data.");
+						continue;
+					}
+
+					float totalweight = 0;
+					List<Tuple<int, int>> chanceList = new();
+					foreach (var chancePair in chanceMap)
+					{
+						int masteryId = chancePair.Key.GetValue<int>();
+						int weight = chancePair.Value!.GetValue<int>();
+
+						chanceList.Add(new(masteryId, weight));
+						totalweight += weight;
+					}
+
+					foreach (var tuple in chanceList)
+					{
+						Dictionary<int, float>? mapForId;
+						if (!mapForType.TryGetValue(tuple.Item1, out mapForId))
+						{
+							mapForId = new();
+							mapForType.Add(tuple.Item1, mapForId);
+						}
+
+						mapForId.Add(level, (float)tuple.Item2 / totalweight);
+					}
+				}
+			}
+
+			return masteryAcquireMap;
+		}
+
 		private void WriteCsv(IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>> masteries, Config config, Logger logger)
 		{
 			string outPath = Path.Combine(config.OutputDirectory, Name, $"{Name}.csv");
 			using FileStream stream = IOUtil.CreateFile(outPath, logger);
 			using StreamWriter writer = new(stream, Encoding.UTF8);
 
-			writer.WriteLine("type,idx,id,name,desc,icon");
+			writer.WriteLine("type,idx,id,name,desc,start,c30,c60,c90,c120,icon");
 
 			foreach (var pair in masteries)
 			{
 				for (int i = 0; i < pair.Value.Count; ++i)
 				{
 					MasteryData data = pair.Value[i];
-					writer.WriteLine($"{(int)pair.Key},{i},{data.ID},\"{data.Name}\",\"{data.Description}\",{data.Icon?.Name}");
+					writer.WriteLine($"{(int)pair.Key},{i},{data.ID},\"{data.Name}\",\"{data.Description}\",{data.IsStartingAbility},{data.Chance30:0.#%},{data.Chance60:0.#%},{data.Chance90:0.#%},{data.Chance120:0.#%},{data.Icon?.Name}");
 				}
 			}
 		}
@@ -180,6 +302,11 @@ namespace SoulmaskDataMiner.Miners
 			//     `id` int not null,
 			//     `name` varchar(127) not null,
 			//     `desc` varchar(511),
+			//     `start` bool not null,
+			//     `c30` float not null,
+			//     `c60` float not null,
+			//     `c90` float not null,
+			//     `c120` float not null,
 			//     `icon` varchar(127),
 			//     primary key (`type`, `idx`)
 			// );
@@ -196,7 +323,8 @@ namespace SoulmaskDataMiner.Miners
 				for (int i = 0; i < pair.Value.Count; ++i)
 				{
 					MasteryData data = pair.Value[i];
-					sqlWriter.WriteLine($"insert into `zj` values ({(int)pair.Key}, {i}, {data.ID}, {dbStr(data.Name)}, {dbStr(data.Description)}, {dbStr(data.Icon?.Name)});");
+					string isStart = data.IsStartingAbility.ToString().ToLowerInvariant();
+					sqlWriter.WriteLine($"insert into `zj` values ({(int)pair.Key}, {i}, {data.ID}, {dbStr(data.Name)}, {dbStr(data.Description)}, {isStart}, {data.Chance30}, {data.Chance60}, {data.Chance90}, {data.Chance120}, {dbStr(data.Icon?.Name)});");
 				}
 			}
 		}
@@ -240,6 +368,11 @@ namespace SoulmaskDataMiner.Miners
 			public string? Name;
 			public string? Description;
 			public UTexture2D? Icon;
+			public bool IsStartingAbility;
+			public float Chance30;
+			public float Chance60;
+			public float Chance90;
+			public float Chance120;
 
 			public override string ToString()
 			{

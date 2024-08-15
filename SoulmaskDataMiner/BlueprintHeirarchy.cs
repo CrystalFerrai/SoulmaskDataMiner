@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using CUE4Parse.UE4.Assets;
+using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics;
 
@@ -38,7 +39,7 @@ namespace SoulmaskDataMiner
 		/// <exception cref="InvalidOperationException">The hierarchy has not been loaded</exception>
 		public static BlueprintHeirarchy Get()
 		{
-			if (sInstance is null) throw new InvalidOperationException("BluePrintHierarchy has not been loaded. Any miner needing this resource shoudl declare so by adding the RequireHierarchy attribute to the class.");
+			if (sInstance is null) throw new InvalidOperationException("BluePrintHierarchy has not been loaded. Any miner needing this resource should declare so by adding the RequireHierarchy attribute to the class.");
 			return sInstance;
 		}
 
@@ -144,6 +145,25 @@ namespace SoulmaskDataMiner
 				current = classInfo.SuperName;
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// Search a blueprint and all super classes
+		/// </summary>
+		/// <param name="start">The blueprint to search first</param>
+		/// <param name="searchFunc">A function to call for the start class and each class in the super chain. Return true to stop the search or false to conitnue.</param>
+		public static void SearchInheritance(UBlueprintGeneratedClass start, Predicate<UBlueprintGeneratedClass> searchFunc)
+		{
+			UBlueprintGeneratedClass? current = start;
+			while (current != null)
+			{
+				if (searchFunc(current))
+				{
+					break;
+				}
+
+				current = current.Super?.Load() as UBlueprintGeneratedClass;
+			}
 		}
 
 		private IEnumerable<BlueprintClassInfo> InternalGetDerivedClasses(InternalClassInfo classInfo)
