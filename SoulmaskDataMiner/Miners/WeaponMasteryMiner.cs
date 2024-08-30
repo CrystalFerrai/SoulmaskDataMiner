@@ -53,34 +53,18 @@ namespace SoulmaskDataMiner.Miners
 
 		private bool LoadMasteryData(IProviderManager providerManager, Logger logger, [NotNullWhen(true)] out IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>>? masteries)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_ZiYuanGuanLiQi.uasset", out GameFile file))
-			{
-				logger.LogError("Unable to locate asset BP_ZiYuanGuanLiQi.");
-				masteries = null;
-				return false;
-			}
-			Package package = (Package)providerManager.Provider.LoadPackage(file);
-
 			List<FPropertyTagType>? masteryArray = null;
 			List<FPropertyTagType>? startMasteryArray = null;
-			foreach (FObjectExport export in package.ExportMap)
+			foreach (FPropertyTag prop in providerManager.ResourceManager.Properties)
 			{
-				if (export.ClassName.Equals("BP_ZiYuanGuanLiQi_C"))
+				switch (prop.Name.Text)
 				{
-					UObject classDefaultObject = export.ExportObject.Value;
-					foreach (FPropertyTag prop in classDefaultObject.Properties)
-					{
-						switch (prop.Name.Text)
-						{
-							case "ZhuanJingArray":
-								masteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
-								break;
-							case "ZhuanJingAbilitySets":
-								startMasteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
-								break;
-						}
-					}
-					break;
+					case "ZhuanJingArray":
+						masteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
+						break;
+					case "ZhuanJingAbilitySets":
+						startMasteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
+						break;
 				}
 			}
 

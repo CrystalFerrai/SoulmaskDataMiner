@@ -36,5 +36,15 @@ namespace SoulmaskDataMiner
 		/// check the property to ensure it exists.
 		/// </remarks>
 		IReadOnlyDictionary<string, MetaClass>? ClassMetadata { get; }
+
+		/// <summary>
+		/// The game's resource manager asset
+		/// </summary>
+		GameResourceManager ResourceManager { get; }
+
+		/// <summary>
+		/// Game achievement data
+		/// </summary>
+		Achievements Achievements { get; }
 	}
 }

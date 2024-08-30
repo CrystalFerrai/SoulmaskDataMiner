@@ -45,13 +45,12 @@ namespace SoulmaskDataMiner.Miners
 			return true;
 		}
 
-		private bool LoadProficiencyData(IProviderManager providerManager, Logger logger, [NotNullWhen(true)] out IEnumerable<ProficiencyData>? proficiencies)
+		internal static IReadOnlyDictionary<EProficiency, ProficiencyData>? LoadProficiencyMap(IProviderManager providerManager, Logger logger)
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/UI/ShuLianDu/WBP_ShuLianDu.uasset", out GameFile file))
 			{
 				logger.LogError("Unable to locate asset WBP_ShuLianDu.");
-				proficiencies = null;
-				return false;
+				return null;
 			}
 
 			Package package = (Package)providerManager.Provider.LoadPackage(file);
@@ -108,6 +107,18 @@ namespace SoulmaskDataMiner.Miners
 				};
 
 				proficiencyMap.Add(proficiency.Value, data);
+			}
+
+			return proficiencyMap;
+		}
+
+		private static bool LoadProficiencyData(IProviderManager providerManager, Logger logger, [NotNullWhen(true)] out IEnumerable<ProficiencyData>? proficiencies)
+		{
+			IReadOnlyDictionary<EProficiency, ProficiencyData>? proficiencyMap = LoadProficiencyMap(providerManager, logger);
+			if (proficiencyMap is null)
+			{
+				proficiencies = null;
+				return false;
 			}
 
 			EProficiency[] allProfIds = Enum.GetValues<EProficiency>();
@@ -175,51 +186,51 @@ namespace SoulmaskDataMiner.Miners
 				TextureExporter.ExportTexture(proficiency.Icon, false, logger, outDir);
 			}
 		}
+	}
 
-		private struct ProficiencyData
+	internal struct ProficiencyData
+	{
+		public EProficiency ID;
+		public string? Name;
+		public UTexture2D? Icon;
+
+		public override string ToString()
 		{
-			public EProficiency ID;
-			public string? Name;
-			public UTexture2D? Icon;
-
-			public override string ToString()
-			{
-				return $"[{ID}] {Name}";
-			}
+			return $"[{ID}] {Name}";
 		}
+	}
 
-		private enum EProficiency
-		{
-			FaMu,
-			CaiKuang,
-			ZhongZhi,
-			BuZhuo,
-			CaiShou,
-			YangZhi,
-			TuZai,
-			PaoMu,
-			QieShi,
-			RongLian,
-			RouPi,
-			FangZhi,
-			ZhiTao,
-			YanMo,
-			QiJu,
-			WuQi,
-			JiaZhou,
-			ZhuBao,
-			JianZhu,
-			LianJin,
-			PengRen,
-			Dao,
-			ShuangDao,
-			Mao,
-			Chui,
-			QuanTao,
-			Gong,
-			DaJian,
-			PouJie,
-			DunPai
-		};
+	internal enum EProficiency
+	{
+		FaMu,
+		CaiKuang,
+		ZhongZhi,
+		BuZhuo,
+		CaiShou,
+		YangZhi,
+		TuZai,
+		PaoMu,
+		QieShi,
+		RongLian,
+		RouPi,
+		FangZhi,
+		ZhiTao,
+		YanMo,
+		QiJu,
+		WuQi,
+		JiaZhou,
+		ZhuBao,
+		JianZhu,
+		LianJin,
+		PengRen,
+		Dao,
+		ShuangDao,
+		Mao,
+		Chui,
+		QuanTao,
+		Gong,
+		DaJian,
+		PouJie,
+		DunPai
 	}
 }

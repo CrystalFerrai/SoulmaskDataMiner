@@ -34,9 +34,37 @@ namespace SoulmaskDataMiner
 
 		private Dictionary<string, MetaClass>? mClassMetadata;
 
+		private GameResourceManager? mResourceManager;
+
+		private Achievements? mAchievements;
+
 		public IFileProvider Provider => mProvider;
 
 		public IReadOnlyDictionary<string, MetaClass>? ClassMetadata => mClassMetadata;
+
+		public GameResourceManager ResourceManager
+		{
+			get
+			{
+				if (mResourceManager is null)
+				{
+					throw new InvalidOperationException("Resource manager not found. Has the provider manager been initialized?");
+				}
+				return mResourceManager;
+			}
+		}
+
+		public Achievements Achievements
+		{
+			get
+			{
+				if (mAchievements is null)
+				{
+					throw new InvalidOperationException("Achiements not found. Has the provider manager been initialized?");
+				}
+				return mAchievements;
+			}
+		}
 
 		public ProviderManager(Config config)
 		{
@@ -51,6 +79,8 @@ namespace SoulmaskDataMiner
 			{
 				return false;
 			}
+			mResourceManager = GameResourceManager.Load(mProvider, logger);
+			mAchievements = Achievements.Load(mProvider, logger);
 
 			return true;
 		}
@@ -73,6 +103,7 @@ namespace SoulmaskDataMiner
 				if (disposing)
 				{
 					// Dispose managed objects
+					mResourceManager = null;
 					mProvider.Dispose();
 				}
 

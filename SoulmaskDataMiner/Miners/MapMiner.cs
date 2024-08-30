@@ -75,10 +75,10 @@ namespace SoulmaskDataMiner.Miners
 			IReadOnlyDictionary<ETanSuoDianType, UTexture2D>? mapIcons = GetMapIcons(mapIntel, logger);
 			if (mapIcons is null) return null;
 
-			MapPoiLookups? lookups = GetPois(mapIntel, logger);
+			MapPoiLookups? lookups = GetPois(mapIntel, providerManager.Achievements, logger);
 			if (lookups is null) return null;
 
-			if (!FindTabletData(providerManager, lookups, logger))
+			if (!FindTabletData(providerManager, lookups, providerManager.Achievements, logger))
 			{
 				return null;
 			}
@@ -143,7 +143,7 @@ namespace SoulmaskDataMiner.Miners
 			return null;
 		}
 
-		private MapPoiLookups? GetPois(UObject mapIntel, Logger logger)
+		private MapPoiLookups? GetPois(UObject mapIntel, Achievements achievements, Logger logger)
 		{
 			foreach (FPropertyTag property in mapIntel.Properties)
 			{
@@ -206,6 +206,11 @@ namespace SoulmaskDataMiner.Miners
 
 					poi.Type = GetType(poiType.Value);
 					poi.Title = GetTitle(poiType.Value);
+					
+					if (achievements.CollectMap.TryGetValue(index, out AchievementData? achievement))
+					{
+						poi.Achievement = achievement;
+					}
 
 					lookups.IndexLookup.Add(index, poi);
 					if (!lookups.TypeLookup.TryGetValue(poiType.Value, out List<MapPoi>? list))
@@ -222,8 +227,17 @@ namespace SoulmaskDataMiner.Miners
 			return null;
 		}
 
-		private bool FindTabletData(IProviderManager providerManager, MapPoiLookups lookups, Logger logger)
+		private bool FindTabletData(IProviderManager providerManager, MapPoiLookups lookups, Achievements achievements, Logger logger)
 		{
+			if (!achievements.AllAchievements.TryGetValue("BP_ChengJiu_ShiBan_001_C", out AchievementData? ancientAchievement))
+			{
+				ancientAchievement = null;
+			}
+			if (!achievements.AllAchievements.TryGetValue("BP_ChengJiu_ShiBan_002_C", out AchievementData? divineAchievement))
+			{
+				divineAchievement = null;
+			}
+
 			foreach (var pair in providerManager.Provider.Files)
 			{
 				if (!pair.Key.StartsWith("WS/Content/Blueprints/JianZhu/GameFunction/Shibei/")) continue;
@@ -290,7 +304,8 @@ namespace SoulmaskDataMiner.Miners
 				{
 					GroupIndex = SpawnLayerGroup.PointOfInterest,
 					Type = "Tablet (Ancient)",
-					Title = "Ancient Tablet"
+					Title = "Ancient Tablet",
+					Achievement = ancientAchievement
 				};
 				foreach (FPropertyTag property in tabletDataObj.Properties)
 				{
@@ -313,6 +328,7 @@ namespace SoulmaskDataMiner.Miners
 							{
 								tabletData.Type = "Tablet (Divine)";
 								tabletData.Title = "Divine Tablet";
+								tabletData.Achievement = divineAchievement;
 							}
 							break;
 					}
@@ -406,7 +422,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private bool FindSpawners(IProviderManager providerManager, MapPoiLookups lookups, Logger logger)
 		{
-			Dictionary<SpawnLayerType, SpawnLayerInfo> spawnLayerMap = new((int)SpawnLayerType.Count);
+			Dictionary<NpcCategory, SpawnLayerInfo> spawnLayerMap = new((int)NpcCategory.Count);
 			{
 				string[] texturePaths = new string[]
 				{
@@ -425,7 +441,7 @@ namespace SoulmaskDataMiner.Miners
 						return false;
 					}
 
-					spawnLayerMap[(SpawnLayerType)i] = new SpawnLayerInfo() { Name = $"{(SpawnLayerType)i} Spawner", Icon = icon };
+					spawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = $"{(NpcCategory)i} Spawner", Icon = icon };
 				}
 			}
 
@@ -478,22 +494,51 @@ namespace SoulmaskDataMiner.Miners
 				logger.Log(LogLevel.Debug, package.Name);
 				foreach (FObjectExport export in package.ExportMap)
 				{
-					if (spawnerClasses.TryGetValue(export.ClassName, out UObject? defaultScgObj))
-					{
-						UObject obj = export.ExportObject.Value;
+					if (!spawnerClasses.TryGetValue(export.ClassName, out UObject? defaultScgObj)) continue;
 
-						List<UBlueprintGeneratedClass> scgClasses = new();
-						USceneComponent? rootComponent = null;
-						void searchProperties(UObject searchObj)
+					UObject obj = export.ExportObject.Value;
+
+					List<UBlueprintGeneratedClass> scgClasses = new();
+					USceneComponent? rootComponent = null;
+					float? spawnInterval = null;
+					void searchProperties(UObject searchObj)
+					{
+						foreach (FPropertyTag property in searchObj.Properties)
 						{
-							foreach (FPropertyTag property in searchObj.Properties)
+							switch (property.Name.Text)
 							{
-								switch (property.Name.Text)
-								{
-									case "SCGClass":
-										if (scgClasses.Count == 0)
+								case "SCGClass":
+									if (scgClasses.Count == 0)
+									{
+										UBlueprintGeneratedClass? scgClass = property.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
+										if (scgClass is not null)
 										{
-											UBlueprintGeneratedClass? scgClass = property.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
+											scgClasses.Add(scgClass);
+										}
+										else
+										{
+											logger.Log(LogLevel.Debug, $"[{export.ObjectName}] Spawner has explicitly set data to null.");
+										}
+									}
+									break;
+								case "SCGJianGeShiJian":
+									spawnInterval = property.Tag!.GetValue<float>();
+									break;
+								case "ShuaGuaiQiWithRand":
+									if (scgClasses.Count == 0)
+									{
+										UScriptArray? array = property.Tag?.GetValue<UScriptArray>();
+										if (array is null) continue;
+
+										foreach (FPropertyTagType item in array.Properties)
+										{
+											FStructFallback? sf = item.GetValue<FStructFallback>();
+											if (sf is null) continue;
+
+											FPropertyTag? scgProp = sf.Properties.FirstOrDefault(p => p.Name.Text.Equals("SCGClass"));
+											if (scgProp is null) continue;
+
+											UBlueprintGeneratedClass? scgClass = scgProp.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
 											if (scgClass is not null)
 											{
 												scgClasses.Add(scgClass);
@@ -503,119 +548,121 @@ namespace SoulmaskDataMiner.Miners
 												logger.Log(LogLevel.Debug, $"[{export.ObjectName}] Spawner has explicitly set data to null.");
 											}
 										}
-										break;
-									case "ShuaGuaiQiWithRand":
-										if (scgClasses.Count == 0)
-										{
-											UScriptArray? array = property.Tag?.GetValue<UScriptArray>();
-											if (array is null) continue;
-
-											foreach (FPropertyTagType item in array.Properties)
-											{
-												FStructFallback? sf = item.GetValue<FStructFallback>();
-												if (sf is null) continue;
-
-												FPropertyTag? scgProp = sf.Properties.FirstOrDefault(p => p.Name.Text.Equals("SCGClass"));
-												if (scgProp is null) continue;
-
-												UBlueprintGeneratedClass? scgClass = scgProp.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
-												if (scgClass is not null)
-												{
-													scgClasses.Add(scgClass);
-												}
-												else
-												{
-													logger.Log(LogLevel.Debug, $"[{export.ObjectName}] Spawner has explicitly set data to null.");
-												}
-											}
-										}
-										break;
-									case "RootComponent":
-										if (rootComponent is null)
-										{
-											rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
-										}
-										break;
-								}
+									}
+									break;
+								case "RootComponent":
+									if (rootComponent is null)
+									{
+										rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+									}
+									break;
 							}
 						}
-
-						searchProperties(obj);
-						if ((scgClasses.Count == 0 || rootComponent is null) && obj.Class is UBlueprintGeneratedClass objClass)
-						{
-							BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
-							{
-								UObject? currentObj = current.ClassDefaultObject.Load();
-								if (currentObj is null) return true;
-
-								searchProperties(currentObj);
-								return scgClasses.Count > 0 && rootComponent is not null;
-							});
-						}
-
-						MultiSpawnData? spawnData = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, defaultScgObj);
-						if (spawnData is null)
-						{
-							continue;
-						}
-						string poiName = string.Join(", ", spawnData.NpcNames);
-
-						FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
-						if (locationProperty is null)
-						{
-							logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Failed to find location for spawn point");
-							continue;
-						}
-
-						FVector location = locationProperty.Tag!.GetValue<FVector>();
-
-						string npcClassName = spawnData.NpcClasses.First().Name;
-						SpawnLayerType layerType = SpawnLayerType.Unknown;
-						if (BlueprintHeirarchy.Get().IsDerivedFrom(npcClassName, "BP_JiXie_Base_C"))
-						{
-							layerType = SpawnLayerType.Mechanical;
-						}
-						else if (BlueprintHeirarchy.Get().IsDerivedFrom(npcClassName, "HCharacterDongWu"))
-						{
-							layerType = SpawnLayerType.Animal;
-						}
-						else if (BlueprintHeirarchy.Get().IsDerivedFrom(npcClassName, "HCharacterRen"))
-						{
-							layerType = SpawnLayerType.Human;
-						}
-						SpawnLayerInfo layerInfo = spawnLayerMap[layerType];
-
-						string levelText = (spawnData.MinLevel == spawnData.MaxLevel) ? spawnData.MinLevel.ToString() : $"{spawnData.MinLevel} - {spawnData.MaxLevel}";
-
-						SpawnLayerGroup group = SpawnLayerGroup.Npc;
-						string type = layerInfo.Name;
-						if (layerType == SpawnLayerType.Animal)
-						{
-							group = SpawnLayerGroup.Animal;
-							if (poiName.Contains(','))
-							{
-								type = "(Multiple)";
-							}
-							else
-							{
-								type = poiName;
-							}
-						}
-
-						MapPoi poi = new()
-						{
-							GroupIndex = group,
-							Type = type,
-							Title = poiName,
-							Name = layerInfo.Name,
-							Description = $"Level {levelText}",
-							Icon = layerInfo.Icon,
-							Location = location,
-							MapLocation = GameUtil.WorldToMap(location)
-						};
-
-						lookups.Spawners.Add(poi);
 					}
+
+					searchProperties(obj);
+					if ((scgClasses.Count == 0 || rootComponent is null || !spawnInterval.HasValue) && obj.Class is UBlueprintGeneratedClass objClass)
+					{
+						BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+						{
+							UObject? currentObj = current.ClassDefaultObject.Load();
+							if (currentObj is null) return true;
+
+							searchProperties(currentObj);
+							return scgClasses.Count > 0 && rootComponent is not null;
+						});
+					}
+
+					if (!spawnInterval.HasValue)
+					{
+						spawnInterval = 10.0f;
+					}
+
+					MultiSpawnData? spawnData = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, defaultScgObj);
+					if (spawnData is null)
+					{
+						continue;
+					}
+					string poiName = string.Join(", ", spawnData.NpcNames);
+
+					FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+					if (locationProperty is null)
+					{
+						logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Failed to find location for spawn point");
+						continue;
+					}
+
+					FVector location = locationProperty.Tag!.GetValue<FVector>();
+
+					NpcCategory layerType = SpawnMinerUtil.GetNpcCategory(spawnData.NpcClasses.First().Value);
+					SpawnLayerInfo layerInfo = spawnLayerMap[layerType];
+
+					string levelText = (spawnData.MinLevel == spawnData.MaxLevel) ? spawnData.MinLevel.ToString() : $"{spawnData.MinLevel} - {spawnData.MaxLevel}";
+
+					SpawnLayerGroup group = SpawnLayerGroup.Npc;
+					string type = layerInfo.Name;
+					if (layerType == NpcCategory.Animal)
+					{
+						group = SpawnLayerGroup.Animal;
+						if (poiName.Contains(','))
+						{
+							type = "(Multiple)";
+						}
+						else
+						{
+							type = poiName;
+						}
+					}
+
+					bool male = false, female = false;
+					foreach (WeightedValue<EXingBieType> sex in spawnData.Sexes)
+					{
+						if (sex.Value == EXingBieType.CHARACTER_XINGBIE_NAN)
+						{
+							male = true;
+						}
+						else if (sex.Value == EXingBieType.CHARACTER_XINGBIE_NV)
+						{
+							female = true;
+						}
+						else if (sex.Value == EXingBieType.CHARACTER_XINGBIE_WEIZHI)
+						{
+							male = true;
+							female = true;
+						}
+					}
+
+					string? tribeStatus = null;
+					if (spawnData.Statuses.Any())
+					{
+						tribeStatus = string.Join(", ", spawnData.Statuses.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
+					}
+
+					string? occupation = null;
+					if (spawnData.Occupations.Any())
+					{
+						occupation = string.Join(", ", spawnData.Occupations.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
+					}
+
+					MapPoi poi = new()
+					{
+						GroupIndex = group,
+						Type = type,
+						Title = poiName,
+						Name = layerInfo.Name,
+						Description = $"Level {levelText}",
+						Male = male,
+						Female = female,
+						TribeStatus = tribeStatus,
+						Occupation = occupation,
+						SpawnCount = spawnData.SpawnCount,
+						SpawnInterval = spawnInterval.Value,
+						Location = location,
+						MapLocation = GameUtil.WorldToMap(location),
+						Icon = layerInfo.Icon
+					};
+
+					lookups.Spawners.Add(poi);
 				}
 			}
 
@@ -640,9 +687,23 @@ namespace SoulmaskDataMiner.Miners
 		private void WriteIcons(IReadOnlyDictionary<string, List<MapPoi>> poiMap, Config config, Logger logger)
 		{
 			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
+
+			HashSet<string> exported = new();
 			foreach (var pair in poiMap)
 			{
-				TextureExporter.ExportTexture(pair.Value[0].Icon, false, logger, outDir);
+				if (exported.Add(pair.Value[0].Icon.Name))
+				{
+					TextureExporter.ExportTexture(pair.Value[0].Icon, false, logger, outDir);
+				}
+				foreach (MapPoi poi in pair.Value)
+				{
+					if (poi.Achievement?.Icon is null) continue;
+
+					if (exported.Add(poi.Achievement.Icon.Name))
+					{
+						TextureExporter.ExportTexture(poi.Achievement.Icon, false, logger, outDir);
+					}
+				}
 			}
 		}
 
@@ -660,11 +721,21 @@ namespace SoulmaskDataMiner.Miners
 					return $"\"{value.Replace("\"", "\"\"")}\"";
 				}
 
-				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,title,name,desc,extra,icon");
+				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,title,name,desc,extra,m,f,stat,occ,num,intr,icon,ach,achDesc,achIcon");
 
 				foreach (MapPoi poi in pair.Value)
 				{
-					writer.WriteLine($"{(int)poi.GroupIndex},{csvStr(GetGroupName(poi.GroupIndex))},{csvStr(poi.Type)},{poi.Location.X:0},{poi.Location.Y:0},{poi.Location.Z:0},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{csvStr(poi.Title)},{csvStr(poi.Name)},{csvStr(poi.Description)},{csvStr(poi.Extra)},{csvStr(poi.Icon?.Name)}");
+					string spawnerSegment = ",,,,,";
+					string poiSegment = ",,";
+					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
+					{
+						poiSegment = $"{csvStr(poi.Achievement?.Name)},{csvStr(poi.Achievement?.Description)},{csvStr(poi.Achievement?.Icon?.Name)}";
+					}
+					else
+					{
+						spawnerSegment = $"{poi.Male}, {poi.Female}, {csvStr(poi.TribeStatus)}, {csvStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}";
+					}
+					writer.WriteLine($"{(int)poi.GroupIndex},{csvStr(GetGroupName(poi.GroupIndex))},{csvStr(poi.Type)},{poi.Location.X:0},{poi.Location.Y:0},{poi.Location.Z:0},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{csvStr(poi.Title)},{csvStr(poi.Name)},{csvStr(poi.Description)},{csvStr(poi.Extra)},{spawnerSegment},{csvStr(poi.Icon?.Name)},{poiSegment}");
 				}
 			}
 		}
@@ -685,7 +756,16 @@ namespace SoulmaskDataMiner.Miners
 			//     `name` varchar(127),
 			//     `desc` varchar(511),
 			//     `extra` varchar(511),
-			//     `icon` varchar(127)
+			//     `m` bool,
+			//     `f` bool,
+			//     `stat` varchar(63),
+			//     `occ` varchar(127),
+			//     `num` int,
+			//     `intr` float,
+			//     `icon` varchar(127),
+			//     `ach` varchar(127),
+			//     `achDesc` varchar(255),
+			//     `achIcon` varchar(127)
 			// )
 
 			sqlWriter.WriteLine("truncate table `poi`;");
@@ -696,6 +776,11 @@ namespace SoulmaskDataMiner.Miners
 				return $"'{value.Replace("\'", "\'\'")}'";
 			}
 
+			string dbBool(bool value)
+			{
+				return value ? "true" : "false";
+			}
+
 			foreach (var pair in mapLocations)
 			{
 				foreach (MapPoi poi in pair.Value)
@@ -703,7 +788,18 @@ namespace SoulmaskDataMiner.Miners
 					// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
 					if (poi.Location == FVector.ZeroVector) continue;
 
-					sqlWriter.WriteLine($"insert into `poi` values ({(int)poi.GroupIndex}, {dbStr(GetGroupName(poi.GroupIndex))}, {dbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {dbStr(poi.Title)}, {dbStr(poi.Name)}, {dbStr(poi.Description)}, {dbStr(poi.Extra)}, {dbStr(poi.Icon?.Name)});");
+					string spawnerSegment = "null, null, null, null, null, null";
+					string poiSegment = "null,null,null";
+					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
+					{
+						poiSegment = $"{dbStr(poi.Achievement?.Name)}, {dbStr(poi.Achievement?.Description)}, {dbStr(poi.Achievement?.Icon?.Name)}";
+					}
+					else
+					{
+						spawnerSegment = $"{dbBool(poi.Male)}, {dbBool(poi.Female)}, {dbStr(poi.TribeStatus)}, {dbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}";
+					}
+
+					sqlWriter.WriteLine($"insert into `poi` values ({(int)poi.GroupIndex}, {dbStr(GetGroupName(poi.GroupIndex))}, {dbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {dbStr(poi.Title)}, {dbStr(poi.Name)}, {dbStr(poi.Description)}, {dbStr(poi.Extra)}, {spawnerSegment}, {dbStr(poi.Icon?.Name)}, {poiSegment});");
 				}
 			}
 		}
@@ -744,9 +840,16 @@ namespace SoulmaskDataMiner.Miners
 			public string? Name { get; set; }
 			public string? Description { get; set; }
 			public string? Extra { get; set; }
+			public bool Male { get; set; }
+			public bool Female { get; set; }
+			public string? TribeStatus { get; set; }
+			public string? Occupation { get; set; }
+			public int SpawnCount { get; set; }
+			public float SpawnInterval { get; set; }
 			public FVector Location { get; set; }
 			public FVector2D MapLocation { get; set; }
 			public UTexture2D Icon { get; set; } = null!;
+			public AchievementData? Achievement {  get; set; }
 
 			public override string ToString()
 			{
@@ -763,15 +866,6 @@ namespace SoulmaskDataMiner.Miners
 			{
 				return Name;
 			}
-		}
-
-		private enum SpawnLayerType
-		{
-			Unknown,
-			Animal,
-			Mechanical,
-			Human,
-			Count
 		}
 
 		private enum SpawnLayerGroup

@@ -36,7 +36,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		/// <typeparam name="T">The type of the enum</typeparam>
 		/// <param name="property">An enum property containing the value to parse</param>
-		/// <param name="result">IF the parse was successful, this will contain the result</param>
+		/// <param name="result">If the parse was successful, this will contain the result</param>
 		/// <returns>Whether the parse was successful</returns>
 		public static bool TryParseEnum<T>(FPropertyTag property, out T result) where T : struct
 		{
@@ -45,7 +45,19 @@ namespace SoulmaskDataMiner
 				result = default;
 				return false;
 			}
-			return TryParseEnum(property.Tag.GetValue<FName>(), out result);
+			return TryParseEnum(property.Tag, out result);
+		}
+
+		/// <summary>
+		/// Parse an enum value from a game enum
+		/// </summary>
+		/// <typeparam name="T">The type of the enum</typeparam>
+		/// <param name="property">An enum property containing the value to parse</param>
+		/// <param name="result">If the parse was successful, this will contain the result</param>
+		/// <returns>Whether the parse was successful</returns>
+		public static bool TryParseEnum<T>(FPropertyTagType property, out T result) where T : struct
+		{
+			return TryParseEnum(property.GetValue<FName>(), out result);
 		}
 
 		/// <summary>
@@ -53,7 +65,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		/// <typeparam name="T">The type of the enum</typeparam>
 		/// <param name="value">The value to parse</param>
-		/// <param name="result">IF the parse was successful, this will contain the result</param>
+		/// <param name="result">If the parse was successful, this will contain the result</param>
 		/// <returns>Whether the parse was successful</returns>
 		public static bool TryParseEnum<T>(FName value, out T result) where T : struct
 		{
