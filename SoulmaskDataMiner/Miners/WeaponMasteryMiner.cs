@@ -110,7 +110,7 @@ namespace SoulmaskDataMiner.Miners
 							break;
 						case "ZJJN":
 							{
-								List<FPropertyTag> zjjnProperties = ((FStructFallback)property.Tag!.GetValue<UScriptStruct>()!.StructType).Properties;
+								List<FPropertyTag> zjjnProperties = property.Tag!.GetValue<FStructFallback>()!.Properties;
 								foreach (FPropertyTag zjjnProperty in zjjnProperties)
 								{
 									if (zjjnProperty.Name.Text.Equals("Ability"))
