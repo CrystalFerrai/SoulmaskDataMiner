@@ -54,7 +54,15 @@ namespace SoulmaskDataMiner
 			MultiSpawnData? multiData = LoadSpawnData(scgClass.AsEnumerable(), logger, spawnerNameForLogging, defaultScgObj);
 			if (multiData is null) return null;
 
-			return new(multiData.NpcNames.First(), multiData.NpcClasses, multiData.Sexes, multiData.Statuses, multiData.Occupations, multiData.MinLevel, multiData.MaxLevel, multiData.SpawnCount);
+			return new(
+				multiData.NpcNames.First(),
+				multiData.NpcData,
+				multiData.Statuses,
+				multiData.Occupations,
+				multiData.MinLevel,
+				multiData.MaxLevel,
+				multiData.SpawnCount,
+				multiData.IsMixedAge);
 		}
 
 		/// <summary>
@@ -92,7 +100,7 @@ namespace SoulmaskDataMiner
 							case "SCGInfoList":
 								if (scgData.ScgInfo is null)
 								{
-									scgData.ScgInfo = property.Tag?.GetValue<UScriptArray>()?.Properties[0].GetValue<FStructFallback>()!;
+									scgData.ScgInfo = property.Tag?.GetValue<UScriptArray>()?.Properties.Select(p => p.GetValue<FStructFallback>()!).ToList();
 								}
 								break;
 							case "bManRen":
@@ -138,27 +146,31 @@ namespace SoulmaskDataMiner
 			}
 
 			List<UScriptArray> sgbLists = new();
+			List<int> spawnCounts = new();
 			List<WeightedValue<EClanDiWei>> tribeStatusList = new();
 			List<WeightedValue<EClanZhiYe>> occupationList = new();
-			int spawnCount = 0;
 			foreach (ScgData scgData in scgDataList)
 			{
-				foreach (FPropertyTag property in scgData.ScgInfo.Properties)
+				foreach (FStructFallback scgInfo in scgData.ScgInfo!)
 				{
-					switch (property.Name.Text)
+					UScriptArray? sgbList = null;
+					int spawnCount = 0;
+					foreach (FPropertyTag property in scgInfo.Properties)
 					{
-						case "SGBList":
-							{
-								UScriptArray? sgbList = property.Tag?.GetValue<UScriptArray>();
-								if (sgbList is not null)
-								{
-									sgbLists.Add(sgbList);
-								}
-							}
-							break;
-						case "GuaiSXCount":
-							spawnCount += property.Tag!.GetValue<int>();
-							break;
+						switch (property.Name.Text)
+						{
+							case "SGBList":
+								sgbList = property.Tag?.GetValue<UScriptArray>();
+								break;
+							case "GuaiSXCount":
+								spawnCount = property.Tag!.GetValue<int>();
+								break;
+						}
+					}
+					if (sgbList is not null)
+					{
+						sgbLists.Add(sgbList);
+						spawnCounts.Add(spawnCount);
 					}
 				}
 
@@ -205,14 +217,16 @@ namespace SoulmaskDataMiner
 				return null;
 			}
 
-			List<WeightedValue<UBlueprintGeneratedClass>> npcClasses = new();
-			int minLevel = int.MaxValue, maxLevel = int.MinValue;
-			foreach (UScriptArray sgbList in sgbLists)
+			List<WeightedValue<NpcData>> npcData = new();
+			for (int i = 0; i < sgbLists.Count; ++i)
 			{
+				UScriptArray sgbList = sgbLists[i];
 				foreach (FPropertyTagType item in sgbList.Properties)
 				{
 					float weight = 0.0f;
 					UBlueprintGeneratedClass? @class = null;
+					bool isBaby = false;
+					int levelMin = -1, levelMax = -1;
 
 					FStructFallback itemStruct = item.GetValue<FStructFallback>()!;
 					foreach (FPropertyTag property in itemStruct.Properties)
@@ -225,17 +239,14 @@ namespace SoulmaskDataMiner
 							case "GuaiWuClass":
 								@class = property.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
 								break;
+							case "ShiFouFaYu":
+								isBaby = property.Tag!.GetValue<bool>();
+								break;
 							case "SCGZuiXiaoDengJi":
-								{
-									int value = property.Tag!.GetValue<int>();
-									if (minLevel > value) minLevel = value;
-								}
+								levelMin = property.Tag!.GetValue<int>();
 								break;
 							case "SCGZuiDaDengJi":
-								{
-									int value = property.Tag!.GetValue<int>();
-									if (maxLevel < value) maxLevel = value;
-								}
+								levelMax = property.Tag!.GetValue<int>();
 								break;
 						}
 					}
@@ -245,40 +256,39 @@ namespace SoulmaskDataMiner
 						continue;
 					}
 
-					npcClasses.Add(new(@class, weight));
-				}
-				if (npcClasses.Count == 0)
-				{
-					logger.Log(LogLevel.Warning, "No spawn class found in spawn data.");
+					npcData.Add(new(new(@class, isBaby, levelMin, levelMin, spawnCounts[i]), weight));
 				}
 			}
 
-			if (npcClasses.Count == 0)
+			if (npcData.Count == 0)
 			{
 				logger.Log(LogLevel.Warning, $"[{spawnerNameForLogging}] No NPC classes found for spawn point");
 				return null;
 			}
 
-			if (minLevel == int.MaxValue)
+			bool isMixedAge = false;
+			if (npcData.Count > 1)
 			{
-				minLevel = (maxLevel == int.MinValue) ? 0 : maxLevel;
+				bool firstIsBaby = npcData.First().Value.IsBaby;
+				if (npcData.Skip(1).Any(n => n.Value.IsBaby != firstIsBaby))
+				{
+					isMixedAge = true;
+				}
 			}
-			if (maxLevel == int.MinValue)
-			{
-				maxLevel = (minLevel == int.MaxValue) ? 0 : minLevel;
-			}
+
+			int minLevel, maxLevel;
+			CalculateLevels(npcData, isMixedAge, out minLevel, out maxLevel);
 
 			HashSet<string> humanNames = new(scgDataList.Where(d => d.HumanName is not null).Select(d => d.HumanName!));
 			bool isHumanSpawner = humanNames.Count > 0;
 
-			HashSet<string> npcNames = new(npcClasses.Count);
-			List<WeightedValue<EXingBieType>> sexes = new();
+			HashSet<string> npcNames = new(npcData.Count);
 			EXingBieType defaultSex = isHumanSpawner ? EXingBieType.CHARACTER_XINGBIE_NAN : EXingBieType.CHARACTER_XINGBIE_WEIZHI;
-			foreach (WeightedValue<UBlueprintGeneratedClass> npcClass in npcClasses)
+			foreach (WeightedValue<NpcData> npcClass in npcData)
 			{
 				string? npcName = null;
 				EXingBieType? sex = null;
-				BlueprintHeirarchy.SearchInheritance(npcClass.Value, (current =>
+				BlueprintHeirarchy.SearchInheritance(npcClass.Value.CharacterClass, (current =>
 				{
 					UObject? npcObj = current?.ClassDefaultObject.Load();
 					if (npcObj is null)
@@ -291,10 +301,13 @@ namespace SoulmaskDataMiner
 						switch (property.Name.Text)
 						{
 							case "MoRenMingZi":
-								npcName = GameUtil.ReadTextProperty(property);
+								if (npcName is null)
+								{
+									npcName = GameUtil.ReadTextProperty(property);
+								}
 								break;
 							case "XingBie":
-								if (GameUtil.TryParseEnum(property, out EXingBieType xingBie))
+								if (!sex.HasValue && GameUtil.TryParseEnum(property, out EXingBieType xingBie))
 								{
 									sex = xingBie;
 								}
@@ -309,8 +322,8 @@ namespace SoulmaskDataMiner
 				{
 					npcNames.Add(npcName);
 				}
-				
-				sexes.Add(new(sex.HasValue ? sex.Value : defaultSex, npcClass.Weight));
+
+				npcClass.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
 			}
 
 			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
@@ -320,29 +333,78 @@ namespace SoulmaskDataMiner
 				return null;
 			}
 
-			return new(outNames, npcClasses, sexes, tribeStatusList, occupationList, minLevel, maxLevel, spawnCount);
+			int totalSpawnCount = isMixedAge ? npcData.Select(wv => wv.Value).Where(n => !n.IsBaby).Sum(n => n.SpawnCount) : spawnCounts.Sum();
+
+			return new(outNames, npcData, tribeStatusList, occupationList, minLevel, maxLevel, totalSpawnCount, isMixedAge);
+		}
+
+		public static void CalculateLevels(IEnumerable<WeightedValue<NpcData>> npcData, bool isMixedAge, out int minLevel, out int maxLevel)
+		{
+			minLevel = int.MaxValue;
+			maxLevel = int.MinValue;
+
+			foreach (NpcData npc in npcData.Select(n => n.Value))
+			{
+				// Only include adult levels if there is mix of adults and babies
+				if (isMixedAge && npc.IsBaby) continue;
+
+				if (npc.MinLevel < minLevel)
+				{
+					minLevel = npc.MinLevel;
+				}
+				if (npc.MaxLevel > maxLevel)
+				{
+					maxLevel = npc.MaxLevel;
+				}
+			}
+
+			if (minLevel == int.MaxValue)
+			{
+				minLevel = (maxLevel == int.MinValue) ? 0 : maxLevel;
+			}
+			if (maxLevel == int.MinValue)
+			{
+				maxLevel = (minLevel == int.MaxValue) ? 0 : minLevel;
+			}
 		}
 
 		/// <summary>
-		/// Get the category of an NPC based on its class
+		/// Get the category of an NPC
 		/// </summary>
-		/// <param name="npcClass"></param>
-		/// <returns></returns>
-		public static NpcCategory GetNpcCategory(UBlueprintGeneratedClass npcClass)
+		/// <param name="npcData">The NPC data</param>
+		public static NpcCategory GetNpcCategory(NpcData npcData)
 		{
-			string npcClassName = npcClass.Name;
+			string fistNpcClass = npcData.CharacterClass.Name;
 
-			if (BlueprintHeirarchy.Get().IsDerivedFrom(npcClassName, "BP_JiXie_Base_C"))
+			BlueprintHeirarchy bph = BlueprintHeirarchy.Get();
+
+			if (bph.IsDerivedFrom(fistNpcClass, "BP_JiXie_Base_C"))
 			{
 				return NpcCategory.Mechanical;
 			}
 
-			if (BlueprintHeirarchy.Get().IsDerivedFrom(npcClassName, "HCharacterDongWu"))
+			if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_TuoNiao_Egg_C"))
 			{
+				return NpcCategory.Ostrich;
+			}
+
+			if (bph.IsDerivedFrom(fistNpcClass, "HCharacterDongWu"))
+			{
+				if (npcData.IsBaby)
+				{
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_BaoZi_C") || bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_XueBao_C"))
+					{
+						return NpcCategory.Cats;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YangTuo_C") || bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_DaYangTuo_C"))
+					{
+						return NpcCategory.Lamas;
+					}
+				}
 				return NpcCategory.Animal;
 			}
 
-			if (BlueprintHeirarchy.Get().IsDerivedFrom(npcClassName, "HCharacterRen"))
+			if (bph.IsDerivedFrom(fistNpcClass, "HCharacterRen"))
 			{
 				return NpcCategory.Human;
 			}
@@ -353,7 +415,7 @@ namespace SoulmaskDataMiner
 		private struct ScgData
 		{
 			public bool IsRandomBarbarian;
-			public FStructFallback ScgInfo;
+			public List<FStructFallback>? ScgInfo;
 			public string? HumanName;
 			public UScriptMap? TribeStatusMap;
 			public UScriptMap? OccupationMap;
@@ -371,6 +433,56 @@ namespace SoulmaskDataMiner
 	}
 
 	/// <summary>
+	/// An NPC class and associated data
+	/// </summary>
+	internal class NpcData
+	{
+		/// <summary>
+		/// The NPC character class
+		/// </summary>
+		public UBlueprintGeneratedClass CharacterClass { get; }
+
+		/// <summary>
+		/// The sex of the NPC
+		/// </summary>
+		public EXingBieType Sex { get; set; }
+
+		/// <summary>
+		/// Whether the NPC is a baby
+		/// </summary>
+		public bool IsBaby { get; }
+
+		/// <summary>
+		/// The minimum spawn level
+		/// </summary>
+		public int MinLevel { get; }
+
+		/// <summary>
+		/// The maximum spawn level
+		/// </summary>
+		public int MaxLevel { get; }
+
+		/// <summary>
+		/// The spawn count
+		/// </summary>
+		public int SpawnCount { get; }
+
+		public NpcData(UBlueprintGeneratedClass characterClass, bool isBaby, int minLevel, int maxLevel, int spawnCount)
+		{
+			CharacterClass = characterClass;
+			IsBaby = isBaby;
+			MinLevel = minLevel;
+			MaxLevel = maxLevel;
+			SpawnCount = spawnCount;
+		}
+
+		public override string ToString()
+		{
+			return $"{CharacterClass.Name}: {(IsBaby ? "Baby" : "Adult")} {Sex.ToEn()} [{MinLevel}-{MaxLevel}]";
+		}
+	}
+
+	/// <summary>
 	/// Base class for spawn data generated by <see cref="SpawnMinerUtil" />
 	/// </summary>
 	internal abstract class SpawnData
@@ -378,12 +490,7 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// The classes for the NPCs that the spawner spawns
 		/// </summary>
-		public IEnumerable<WeightedValue<UBlueprintGeneratedClass>> NpcClasses { get; }
-
-		/// <summary>
-		/// Possible sex of spawned NPC
-		/// </summary>
-		public IEnumerable<WeightedValue<EXingBieType>> Sexes { get; }
+		public IEnumerable<WeightedValue<NpcData>> NpcData { get; }
 
 		/// <summary>
 		/// Possible tribal status of spawned NPC
@@ -398,11 +505,17 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// The minimum NPC level the spawner will spawn
 		/// </summary>
+		/// <remarks>
+		/// If this is a mixed age spawner, this value only includes adult levels
+		/// </remarks>
 		public int MinLevel { get; }
 
 		/// <summary>
 		/// The maximum NPC level the spawner will spawn
 		/// </summary>
+		/// <remarks>
+		/// If this is a mixed age spawner, this value only includes adult levels
+		/// </remarks>
 		public int MaxLevel { get; }
 
 		/// <summary>
@@ -410,22 +523,27 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public int SpawnCount { get; }
 
+		/// <summary>
+		/// Whether the spawner spawns a mix of adults and babies
+		/// </summary>
+		public bool IsMixedAge { get; }
+
 		protected SpawnData(
-			IEnumerable<WeightedValue<UBlueprintGeneratedClass>> npcClasses,
-			IEnumerable<WeightedValue<EXingBieType>> sexes,
+			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
 			int minLevel,
 			int maxLevel,
-			int spawnCount)
+			int spawnCount,
+			bool isMixedAge)
 		{
-			NpcClasses = npcClasses;
-			Sexes = sexes;
+			NpcData = npcClasses;
 			Statuses = statuses;
 			Occupations = occupations;
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
 			SpawnCount = spawnCount;
+			IsMixedAge = isMixedAge;
 		}
 	}
 
@@ -441,14 +559,14 @@ namespace SoulmaskDataMiner
 
 		public SingleSpawnData(
 			string npcName,
-			IEnumerable<WeightedValue<UBlueprintGeneratedClass>> npcClasses,
-			IEnumerable<WeightedValue<EXingBieType>> sexes,
+			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
 			int minLevel,
 			int maxLevel,
-			int spawnCount)
-			: base(npcClasses, sexes, statuses, occupations, minLevel, maxLevel, spawnCount)
+			int spawnCount,
+			bool isMixedAge)
+			: base(npcClasses, statuses, occupations, minLevel, maxLevel, spawnCount, isMixedAge)
 		{
 			NpcName = npcName;
 		}
@@ -471,14 +589,14 @@ namespace SoulmaskDataMiner
 
 		public MultiSpawnData(
 			IReadOnlySet<string> npcNames,
-			IEnumerable<WeightedValue<UBlueprintGeneratedClass>> npcClasses,
-			IEnumerable<WeightedValue<EXingBieType>> sexes,
+			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
 			int minLevel,
 			int maxLevel,
-			int spawnCount)
-			: base(npcClasses, sexes, statuses, occupations, minLevel, maxLevel, spawnCount)
+			int spawnCount,
+			bool isMixedAge)
+			: base(npcClasses, statuses, occupations, minLevel, maxLevel, spawnCount, isMixedAge)
 		{
 			NpcNames = npcNames;
 		}
@@ -566,6 +684,9 @@ namespace SoulmaskDataMiner
 		Animal,
 		Mechanical,
 		Human,
+		Lamas,
+		Cats,
+		Ostrich,
 		Count
 	}
 

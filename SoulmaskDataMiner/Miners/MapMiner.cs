@@ -441,8 +441,21 @@ namespace SoulmaskDataMiner.Miners
 						return false;
 					}
 
-					spawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = $"{(NpcCategory)i} Spawner", Icon = icon };
+					spawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = $"{(NpcCategory)i} Spawn", Icon = icon };
 				}
+
+				UTexture2D? lamasIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_yangtuo.uasset", logger);
+				UTexture2D? catsIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_baozi.uasset", logger);
+				UTexture2D? ostrichIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_tuoniao.uasset", logger);
+				if (lamasIcon is null || catsIcon is null || ostrichIcon is null)
+				{
+					logger.LogError("Failed to load spawner icon texture.");
+					return false;
+				}
+
+				spawnLayerMap[NpcCategory.Lamas] = new SpawnLayerInfo() { Name = "Baby Animal Spawn", Icon = lamasIcon };
+				spawnLayerMap[NpcCategory.Cats] = new SpawnLayerInfo() { Name = "Baby Animal Spawn", Icon = catsIcon };
+				spawnLayerMap[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = "Baby Animal Spawn", Icon = ostrichIcon };
 			}
 
 			Package[] packages = new Package[2];
@@ -470,7 +483,8 @@ namespace SoulmaskDataMiner.Miners
 						"HShuaGuaiQiShouLong",
 							"HJianZhuBuLuoQiuLong",
 						"ShuaGuaiQi_RuQingNPC",
-						"HShuaGuaiQiDiXiaCheng"
+						"HShuaGuaiQiDiXiaCheng",
+				"HTanChaActor"
 			};
 
 			List<BlueprintClassInfo> bpClasses = new();
@@ -487,6 +501,8 @@ namespace SoulmaskDataMiner.Miners
 				UObject? defaultScgObj = scgClassProperty?.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
 				spawnerClasses.Add(bpClass.Name, defaultScgObj);
 			}
+
+			Dictionary<string, MultiSpawnData?> spawnDataCache = new();
 
 			logger.Log(LogLevel.Information, "Finding spawn points...");
 			foreach (Package package in packages)
@@ -508,6 +524,7 @@ namespace SoulmaskDataMiner.Miners
 							switch (property.Name.Text)
 							{
 								case "SCGClass":
+								case "TanChaYouZaiGuaiData":
 									if (scgClasses.Count == 0)
 									{
 										UBlueprintGeneratedClass? scgClass = property.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
@@ -578,7 +595,13 @@ namespace SoulmaskDataMiner.Miners
 						spawnInterval = 10.0f;
 					}
 
-					MultiSpawnData? spawnData = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, defaultScgObj);
+					string spawnDataKey = string.Join(',', scgClasses.Select(c => c.Name));
+					MultiSpawnData? spawnData = null;
+					if (!spawnDataCache.TryGetValue(spawnDataKey, out spawnData))
+					{
+						spawnData = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, defaultScgObj);
+						spawnDataCache.Add(spawnDataKey, spawnData);
+					}
 					if (spawnData is null)
 					{
 						continue;
@@ -594,43 +617,69 @@ namespace SoulmaskDataMiner.Miners
 
 					FVector location = locationProperty.Tag!.GetValue<FVector>();
 
-					NpcCategory layerType = SpawnMinerUtil.GetNpcCategory(spawnData.NpcClasses.First().Value);
-					SpawnLayerInfo layerInfo = spawnLayerMap[layerType];
+					NpcCategory layerType = SpawnMinerUtil.GetNpcCategory(spawnData.NpcData.First().Value);
+
+					SpawnLayerInfo layerInfo;
+					SpawnLayerGroup group;
+					string type;
+					bool male, female;
+
+					void applyLayerTypeAndSex(bool onlyBabies)
+					{
+						layerInfo = spawnLayerMap[layerType];
+						group = SpawnLayerGroup.Npc;
+						type = layerInfo.Name;
+						male = false;
+						female = false;
+
+						switch (layerType)
+						{
+							case NpcCategory.Animal:
+								group = SpawnLayerGroup.Animal;
+								if (poiName.Contains(','))
+								{
+									type = "(Multiple)";
+								}
+								else
+								{
+									type = poiName;
+								}
+								break;
+							case NpcCategory.Lamas:
+							case NpcCategory.Cats:
+							case NpcCategory.Ostrich:
+								group = SpawnLayerGroup.BabyAnimal;
+								type = poiName;
+								break;
+						}
+
+						//System.Diagnostics.Debugger.Launch();
+						//System.Diagnostics.Debugger.Break();
+
+						foreach (WeightedValue<NpcData> npcData in spawnData.NpcData)
+						{
+							if (!onlyBabies && spawnData.IsMixedAge && npcData.Value.IsBaby) continue;
+							if (onlyBabies && !npcData.Value.IsBaby) continue;
+
+							EXingBieType sex = npcData.Value.Sex;
+							if (sex == EXingBieType.CHARACTER_XINGBIE_NAN)
+							{
+								male = true;
+							}
+							else if (sex == EXingBieType.CHARACTER_XINGBIE_NV)
+							{
+								female = true;
+							}
+							else if (sex == EXingBieType.CHARACTER_XINGBIE_WEIZHI)
+							{
+								male = true;
+								female = true;
+							}
+						}
+					}
+					applyLayerTypeAndSex(false);
 
 					string levelText = (spawnData.MinLevel == spawnData.MaxLevel) ? spawnData.MinLevel.ToString() : $"{spawnData.MinLevel} - {spawnData.MaxLevel}";
-
-					SpawnLayerGroup group = SpawnLayerGroup.Npc;
-					string type = layerInfo.Name;
-					if (layerType == NpcCategory.Animal)
-					{
-						group = SpawnLayerGroup.Animal;
-						if (poiName.Contains(','))
-						{
-							type = "(Multiple)";
-						}
-						else
-						{
-							type = poiName;
-						}
-					}
-
-					bool male = false, female = false;
-					foreach (WeightedValue<EXingBieType> sex in spawnData.Sexes)
-					{
-						if (sex.Value == EXingBieType.CHARACTER_XINGBIE_NAN)
-						{
-							male = true;
-						}
-						else if (sex.Value == EXingBieType.CHARACTER_XINGBIE_NV)
-						{
-							female = true;
-						}
-						else if (sex.Value == EXingBieType.CHARACTER_XINGBIE_WEIZHI)
-						{
-							male = true;
-							female = true;
-						}
-					}
 
 					string? tribeStatus = null;
 					if (spawnData.Statuses.Any())
@@ -663,6 +712,32 @@ namespace SoulmaskDataMiner.Miners
 					};
 
 					lookups.Spawners.Add(poi);
+
+					if (spawnData.IsMixedAge)
+					{
+						WeightedValue<NpcData>[] babyData = spawnData.NpcData.Where(d => d.Value.IsBaby).ToArray();
+
+						layerType = SpawnMinerUtil.GetNpcCategory(babyData[0].Value);
+						applyLayerTypeAndSex(true);
+
+						SpawnMinerUtil.CalculateLevels(babyData, false, out int minLevel, out int maxLevel);
+
+						levelText = (minLevel == maxLevel) ? minLevel.ToString() : $"{minLevel} - {maxLevel}";
+
+						poi = new(poi)
+						{
+							GroupIndex = group,
+							Type = type,
+							Name = layerInfo.Name,
+							Description = $"Level {levelText}",
+							Male = male,
+							Female = female,
+							SpawnCount = babyData.Sum(b => b.Value.SpawnCount),
+							Icon = layerInfo.Icon
+						};
+
+						lookups.Spawners.Add(poi);
+					}
 				}
 			}
 
@@ -832,7 +907,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private class MapPoi
+		private class MapPoi : ICloneable
 		{
 			public SpawnLayerGroup GroupIndex { get; set; }
 			public string Type { get; set; } = null!;
@@ -850,6 +925,35 @@ namespace SoulmaskDataMiner.Miners
 			public FVector2D MapLocation { get; set; }
 			public UTexture2D Icon { get; set; } = null!;
 			public AchievementData? Achievement {  get; set; }
+
+			public MapPoi()
+			{
+			}
+
+			public MapPoi(MapPoi other)
+			{
+				GroupIndex = other.GroupIndex;
+				Type = other.Type;
+				Title = other.Title;
+				Name = other.Name;
+				Description = other.Description;
+				Extra = other.Extra;
+				Male = other.Male;
+				Female = other.Female;
+				TribeStatus = other.TribeStatus;
+				Occupation = other.Occupation;
+				SpawnCount = other.SpawnCount;
+				SpawnInterval = other.SpawnInterval;
+				Location = other.Location;
+				MapLocation = other.MapLocation;
+				Icon = other.Icon;
+				Achievement = other.Achievement;
+			}
+
+			public object Clone()
+			{
+				return new MapPoi(this);
+			}
 
 			public override string ToString()
 			{
@@ -872,6 +976,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			Unset,
 			PointOfInterest,
+			BabyAnimal,
 			Animal,
 			Npc
 		}
@@ -950,6 +1055,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				SpawnLayerGroup.Unset => "",
 				SpawnLayerGroup.PointOfInterest => "Point of Interest",
+				SpawnLayerGroup.BabyAnimal => "Baby Animal Spawn",
 				SpawnLayerGroup.Animal => "Animal Spawn",
 				SpawnLayerGroup.Npc => "NPC Spawn",
 				_ => ""

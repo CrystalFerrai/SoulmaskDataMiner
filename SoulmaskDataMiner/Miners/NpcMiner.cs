@@ -123,7 +123,7 @@ namespace SoulmaskDataMiner.Miners
 				specifiedMan.MinLevel = spawnData.MinLevel;
 				specifiedMan.MaxLevel = spawnData.MaxLevel;
 
-				foreach (UBlueprintGeneratedClass npcClass in spawnData.NpcClasses.Select(n => n.Value))
+				foreach (UBlueprintGeneratedClass npcClass in spawnData.NpcData.Select(n => n.Value.CharacterClass))
 				{
 					EXingBieType sex = EXingBieType.CHARACTER_XINGBIE_NAN;
 
