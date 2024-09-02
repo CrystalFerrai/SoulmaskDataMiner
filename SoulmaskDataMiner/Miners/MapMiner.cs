@@ -441,7 +441,7 @@ namespace SoulmaskDataMiner.Miners
 						return false;
 					}
 
-					spawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = $"{(NpcCategory)i} Spawn", Icon = icon };
+					spawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = ((NpcCategory)i).ToString(), Icon = icon };
 				}
 
 				UTexture2D? lamasIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_yangtuo.uasset", logger);
@@ -645,6 +645,10 @@ namespace SoulmaskDataMiner.Miners
 									type = poiName;
 								}
 								break;
+							case NpcCategory.Human:
+								group = SpawnLayerGroup.Human;
+								type = spawnData.ClanType.ToEn();
+								break;
 							case NpcCategory.Lamas:
 							case NpcCategory.Cats:
 							case NpcCategory.Ostrich:
@@ -652,9 +656,6 @@ namespace SoulmaskDataMiner.Miners
 								type = poiName;
 								break;
 						}
-
-						//System.Diagnostics.Debugger.Launch();
-						//System.Diagnostics.Debugger.Break();
 
 						foreach (WeightedValue<NpcData> npcData in spawnData.NpcData)
 						{
@@ -978,6 +979,7 @@ namespace SoulmaskDataMiner.Miners
 			PointOfInterest,
 			BabyAnimal,
 			Animal,
+			Human,
 			Npc
 		}
 
@@ -1057,7 +1059,8 @@ namespace SoulmaskDataMiner.Miners
 				SpawnLayerGroup.PointOfInterest => "Point of Interest",
 				SpawnLayerGroup.BabyAnimal => "Baby Animal Spawn",
 				SpawnLayerGroup.Animal => "Animal Spawn",
-				SpawnLayerGroup.Npc => "NPC Spawn",
+				SpawnLayerGroup.Human => "Human Spawn",
+				SpawnLayerGroup.Npc => "Other NPC Spawn",
 				_ => ""
 			};
 		}

@@ -59,6 +59,7 @@ namespace SoulmaskDataMiner
 				multiData.NpcData,
 				multiData.Statuses,
 				multiData.Occupations,
+				multiData.ClanType,
 				multiData.MinLevel,
 				multiData.MaxLevel,
 				multiData.SpawnCount,
@@ -127,6 +128,15 @@ namespace SoulmaskDataMiner
 									scgData.OccupationMap = property.Tag?.GetValue<UScriptMap>();
 								}
 								break;
+							case "ClanType":
+								if (!scgData.ClanType.HasValue)
+								{
+									if (GameUtil.TryParseEnum(property, out EClanType value))
+									{
+										scgData.ClanType = value;
+									}
+								}
+								break;
 						}
 					}
 
@@ -149,6 +159,7 @@ namespace SoulmaskDataMiner
 			List<int> spawnCounts = new();
 			List<WeightedValue<EClanDiWei>> tribeStatusList = new();
 			List<WeightedValue<EClanZhiYe>> occupationList = new();
+			EClanType clanType = EClanType.CLAN_TYPE_NONE;
 			foreach (ScgData scgData in scgDataList)
 			{
 				foreach (FStructFallback scgInfo in scgData.ScgInfo!)
@@ -206,6 +217,25 @@ namespace SoulmaskDataMiner
 					}
 					occupationList.AddRange(WeightedValue<EClanZhiYe>.Reduce(occupations));
 				}
+
+				if (scgData.ClanType is not null)
+				{
+					if (clanType == EClanType.CLAN_TYPE_NONE)
+					{
+						clanType = scgData.ClanType.Value;
+					}
+					else if (clanType != scgData.ClanType.Value)
+					{
+						if (scgData.HumanName?.Contains("Invader", StringComparison.OrdinalIgnoreCase) ?? false)
+						{
+							clanType = EClanType.CLAN_TYPE_INVADER;
+						}
+						else
+						{
+							logger.Log(LogLevel.Warning, "Spawn data contains multiple clan types. Only the first type will be recorded.");
+						}
+					}
+				}
 			}
 
 			tribeStatusList = WeightedValue<EClanDiWei>.Reduce(tribeStatusList).ToList();
@@ -256,7 +286,7 @@ namespace SoulmaskDataMiner
 						continue;
 					}
 
-					npcData.Add(new(new(@class, isBaby, levelMin, levelMin, spawnCounts[i]), weight));
+					npcData.Add(new(new(@class, isBaby, levelMin, levelMax, spawnCounts[i]), weight));
 				}
 			}
 
@@ -335,7 +365,7 @@ namespace SoulmaskDataMiner
 
 			int totalSpawnCount = isMixedAge ? npcData.Select(wv => wv.Value).Where(n => !n.IsBaby).Sum(n => n.SpawnCount) : spawnCounts.Sum();
 
-			return new(outNames, npcData, tribeStatusList, occupationList, minLevel, maxLevel, totalSpawnCount, isMixedAge);
+			return new(outNames, npcData, tribeStatusList, occupationList, clanType, minLevel, maxLevel, totalSpawnCount, isMixedAge);
 		}
 
 		public static void CalculateLevels(IEnumerable<WeightedValue<NpcData>> npcData, bool isMixedAge, out int minLevel, out int maxLevel)
@@ -414,11 +444,12 @@ namespace SoulmaskDataMiner
 
 		private struct ScgData
 		{
-			public bool IsRandomBarbarian;
+			public bool? IsRandomBarbarian;
 			public List<FStructFallback>? ScgInfo;
 			public string? HumanName;
 			public UScriptMap? TribeStatusMap;
 			public UScriptMap? OccupationMap;
+			public EClanType? ClanType;
 
 			public bool IsValid()
 			{
@@ -427,7 +458,7 @@ namespace SoulmaskDataMiner
 
 			public bool IsComplete()
 			{
-				return ScgInfo is not null && HumanName is not null && TribeStatusMap is not null && OccupationMap is not null;
+				return ScgInfo is not null && IsRandomBarbarian.HasValue && HumanName is not null && TribeStatusMap is not null && OccupationMap is not null && ClanType.HasValue;
 			}
 		}
 	}
@@ -503,6 +534,11 @@ namespace SoulmaskDataMiner
 		public IEnumerable<WeightedValue<EClanZhiYe>> Occupations { get; }
 
 		/// <summary>
+		/// Clan type of spawned NPC
+		/// </summary>
+		public EClanType ClanType { get; }
+
+		/// <summary>
 		/// The minimum NPC level the spawner will spawn
 		/// </summary>
 		/// <remarks>
@@ -532,6 +568,7 @@ namespace SoulmaskDataMiner
 			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
+			EClanType clanType,
 			int minLevel,
 			int maxLevel,
 			int spawnCount,
@@ -540,6 +577,7 @@ namespace SoulmaskDataMiner
 			NpcData = npcClasses;
 			Statuses = statuses;
 			Occupations = occupations;
+			ClanType = clanType;
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
 			SpawnCount = spawnCount;
@@ -562,11 +600,12 @@ namespace SoulmaskDataMiner
 			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
+			EClanType clanType,
 			int minLevel,
 			int maxLevel,
 			int spawnCount,
 			bool isMixedAge)
-			: base(npcClasses, statuses, occupations, minLevel, maxLevel, spawnCount, isMixedAge)
+			: base(npcClasses, statuses, occupations, clanType, minLevel, maxLevel, spawnCount, isMixedAge)
 		{
 			NpcName = npcName;
 		}
@@ -592,11 +631,12 @@ namespace SoulmaskDataMiner
 			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
+			EClanType clanType,
 			int minLevel,
 			int maxLevel,
 			int spawnCount,
 			bool isMixedAge)
-			: base(npcClasses, statuses, occupations, minLevel, maxLevel, spawnCount, isMixedAge)
+			: base(npcClasses, statuses, occupations, clanType, minLevel, maxLevel, spawnCount, isMixedAge)
 		{
 			NpcNames = npcNames;
 		}
@@ -709,7 +749,7 @@ namespace SoulmaskDataMiner
 		CLAN_DIWEI_LOW,
 		CLAN_DIWEI_MIDDLE,
 		CLAN_DIWEI_HIGH,
-		CLAN_DIWEI_MAX,
+		CLAN_DIWEI_MAX
 	};
 
 	/// <summary>
@@ -727,8 +767,24 @@ namespace SoulmaskDataMiner
 		ZHIYE_TYPE_ZHIZHE,
 		ZHIYE_TYPE_XIULIAN,
 		ZHIYE_TYPE_JISHI,
-		ZHIYE_TYPE_MAX,
+		ZHIYE_TYPE_MAX
 	};
+
+	/// <summary>
+	/// Clan membership of human NPC
+	/// </summary>
+	internal enum EClanType
+	{
+		CLAN_TYPE_NONE,
+		CLAN_TYPE_A,
+		CLAN_TYPE_B,
+		CLAN_TYPE_C,
+		CLAN_TYPE_D,
+		CLAN_TYPE_E,
+		CLAN_TYPE_F,
+		CLAN_TYPE_MAX,
+		CLAN_TYPE_INVADER // Not part of original enum
+	}
 
 	/// <summary>
 	/// Exntension methods for NPC related enums
@@ -776,6 +832,25 @@ namespace SoulmaskDataMiner
 				EClanZhiYe.ZHIYE_TYPE_KULI => "Laborer",
 				EClanZhiYe.ZHIYE_TYPE_ZAGONG => "Porter",
 				EClanZhiYe.ZHIYE_TYPE_ZONGJIANG => "Craftsman",
+				_ => Default(value)
+			};
+		}
+
+		/// <summary>
+		/// Return an English representation of the value
+		/// </summary>
+		public static string ToEn(this EClanType value)
+		{
+			return value switch
+			{
+				EClanType.CLAN_TYPE_NONE => "Unaffiliated",
+				EClanType.CLAN_TYPE_A => "Claw Tribe",
+				EClanType.CLAN_TYPE_B => "Flint Tribe",
+				EClanType.CLAN_TYPE_C => "Fang Tribe",
+				EClanType.CLAN_TYPE_D => "Plunderer",
+				EClanType.CLAN_TYPE_E => "Unknown",
+				EClanType.CLAN_TYPE_F => "Unknown",
+				EClanType.CLAN_TYPE_INVADER => "Invader",
 				_ => Default(value)
 			};
 		}

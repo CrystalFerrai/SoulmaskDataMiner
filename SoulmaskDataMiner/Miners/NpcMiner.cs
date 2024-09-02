@@ -19,6 +19,7 @@ using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Engine;
+using SkiaSharp;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -123,27 +124,9 @@ namespace SoulmaskDataMiner.Miners
 				specifiedMan.MinLevel = spawnData.MinLevel;
 				specifiedMan.MaxLevel = spawnData.MaxLevel;
 
-				foreach (UBlueprintGeneratedClass npcClass in spawnData.NpcData.Select(n => n.Value.CharacterClass))
+				foreach (NpcData npcData in spawnData.NpcData.Select(wv => wv.Value))
 				{
-					EXingBieType sex = EXingBieType.CHARACTER_XINGBIE_NAN;
-
-					BlueprintHeirarchy.SearchInheritance(npcClass, (current) =>
-					{
-						UObject? curObj = current.ClassDefaultObject.Load();
-						if (curObj is null) return false;
-
-						FPropertyTag? sexProperty = curObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("XingBie"));
-						if (sexProperty is null) return false;
-
-						if (GameUtil.TryParseEnum(sexProperty, out EXingBieType result))
-						{
-							sex = result;
-						}
-
-						return true;
-					});
-
-					switch (sex)
+					switch (npcData.Sex)
 					{
 						case EXingBieType.CHARACTER_XINGBIE_NAN:
 							specifiedMan.HasMale = true;
