@@ -155,6 +155,9 @@ namespace SoulmaskDataMiner
 				return null;
 			}
 
+			Dictionary<int, int> sgbToScgIndexMap = new();
+			int scgIndex = 0, sgbIndex = 0;
+
 			List<UScriptArray> sgbLists = new();
 			List<int> spawnCounts = new();
 			List<WeightedValue<EClanDiWei>> tribeStatusList = new();
@@ -182,6 +185,9 @@ namespace SoulmaskDataMiner
 					{
 						sgbLists.Add(sgbList);
 						spawnCounts.Add(spawnCount);
+
+						sgbToScgIndexMap[sgbIndex] = scgIndex;
+						++sgbIndex;
 					}
 				}
 
@@ -236,6 +242,8 @@ namespace SoulmaskDataMiner
 						}
 					}
 				}
+
+				++scgIndex;
 			}
 
 			tribeStatusList = WeightedValue<EClanDiWei>.Reduce(tribeStatusList).ToList();
@@ -290,7 +298,9 @@ namespace SoulmaskDataMiner
 						continue;
 					}
 
-					npcData.Add(new(new(@class, isBaby, levelMin, levelMax, spawnCounts[i], loot), weight));
+					ScgData scgData = scgDataList[sgbToScgIndexMap[i]];
+
+					npcData.Add(new(new(@class, isBaby, levelMin, levelMax, spawnCounts[i], loot) { Name = scgData.HumanName! }, weight));
 				}
 			}
 
@@ -318,12 +328,12 @@ namespace SoulmaskDataMiner
 
 			HashSet<string> npcNames = new(npcData.Count);
 			EXingBieType defaultSex = isHumanSpawner ? EXingBieType.CHARACTER_XINGBIE_NAN : EXingBieType.CHARACTER_XINGBIE_WEIZHI;
-			foreach (WeightedValue<NpcData> npcClass in npcData)
+			foreach (WeightedValue<NpcData> npc in npcData)
 			{
 				string? npcName = null;
 				EXingBieType? sex = null;
 				string? extraLoot = null;
-				BlueprintHeirarchy.SearchInheritance(npcClass.Value.CharacterClass, (current =>
+				BlueprintHeirarchy.SearchInheritance(npc.Value.CharacterClass, (current =>
 				{
 					UObject? npcObj = current?.ClassDefaultObject.Load();
 					if (npcObj is null)
@@ -367,11 +377,15 @@ namespace SoulmaskDataMiner
 
 				if (npcName is not null)
 				{
+					if (npc.Value.Name is null)
+					{
+						npc.Value.Name = npcName;
+					}
 					npcNames.Add(npcName);
 				}
 
-				npcClass.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
-				npcClass.Value.CharacterLoot = extraLoot;
+				npc.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
+				npc.Value.CharacterLoot = extraLoot;
 			}
 
 			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
@@ -492,6 +506,11 @@ namespace SoulmaskDataMiner
 		public UBlueprintGeneratedClass CharacterClass { get; }
 
 		/// <summary>
+		/// The NPC display name
+		/// </summary>
+		public string Name { get; set; }
+
+		/// <summary>
 		/// The sex of the NPC
 		/// </summary>
 		public EXingBieType Sex { get; set; }
@@ -529,6 +548,7 @@ namespace SoulmaskDataMiner
 		public NpcData(UBlueprintGeneratedClass characterClass, bool isBaby, int minLevel, int maxLevel, int spawnCount, string? loot)
 		{
 			CharacterClass = characterClass;
+			Name = null!;
 			IsBaby = isBaby;
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
