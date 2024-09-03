@@ -23,6 +23,7 @@ using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using System.Runtime.CompilerServices;
 
 namespace SoulmaskDataMiner
 {
@@ -100,6 +101,107 @@ namespace SoulmaskDataMiner
 		public static UTexture2D? ReadTextureProperty(FPropertyTagType? property)
 		{
 			return property?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value as UTexture2D;
+		}
+
+		/// <summary>
+		/// Attempts to read a property value as a range
+		/// </summary>
+		/// <typeparam name="T">The range value type</typeparam>
+		/// <param name="property">The property to read</param>
+		/// <returns>The range, or null if failure</returns>
+		public static TRange<T>? ReadRangeProperty<T>(FPropertyTag? property) where T : struct
+		{
+			if (property is null) return null;
+			return ReadRangeProperty<T>(property.Tag);
+		}
+
+		/// <summary>
+		/// Attempts to read a property value as a range
+		/// </summary>
+		/// <typeparam name="T">The range value type</typeparam>
+		/// <param name="property">The property to read</param>
+		/// <returns>The range, or null if failure</returns>
+		public static unsafe TRange<T>? ReadRangeProperty<T>(FPropertyTagType? property) where T : struct
+		{
+			FStructFallback? data = property?.GetValue<FStructFallback>();
+			if (data is null) return null;
+
+			ERangeBoundTypes? lowerBoundType = null;
+			T? lowerBoundValue = null;
+
+			ERangeBoundTypes? upperBoundType = null;
+			T? upperBoundValue = null;
+
+			foreach (FPropertyTag prop in data.Properties)
+			{
+				FStructFallback? boundData = prop.Tag?.GetValue<FStructFallback>();
+				if (boundData is null) return null;
+
+				ERangeBoundTypes? boundType = null;
+				T? boundValue = null;
+				foreach (FPropertyTag boundProp in boundData.Properties)
+				{
+					switch (boundProp.Name.Text)
+					{
+						case "Type":
+							if (TryParseEnum(boundProp, out ERangeBoundTypes bt))
+							{
+								boundType = bt;
+							}
+							break;
+						case "Value":
+							boundValue = boundProp.Tag?.GetValue<T>();
+							break;
+					}
+				}
+
+				if (!boundType.HasValue || !boundValue.HasValue) return null;
+
+				switch (prop.Name.Text)
+				{
+					case "LowerBound":
+						lowerBoundType = boundType;
+						lowerBoundValue = boundValue;
+						break;
+					case "UpperBound":
+						upperBoundType = boundType;
+						upperBoundValue = boundValue;
+						break;
+				}
+			}
+
+			if (!lowerBoundType.HasValue || !lowerBoundValue.HasValue) return null;
+			if (!upperBoundType.HasValue || !upperBoundValue.HasValue) return null;
+
+			// TRange is a readonly struct with no cosntructor, so we are using unsafe mode to write values.
+			TRange<T> value = new();
+			int valueSize = Unsafe.SizeOf<TRange<T>>();
+
+			byte[] buffer = new byte[valueSize];
+			fixed(byte* bufferPtr = buffer)
+			{
+				byte* pos = bufferPtr;
+
+				byte lowerType = (byte)lowerBoundType.Value;
+				Unsafe.Copy(pos, ref lowerType);
+				++pos;
+
+				T lowerValue = lowerBoundValue.Value;
+				Unsafe.Copy(pos, ref lowerValue);
+				pos += Unsafe.SizeOf<T>();
+
+				byte upperType = (byte)upperBoundType.Value;
+				Unsafe.Copy(pos, ref upperType);
+				++pos;
+
+				T upperValue = upperBoundValue.Value;
+				Unsafe.Copy(pos, ref upperValue);
+				pos += Unsafe.SizeOf<T>();
+
+				value = Unsafe.ReadUnaligned<TRange<T>>(bufferPtr);
+			}
+
+			return value;
 		}
 
 		/// <summary>

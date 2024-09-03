@@ -257,6 +257,7 @@ namespace SoulmaskDataMiner
 					UBlueprintGeneratedClass? @class = null;
 					bool isBaby = false;
 					int levelMin = -1, levelMax = -1;
+					string? loot = null;
 
 					FStructFallback itemStruct = item.GetValue<FStructFallback>()!;
 					foreach (FPropertyTag property in itemStruct.Properties)
@@ -278,6 +279,9 @@ namespace SoulmaskDataMiner
 							case "SCGZuiDaDengJi":
 								levelMax = property.Tag!.GetValue<int>();
 								break;
+							case "DiaoLuoBaoID":
+								loot = property.Tag!.GetValue<FName>().Text;
+								break;
 						}
 					}
 
@@ -286,7 +290,7 @@ namespace SoulmaskDataMiner
 						continue;
 					}
 
-					npcData.Add(new(new(@class, isBaby, levelMin, levelMax, spawnCounts[i]), weight));
+					npcData.Add(new(new(@class, isBaby, levelMin, levelMax, spawnCounts[i], loot), weight));
 				}
 			}
 
@@ -318,6 +322,7 @@ namespace SoulmaskDataMiner
 			{
 				string? npcName = null;
 				EXingBieType? sex = null;
+				string? extraLoot = null;
 				BlueprintHeirarchy.SearchInheritance(npcClass.Value.CharacterClass, (current =>
 				{
 					UObject? npcObj = current?.ClassDefaultObject.Load();
@@ -342,10 +347,22 @@ namespace SoulmaskDataMiner
 									sex = xingBie;
 								}
 								break;
+							case "CharMorenDaoJuInitData":
+								if (extraLoot is null)
+								{
+									FStructFallback? initData = property.Tag?.GetValue<FStructFallback>();
+									if (initData is null) break;
+
+									FPropertyTag? prop = initData.Properties.FirstOrDefault(p => p.Name.Text.Equals("ExtraDiaoLuoBaoAfterSiWang"));
+									if (prop is null) break;
+
+									extraLoot = prop.Tag?.GetValue<FName>().Text;
+								}
+								break;
 						}
 					}
 
-					return npcName is not null && sex.HasValue;
+					return npcName is not null && sex.HasValue && extraLoot is not null;
 				}));
 
 				if (npcName is not null)
@@ -354,6 +371,7 @@ namespace SoulmaskDataMiner
 				}
 
 				npcClass.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
+				npcClass.Value.ExtraLoot = extraLoot;
 			}
 
 			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
@@ -498,13 +516,24 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public int SpawnCount { get; }
 
-		public NpcData(UBlueprintGeneratedClass characterClass, bool isBaby, int minLevel, int maxLevel, int spawnCount)
+		/// <summary>
+		/// Loot dropped by the NPC
+		/// </summary>
+		public string? Loot { get; }
+
+		/// <summary>
+		/// Additional loot dropped by the NPC
+		/// </summary>
+		public string? ExtraLoot { get; set; }
+
+		public NpcData(UBlueprintGeneratedClass characterClass, bool isBaby, int minLevel, int maxLevel, int spawnCount, string? loot)
 		{
 			CharacterClass = characterClass;
 			IsBaby = isBaby;
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
 			SpawnCount = spawnCount;
+			Loot = loot;
 		}
 
 		public override string ToString()

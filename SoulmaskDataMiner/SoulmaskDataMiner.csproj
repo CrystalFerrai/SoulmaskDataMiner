@@ -16,6 +16,7 @@
     <FileVersion>$(Version)</FileVersion>
 	<InformationalVersion>$(Version)</InformationalVersion>
 	<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+	<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
