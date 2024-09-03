@@ -371,7 +371,7 @@ namespace SoulmaskDataMiner
 				}
 
 				npcClass.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
-				npcClass.Value.ExtraLoot = extraLoot;
+				npcClass.Value.CharacterLoot = extraLoot;
 			}
 
 			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
@@ -517,14 +517,14 @@ namespace SoulmaskDataMiner
 		public int SpawnCount { get; }
 
 		/// <summary>
-		/// Loot dropped by the NPC
+		/// Loot referenced from the spawner class (overrides character loot if present)
 		/// </summary>
-		public string? Loot { get; }
+		public string? SpawnerLoot { get; }
 
 		/// <summary>
-		/// Additional loot dropped by the NPC
+		/// Loot referenced from the character class
 		/// </summary>
-		public string? ExtraLoot { get; set; }
+		public string? CharacterLoot { get; set; }
 
 		public NpcData(UBlueprintGeneratedClass characterClass, bool isBaby, int minLevel, int maxLevel, int spawnCount, string? loot)
 		{
@@ -533,7 +533,7 @@ namespace SoulmaskDataMiner
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
 			SpawnCount = spawnCount;
-			Loot = loot;
+			SpawnerLoot = loot;
 		}
 
 		public override string ToString()

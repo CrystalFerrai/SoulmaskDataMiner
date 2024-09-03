@@ -925,7 +925,7 @@ namespace SoulmaskDataMiner.Miners
 					Location = location,
 					MapLocation = GameUtil.WorldToMap(location),
 					Icon = layerInfo.Icon,
-					LootId = firstNpc.Loot ?? firstNpc.ExtraLoot
+					LootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot
 				};
 
 				lookups.Spawners.Add(poi);
