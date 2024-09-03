@@ -925,8 +925,7 @@ namespace SoulmaskDataMiner.Miners
 					Location = location,
 					MapLocation = GameUtil.WorldToMap(location),
 					Icon = layerInfo.Icon,
-					LootId = firstNpc.Loot,
-					Loot2Id = firstNpc.ExtraLoot
+					LootId = firstNpc.Loot ?? firstNpc.ExtraLoot
 				};
 
 				lookups.Spawners.Add(poi);
@@ -1135,11 +1134,11 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,title,name,desc,extra,m,f,stat,occ,num,intr,loot,loot2,lootitem,icon,ach,achDesc,achIcon");
+				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,icon,ach,achDesc,achIcon");
 
 				foreach (MapPoi poi in pair.Value)
 				{
-					string spawnerSegment = ",,,,,,,,";
+					string spawnerSegment = ",,,,,,,";
 					string poiSegment = ",,";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
@@ -1147,7 +1146,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{poi.Male},{poi.Female},{csvStr(poi.TribeStatus)},{csvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{csvStr(poi.LootId)},{csvStr(poi.Loot2Id)},{csvStr(poi.LootItem)}";
+						spawnerSegment = $"{poi.Male},{poi.Female},{csvStr(poi.TribeStatus)},{csvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{csvStr(poi.LootId)},{csvStr(poi.LootItem)}";
 					}
 					writer.WriteLine($"{(int)poi.GroupIndex},{csvStr(GetGroupName(poi.GroupIndex))},{csvStr(poi.Type)},{poi.Location.X:0},{poi.Location.Y:0},{poi.Location.Z:0},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{csvStr(poi.Title)},{csvStr(poi.Name)},{csvStr(poi.Description)},{csvStr(poi.Extra)},{spawnerSegment},{csvStr(poi.Icon?.Name)},{poiSegment}");
 				}
@@ -1212,7 +1211,6 @@ namespace SoulmaskDataMiner.Miners
 			//     `num` int,
 			//     `intr` float,
 			//     `loot` varchar(127),
-			//     `loot2` varchar(127),
 			//     `lootitem` varchar(127),
 			//     `icon` varchar(127),
 			//     `ach` varchar(127),
@@ -1240,7 +1238,7 @@ namespace SoulmaskDataMiner.Miners
 					// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
 					if (poi.Location == FVector.ZeroVector) continue;
 
-					string spawnerSegment = "null, null, null, null, null, null, null, null, null";
+					string spawnerSegment = "null, null, null, null, null, null, null, null";
 					string poiSegment = "null, null, null";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
@@ -1248,7 +1246,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{dbBool(poi.Male)}, {dbBool(poi.Female)}, {dbStr(poi.TribeStatus)}, {dbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {dbStr(poi.LootId)}, {dbStr(poi.Loot2Id)}, {dbStr(poi.LootItem)}";
+						spawnerSegment = $"{dbBool(poi.Male)}, {dbBool(poi.Female)}, {dbStr(poi.TribeStatus)}, {dbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {dbStr(poi.LootId)}, {dbStr(poi.LootItem)}";
 					}
 
 					sqlWriter.WriteLine($"insert into `poi` values ({(int)poi.GroupIndex}, {dbStr(GetGroupName(poi.GroupIndex))}, {dbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {dbStr(poi.Title)}, {dbStr(poi.Name)}, {dbStr(poi.Description)}, {dbStr(poi.Extra)}, {spawnerSegment}, {dbStr(poi.Icon?.Name)}, {poiSegment});");
@@ -1357,7 +1355,6 @@ namespace SoulmaskDataMiner.Miners
 			public int SpawnCount { get; set; }
 			public float SpawnInterval { get; set; }
 			public string? LootId { get; set; }
-			public string? Loot2Id { get; set; }
 			public string? LootItem { get; set; }
 			public FVector Location { get; set; }
 			public FVector2D MapLocation { get; set; }
