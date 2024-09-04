@@ -105,6 +105,7 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? poiObjects,
 				out IReadOnlyList<FObjectExport>? tabletObjects,
 				out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
+				out IReadOnlyList<FObjectExport>? barracksObjects,
 				out IReadOnlyList<ObjectWithDefaults>? chestObjects))
 			{
 				return null;
@@ -112,7 +113,7 @@ namespace SoulmaskDataMiner.Miners
 
 			ProcessPois(lookups, poiObjects, logger);
 			ProcessTablets(lookups, tabletObjects, logger);
-			ProcessSpawners(lookups, spawnerObjects, logger);
+			ProcessSpawners(lookups, spawnerObjects, barracksObjects, logger);
 			ProcessChests(lookups, chestObjects, logger);
 
 			FindPoiTextures(lookups, mapIcons, logger);
@@ -546,11 +547,13 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? poiObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? tabletObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? barracksObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects)
 		{
 			poiObjects = null;
 			tabletObjects = null;
 			spawnerObjects = null;
+			barracksObjects = null;
 			chestObjects = null;
 
 			Package[] packages = new Package[2];
@@ -584,6 +587,8 @@ namespace SoulmaskDataMiner.Miners
 				"HTanChaActor"
 			};
 
+			const string barracksBaseClass = "HBuLuoGuanLiQi";
+
 			List<BlueprintClassInfo> spawnerBpClasses = new();
 			foreach (String searchClass in spawnerBaseClasses)
 			{
@@ -598,6 +603,8 @@ namespace SoulmaskDataMiner.Miners
 				UObject? defaultScgObj = scgClassProperty?.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
 				spawnerClasses.Add(bpClass.Name, defaultScgObj);
 			}
+
+			HashSet<string> barracksClasses = new(BlueprintHeirarchy.Get().GetDerivedClasses(barracksBaseClass).Select(c => c.Name));
 
 			const string chestBaseClass = "HJianZhuBaoXiang";
 
@@ -614,6 +621,7 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> poiObjectList = new();
 			List<FObjectExport> tabletObjectList = new();
 			List<ObjectWithDefaults> spawnerObjectList = new();
+			List<FObjectExport> barracksObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
 
 			logger.Log(LogLevel.Information, "Scanning for objects...");
@@ -630,6 +638,10 @@ namespace SoulmaskDataMiner.Miners
 					{
 						spawnerObjectList.Add(new() { Export = export, DefaultsObject = defaultScgObj });
 					}
+					else if (barracksClasses.Contains(export.ClassName))
+					{
+						barracksObjectList.Add(export);
+					}
 					else if (chestClasses.TryGetValue(export.ClassName, out UObject? defaultObj))
 					{
 						chestObjectList.Add(new() { Export = export, DefaultsObject = defaultObj });
@@ -644,6 +656,7 @@ namespace SoulmaskDataMiner.Miners
 			poiObjects = poiObjectList;
 			tabletObjects = tabletObjectList;
 			spawnerObjects = spawnerObjectList;
+			barracksObjects = barracksObjectList;
 			chestObjects = chestObjectList;
 
 			return true;
@@ -721,8 +734,47 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void ProcessSpawners(MapPoiLookups lookups, IReadOnlyList<ObjectWithDefaults> spawnerObjects, Logger logger)
+		private void ProcessSpawners(MapPoiLookups lookups, IReadOnlyList<ObjectWithDefaults> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger)
 		{
+			// Process barracks
+
+			HashSet<string> barracksSpawnerNames = new();
+			foreach (FObjectExport barracksObject in barracksObjects)
+			{
+				foreach (FPropertyTag property in barracksObject.ExportObject.Value.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "SGQArray":
+							{
+								UScriptArray sgqArray = property.Tag!.GetValue<UScriptArray>()!;
+								foreach (FPropertyTagType item in sgqArray.Properties)
+								{
+									barracksSpawnerNames.Add(item.GetValue<FPackageIndex>()!.Name);
+								}
+							}
+							break;
+						case "AssocJingBaoQiList":
+							{
+								UScriptArray sirenList = property.Tag!.GetValue<UScriptArray>()!;
+								foreach (FPropertyTagType item in sirenList.Properties)
+								{
+									UObject? siren = item.GetValue<FPackageIndex>()!.Load();
+									if (siren is null) continue;
+
+									FPropertyTag? sirenSpawnerProp = siren.Properties.FirstOrDefault(p => p.Name.Text.Equals("WaiYuanShuaiGuaiQi"));
+									if (sirenSpawnerProp is null) continue;
+
+									barracksSpawnerNames.Add(sirenSpawnerProp.Tag!.GetValue<FPackageIndex>()!.Name);
+								}
+							}
+							break;
+					}
+				}
+			}
+
+			// Process spawners
+
 			Dictionary<string, MultiSpawnData?> spawnDataCache = new();
 
 			logger.Log(LogLevel.Information, $"Processing {spawnerObjects.Count} spawners...");
@@ -810,6 +862,11 @@ namespace SoulmaskDataMiner.Miners
 				if (!spawnInterval.HasValue)
 				{
 					spawnInterval = 10.0f;
+				}
+
+				if (barracksSpawnerNames.Contains(export.ObjectName.Text))
+				{
+					spawnInterval = -1.0f;
 				}
 
 				string spawnDataKey = string.Join(',', scgClasses.Select(c => c.Name));
