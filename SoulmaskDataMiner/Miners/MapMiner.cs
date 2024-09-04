@@ -227,7 +227,10 @@ namespace SoulmaskDataMiner.Miners
 					}
 
 					poi.Type = GetType(poiType.Value);
-					poi.Title = GetTitle(poiType.Value);
+					if (poi.Title is null)
+					{
+						poi.Title = GetTitle(poiType.Value);
+					}
 
 					if (achievements.CollectMap.TryGetValue(index, out AchievementData? achievement))
 					{
@@ -1084,7 +1087,7 @@ namespace SoulmaskDataMiner.Miners
 					Type = poiName,
 					Title = poiName,
 					Name = "Lootable Object",
-					Description = openTip,
+					Extra = openTip,
 					Icon = lookups.LootIcon,
 					Location = location,
 					MapLocation = GameUtil.WorldToMap(location),
