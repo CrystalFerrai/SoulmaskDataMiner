@@ -23,11 +23,11 @@ namespace SoulmaskDataMiner.Miners
 	/// Mines data about character attributes
 	/// </summary>
 	[RequireClassData(true)]
-	internal class AttributeMiner : IDataMiner
+	internal class AttributeMiner : MinerBase
 	{
-		public string Name => "Attribute";
+		public override string Name => "Attribute";
 
-		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			IEnumerable<string>? attributes;
 			if (!FindAttributeData(providerManager, logger, out attributes))
@@ -84,7 +84,7 @@ namespace SoulmaskDataMiner.Miners
 
 			foreach (string attribute in attributes)
 			{
-				writer.WriteLine($"{attribute},");
+				writer.WriteLine($"{CsvStr(attribute)},");
 			}
 		}
 
@@ -97,17 +97,11 @@ namespace SoulmaskDataMiner.Miners
 			//     primary key (`idx`)
 			// );
 
-			string dbStr(string? value)
-			{
-				if (value is null) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			sqlWriter.WriteLine("truncate table `attr`;");
 			int i = 0;
 			foreach (string attribute in attributes)
 			{
-				sqlWriter.WriteLine($"insert into `attr` values ({i++}, {dbStr(attribute)});");
+				sqlWriter.WriteLine($"insert into `attr` values ({i++}, {DbStr(attribute)});");
 			}
 		}
 	}

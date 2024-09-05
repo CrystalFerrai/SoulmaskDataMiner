@@ -32,11 +32,11 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Mines data related to weapon masteries (ZhuanJing)
 	/// </summary>
-	internal class WeaponMasteryMiner : IDataMiner
+	internal class WeaponMasteryMiner : MinerBase
 	{
-		public string Name => "Mastery";
+		public override string Name => "Mastery";
 
-		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>>? masteries;
 			if (!LoadMasteryData(providerManager, logger, out masteries))
@@ -272,7 +272,7 @@ namespace SoulmaskDataMiner.Miners
 				for (int i = 0; i < pair.Value.Count; ++i)
 				{
 					MasteryData data = pair.Value[i];
-					writer.WriteLine($"{(int)pair.Key},{i},{data.ID},\"{data.Name}\",\"{data.Description}\",{data.IsStartingAbility},{data.Chance30:0.#%},{data.Chance60:0.#%},{data.Chance90:0.#%},{data.Chance120:0.#%},{data.Icon?.Name}");
+					writer.WriteLine($"{(int)pair.Key},{i},{data.ID},{CsvStr(data.Name)},{CsvStr(data.Description)},{data.IsStartingAbility},{data.Chance30:0.#%},{data.Chance60:0.#%},{data.Chance90:0.#%},{data.Chance120:0.#%},{data.Icon?.Name}");
 				}
 			}
 		}
@@ -295,12 +295,6 @@ namespace SoulmaskDataMiner.Miners
 			//     primary key (`type`, `idx`)
 			// );
 
-			string dbStr(string? value)
-			{
-				if (value is null) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			sqlWriter.WriteLine("truncate table `zj`;");
 			foreach (var pair in masteries)
 			{
@@ -308,7 +302,7 @@ namespace SoulmaskDataMiner.Miners
 				{
 					MasteryData data = pair.Value[i];
 					string isStart = data.IsStartingAbility.ToString().ToLowerInvariant();
-					sqlWriter.WriteLine($"insert into `zj` values ({(int)pair.Key}, {i}, {data.ID}, {dbStr(data.Name)}, {dbStr(data.Description)}, {isStart}, {data.Chance30}, {data.Chance60}, {data.Chance90}, {data.Chance120}, {dbStr(data.Icon?.Name)});");
+					sqlWriter.WriteLine($"insert into `zj` values ({(int)pair.Key}, {i}, {data.ID}, {DbStr(data.Name)}, {DbStr(data.Description)}, {isStart}, {data.Chance30}, {data.Chance60}, {data.Chance90}, {data.Chance120}, {DbStr(data.Icon?.Name)});");
 				}
 			}
 		}

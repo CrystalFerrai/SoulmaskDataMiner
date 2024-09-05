@@ -32,11 +32,11 @@ namespace SoulmaskDataMiner.Miners
 	/// Mines map images and information about points of interest
 	/// </summary>
 	[RequireHeirarchy(true)]
-	internal class MapMiner : IDataMiner
+	internal class MapMiner : MinerBase
 	{
-		public string Name => "Map";
+		public override string Name => "Map";
 
-		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			logger.Log(LogLevel.Information, "Exporting map images...");
 			if (!ExportMapImages(providerManager, config, logger))
@@ -1202,12 +1202,6 @@ namespace SoulmaskDataMiner.Miners
 
 		private void WriteCsvPois(MapData mapData, Config config, Logger logger)
 		{
-			string? csvStr(string? value)
-			{
-				if (value is null || value.Equals("None")) return null;
-				return $"\"{value.Replace("\"", "\"\"")}\"";
-			}
-
 			foreach (var pair in mapData.POIs)
 			{
 				string outPath = Path.Combine(config.OutputDirectory, Name, $"{pair.Key}.csv");
@@ -1222,25 +1216,19 @@ namespace SoulmaskDataMiner.Miners
 					string poiSegment = ",,";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
-						poiSegment = $"{csvStr(poi.Achievement?.Name)},{csvStr(poi.Achievement?.Description)},{csvStr(poi.Achievement?.Icon?.Name)}";
+						poiSegment = $"{CsvStr(poi.Achievement?.Name)},{CsvStr(poi.Achievement?.Description)},{CsvStr(poi.Achievement?.Icon?.Name)}";
 					}
 					else
 					{
-						spawnerSegment = $"{poi.Male},{poi.Female},{csvStr(poi.TribeStatus)},{csvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{csvStr(poi.LootId)},{csvStr(poi.LootItem)},{csvStr(poi.LootMap)}";
+						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)}";
 					}
-					writer.WriteLine($"{(int)poi.GroupIndex},{csvStr(GetGroupName(poi.GroupIndex))},{csvStr(poi.Type)},{poi.Location.X:0},{poi.Location.Y:0},{poi.Location.Z:0},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{csvStr(poi.Title)},{csvStr(poi.Name)},{csvStr(poi.Description)},{csvStr(poi.Extra)},{spawnerSegment},{csvStr(poi.Icon?.Name)},{poiSegment}");
+					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{CsvStr(poi.Type)},{poi.Location.X:0},{poi.Location.Y:0},{poi.Location.Z:0},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
 				}
 			}
 		}
 
 		private void WriteCsvLoot(MapData mapData, Config config, Logger logger)
 		{
-			string? csvStr(string? value)
-			{
-				if (value is null || value.Equals("None")) return null;
-				return $"\"{value.Replace("\"", "\"\"")}\"";
-			}
-
 			string outPath = Path.Combine(config.OutputDirectory, Name, "loot.csv");
 			using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 			using StreamWriter writer = new(outFile, Encoding.UTF8);
@@ -1255,7 +1243,7 @@ namespace SoulmaskDataMiner.Miners
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						writer.WriteLine($"{csvStr(pair.Key)},{e},{i},{entry.Probability},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{csvStr(item.Asset)}");
+						writer.WriteLine($"{CsvStr(pair.Key)},{e},{i},{entry.Probability},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{CsvStr(item.Asset)}");
 					}
 				}
 			}
@@ -1301,17 +1289,6 @@ namespace SoulmaskDataMiner.Miners
 
 			sqlWriter.WriteLine("truncate table `poi`;");
 
-			string dbStr(string? value)
-			{
-				if (value is null || value.Equals("None")) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
-			string dbBool(bool value)
-			{
-				return value ? "true" : "false";
-			}
-
 			foreach (var pair in mapData.POIs)
 			{
 				foreach (MapPoi poi in pair.Value)
@@ -1323,14 +1300,14 @@ namespace SoulmaskDataMiner.Miners
 					string poiSegment = "null, null, null";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
-						poiSegment = $"{dbStr(poi.Achievement?.Name)}, {dbStr(poi.Achievement?.Description)}, {dbStr(poi.Achievement?.Icon?.Name)}";
+						poiSegment = $"{DbStr(poi.Achievement?.Name)}, {DbStr(poi.Achievement?.Description)}, {DbStr(poi.Achievement?.Icon?.Name)}";
 					}
 					else
 					{
-						spawnerSegment = $"{dbBool(poi.Male)}, {dbBool(poi.Female)}, {dbStr(poi.TribeStatus)}, {dbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {dbStr(poi.LootId)}, {dbStr(poi.LootItem)}, {dbStr(poi.LootMap)}";
+						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}";
 					}
 
-					sqlWriter.WriteLine($"insert into `poi` values ({(int)poi.GroupIndex}, {dbStr(GetGroupName(poi.GroupIndex))}, {dbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {dbStr(poi.Title)}, {dbStr(poi.Name)}, {dbStr(poi.Description)}, {dbStr(poi.Extra)}, {spawnerSegment}, {dbStr(poi.Icon?.Name)}, {poiSegment});");
+					sqlWriter.WriteLine($"insert into `poi` values ({(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment});");
 				}
 			}
 		}
@@ -1352,12 +1329,6 @@ namespace SoulmaskDataMiner.Miners
 
 			sqlWriter.WriteLine("truncate table `loot`;");
 
-			string dbStr(string? value)
-			{
-				if (value is null || value.Equals("None")) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			foreach (var pair in mapData.Loot)
 			{
 				for (int e = 0; e < pair.Value.Entries.Count; ++e)
@@ -1366,7 +1337,7 @@ namespace SoulmaskDataMiner.Miners
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						sqlWriter.WriteLine($"insert into `loot` values ({dbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {dbStr(item.Asset)});");
+						sqlWriter.WriteLine($"insert into `loot` values ({DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {DbStr(item.Asset)});");
 					}
 				}
 			}

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using CUE4Parse.UE4.Assets.Exports.Texture;
+using CUE4Parse.UE4.Assets.Objects;
+using CUE4Parse.UE4.Assets.Objects.Properties;
+using System.Collections.Generic;
 using System.Text;
 
 namespace SoulmaskDataMiner.Miners
@@ -28,6 +32,14 @@ namespace SoulmaskDataMiner.Miners
 		protected override string? DescriptionProperty => "Description";
 
 		protected override string? IconProperty => "Icon";
+
+		protected override IReadOnlySet<string>? AdditionalPropertyNames => new HashSet<string>()
+		{
+			"CaiLiaoType",
+			"CaiLiaoErJiType",
+			"MaxAmount",
+			"Weight"
+		};
 
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
@@ -58,61 +70,204 @@ namespace SoulmaskDataMiner.Miners
 					"HDaoJuZhaoMingMoKuai"
 			};
 
-			var items = FindObjects(baseClassNames);
+			var categories = GetItemCategories(providerManager, logger);
+			if (categories is null)
+			{
+				logger.LogError("Unable to load item categories from resource manager");
+				return false;
+			}
+
+			IEnumerable<ObjectInfo> itemInfos = FindObjects(baseClassNames);
+			IEnumerable<ItemData> items = ReadItemData(itemInfos, categories);
 
 			WriteCsv(items, config, logger);
 			WriteSql(items, sqlWriter, logger);
-			WriteTextures(items, config, logger);
+			WriteTextures(items, categories, config, logger);
 
 			return true;
 		}
 
-		private void WriteCsv(IEnumerable<ObjectInfo> items, Config config, Logger logger)
+		private IReadOnlyDictionary<EDaoJuCaiLiaoType, ItemCategoryData>? GetItemCategories(IProviderManager providerManager, Logger logger)
+		{
+			UScriptMap? typeInfoList = providerManager.ResourceManager.Properties.FirstOrDefault(p => p.Name.Text.Equals("DaoJuCaiLiaoTypeInfo"))?.Tag?.GetValue<UScriptMap>();
+			if (typeInfoList is null) return null;
+
+			Dictionary<EDaoJuCaiLiaoType, ItemCategoryData> result = new();
+			foreach (var pair in typeInfoList.Properties)
+			{
+				if (!GameUtil.TryParseEnum(pair.Key, out EDaoJuCaiLiaoType key))
+				{
+					key = EDaoJuCaiLiaoType.EDJCL_QiTa; // Other
+				}
+
+				ItemCategoryData value = new();
+				FStructFallback valueObj = pair.Value!.GetValue<FStructFallback>()!;
+				foreach (FPropertyTag property in valueObj.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "CaiLiaoTypeText":
+							value.Name = GameUtil.ReadTextProperty(property)!;
+							break;
+						case "CaiLiaoTypeIcon":
+							value.Icon = GameUtil.ReadTextureProperty(property)!;
+							break;
+					}
+				}
+
+				if (value.Name is null || value.Icon is null)
+				{
+					logger.Log(LogLevel.Warning, "Missing item category data");
+					continue;
+				}
+
+				result.Add(key, value);
+			}
+
+			return result;
+		}
+
+		private IEnumerable<ItemData> ReadItemData(IEnumerable<ObjectInfo> itemInfos, IReadOnlyDictionary<EDaoJuCaiLiaoType, ItemCategoryData> categories)
+		{
+			foreach (var itemInfo in itemInfos)
+			{
+				EDaoJuCaiLiaoType categoryId = EDaoJuCaiLiaoType.EDJCL_QiTa;
+				if (itemInfo.AdditionalProperties!.TryGetValue("CaiLiaoType", out FPropertyTag? categoryProp))
+				{
+					if (GameUtil.TryParseEnum(categoryProp, out EDaoJuCaiLiaoType result))
+					{
+						categoryId = result;
+					}
+				}
+
+				if (categoryId == EDaoJuCaiLiaoType.EDJCL_QiTa)
+				{
+					if (itemInfo.AdditionalProperties!.TryGetValue("CaiLiaoErJiType", out FPropertyTag? secondaryCategoriesProp))
+					{
+						UScriptArray? secondaryCategoriesList = secondaryCategoriesProp.Tag?.GetValue<UScriptArray>();
+						if (secondaryCategoriesList is not null)
+						{
+							FPropertyTagType? firstItem = secondaryCategoriesList.Properties.FirstOrDefault();
+							if (firstItem is not null && GameUtil.TryParseEnum(firstItem, out EDaoJuCaiLiaoType result))
+							{
+								categoryId = result;
+							}
+						}
+					}
+				}
+
+				int stackSize = 1;
+				if (itemInfo.AdditionalProperties!.TryGetValue("MaxAmount", out FPropertyTag? stackSizeProp))
+				{
+					stackSize = stackSizeProp.Tag!.GetValue<int>();
+				}
+
+				float weight = 0.0f;
+				if (itemInfo.AdditionalProperties!.TryGetValue("Weight", out FPropertyTag? weightProp))
+				{
+					weight = weightProp.Tag!.GetValue<float>();
+				}
+
+				yield return new()
+				{
+					Info = itemInfo,
+					CategoryID = (int)categoryId,
+					CategoryName = categories[categoryId].Name,
+					CategoryIcon = categories[categoryId].Icon,
+					StackSize = stackSize,
+					Weight = weight
+				};
+			}
+		}
+
+		private void WriteCsv(IEnumerable<ItemData> items, Config config, Logger logger)
 		{
 			string outPath = Path.Combine(config.OutputDirectory, Name, $"{Name}.csv");
 			using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
 			using (StreamWriter writer = new(outFile))
 			{
-				writer.WriteLine("name,class,desc,icon");
-				foreach (ObjectInfo obj in items)
+				writer.WriteLine("name,class,desc,icon,stack,weight,cat,cat_name,cat_icon");
+				foreach (ItemData item in items)
 				{
-					writer.WriteLine($"\"{obj.Name}\",\"{obj.ClassName}\",\"{obj.Description}\",\"{obj.Icon?.Name}\"");
+					writer.WriteLine($"{CsvStr(item.Info.Name)},{CsvStr(item.Info.ClassName)},{CsvStr(item.Info.Description)},{item.Info.Icon?.Name},{item.StackSize},{item.Weight},{item.CategoryID},{CsvStr(item.CategoryName)},{item.CategoryIcon}");
 				}
 			}
 		}
 
-		private void WriteSql(IEnumerable<ObjectInfo> items, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<ItemData> items, TextWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `item` (
 			//     `name` varchar(255) not null,
 			//     `class` varchar(255) not null
 			//     `desc` varchar(511),
-			//     `icon` varchar(255)
+			//     `icon` varchar(255),
+			//     `stack` int not null,
+			//     `weight` float not null,
+			//     `cat` int not null,
+			//     `cat_name` varchar(63) not null,
+			//     `cat_icon` varchar(63)
 			// )
 
 			sqlWriter.WriteLine("truncate table `item`;");
 
-			string dbStr(string? value, bool canBeNull = true)
+			foreach (ItemData item in items)
 			{
-				if (value is null) return canBeNull ? "null" : "''";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
-			foreach (ObjectInfo obj in items)
-			{
-				sqlWriter.WriteLine($"insert into `item` values ({dbStr(obj.Name, false)}, {dbStr(obj.ClassName)}, {dbStr(obj.Description)}, {dbStr(obj.Icon?.Name)});");
+				sqlWriter.WriteLine($"insert into `item` values ({DbStr(item.Info.Name, true)}, {DbStr(item.Info.ClassName)}, {DbStr(item.Info.Description)}, {DbStr(item.Info.Icon?.Name)}, {item.StackSize}, {item.Weight}, {item.CategoryID}, {DbStr(item.CategoryName)}, {DbStr(item.CategoryIcon.Name)});");
 			}
 		}
 
-		private void WriteTextures(IEnumerable<ObjectInfo> items, Config config, Logger logger)
+		private void WriteTextures(IEnumerable<ItemData> items, IReadOnlyDictionary<EDaoJuCaiLiaoType, ItemCategoryData> categories, Config config, Logger logger)
 		{
-			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
-			foreach (ObjectInfo obj in items)
+			string outRoot = Path.Combine(config.OutputDirectory, Name, "icons");
+
+			string outDir = Path.Combine(outRoot, "item");
+			foreach (ItemData item in items)
 			{
-				if (obj.Icon is null) continue;
-				TextureExporter.ExportTexture(obj.Icon!, false, logger, outDir);
+				if (item.Info.Icon is null) continue;
+				TextureExporter.ExportTexture(item.Info.Icon!, false, logger, outDir);
+			}
+
+			outDir = Path.Combine(outRoot, "item_cat");
+			foreach (ItemCategoryData category in categories.Values)
+			{
+				TextureExporter.ExportTexture(category.Icon, false, logger, outDir);
 			}
 		}
+
+		private struct ItemCategoryData
+		{
+			public string Name;
+			public UTexture2D Icon;
+		}
+
+		private struct ItemData
+		{
+			public ObjectInfo Info;
+			public int StackSize;
+			public float Weight;
+			public int CategoryID;
+			public string CategoryName;
+			public UTexture2D CategoryIcon;
+		}
+
+		private enum EDaoJuCaiLiaoType
+		{
+			EDJCL_QiTa,
+			EDJCL_ZhiWu,
+			EDJCL_KuangWu,
+			EDJCL_DongWu,
+			EDJCL_WuQi,
+			EDJCL_FangJu,
+			EDJCL_GongJu,
+			EDJCL_QiMin,
+			EDJCL_JiaJu,
+			EDJCL_JianZhu,
+			EDJCL_ShiCai,
+			EDJCL_YaoWu,
+			EDJCL_BanChenPin,
+			EDJCL_LiaoLi,
+			EDJCL_Max,
+		};
 	}
 }

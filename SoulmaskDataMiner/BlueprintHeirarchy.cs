@@ -152,9 +152,9 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		/// <param name="start">The blueprint to search first</param>
 		/// <param name="searchFunc">A function to call for the start class and each class in the super chain. Return true to stop the search or false to conitnue.</param>
-		public static void SearchInheritance(UBlueprintGeneratedClass start, Predicate<UBlueprintGeneratedClass> searchFunc)
+		public static void SearchInheritance(UClass start, Predicate<UClass> searchFunc)
 		{
-			UBlueprintGeneratedClass? current = start;
+			UClass? current = start;
 			while (current != null)
 			{
 				if (searchFunc(current))
@@ -162,7 +162,7 @@ namespace SoulmaskDataMiner
 					break;
 				}
 
-				current = current.Super?.Load() as UBlueprintGeneratedClass;
+				current = current.Super?.Load() as UClass;
 			}
 		}
 

@@ -15,8 +15,6 @@
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
-using CUE4Parse.UE4.Assets.Objects.Properties;
-using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 
@@ -26,12 +24,8 @@ namespace SoulmaskDataMiner.Miners
 	/// Base class for miners that gather information about specific class heirarchies
 	/// </summary>
 	[RequireHeirarchy(true)]
-	internal abstract class SubclassMinerBase : IDataMiner
+	internal abstract class SubclassMinerBase : MinerBase
 	{
-		public abstract string Name { get; }
-
-		public abstract bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter);
-
 		/// <summary>
 		/// The name of the property that stores the name to associate with the class.
 		/// </summary>
@@ -46,6 +40,11 @@ namespace SoulmaskDataMiner.Miners
 		/// The name of the property that stores the icon to associate with the class.
 		/// </summary>
 		protected virtual string? IconProperty => null;
+
+		/// <summary>
+		/// Names of additional properties to collect
+		/// </summary>
+		protected virtual IReadOnlySet<string>? AdditionalPropertyNames => null;
 
 		/// <summary>
 		/// Gathers a list of classes which derive from a specific class
@@ -72,6 +71,11 @@ namespace SoulmaskDataMiner.Miners
 
 		private void FindObjectProperties(UClass classObj, ref ObjectInfo obj)
 		{
+			if (obj.AdditionalProperties is null && AdditionalPropertyNames is not null)
+			{
+				obj.AdditionalProperties = new();
+			}
+
 			if (classObj.ClassDefaultObject.TryLoad(out UObject? defaults))
 			{
 				foreach (FPropertyTag property in defaults!.Properties)
@@ -88,14 +92,13 @@ namespace SoulmaskDataMiner.Miners
 					{
 						obj.Icon = GameUtil.ReadTextureProperty(property);
 					}
-				}
-
-				if (obj.Name is not null &&
-					(obj.Description is not null || DescriptionProperty is null) &&
-					(obj.Icon is not null || IconProperty is null))
-				{
-					// Found everything
-					return;
+					else if (AdditionalPropertyNames?.Contains(property.Name.Text) ?? false)
+					{
+						if (!obj.AdditionalProperties!.ContainsKey(property.Name.Text))
+						{
+							obj.AdditionalProperties!.Add(property.Name.Text, property);
+						}
+					}
 				}
 
 				if (classObj.Super is not null &&
@@ -114,6 +117,7 @@ namespace SoulmaskDataMiner.Miners
 			public string? Name;
 			public string? Description;
 			public UTexture2D? Icon;
+			public Dictionary<string, FPropertyTag>? AdditionalProperties;
 
 			public int CompareTo(ObjectInfo other)
 			{

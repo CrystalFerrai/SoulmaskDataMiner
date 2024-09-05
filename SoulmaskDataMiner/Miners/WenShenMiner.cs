@@ -26,11 +26,11 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Mines data about WenShen (body paints)
 	/// </summary>
-	internal class WenShenMiner : IDataMiner
+	internal class WenShenMiner : MinerBase
 	{
-		public string Name => "WenShen";
+		public override string Name => "WenShen";
 
-		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			IEnumerable<CombinedWenShenData> data = GetWenShenData(providerManager, logger);
 			if (!data.Any())
@@ -198,7 +198,7 @@ namespace SoulmaskDataMiner.Miners
 
 			foreach (CombinedWenShenData ws in data)
 			{
-				writer.WriteLine($"{ws.Key.Name},{ws.Key.IsSpecial},{ws.Head.MaleId},{ws.Head.FemaleId},{ws.Head.Icon.Name},{ws.Chest.MaleId},{ws.Chest.FemaleId},{ws.Chest.Icon.Name},{ws.Arm.MaleId},{ws.Arm.FemaleId},{ws.Arm.Icon.Name},{ws.Leg.MaleId},{ws.Leg.FemaleId},{ws.Leg.Icon.Name}");
+				writer.WriteLine($"{CsvStr(ws.Key.Name)},{ws.Key.IsSpecial},{ws.Head.MaleId},{ws.Head.FemaleId},{ws.Head.Icon.Name},{ws.Chest.MaleId},{ws.Chest.FemaleId},{ws.Chest.Icon.Name},{ws.Arm.MaleId},{ws.Arm.FemaleId},{ws.Arm.Icon.Name},{ws.Leg.MaleId},{ws.Leg.FemaleId},{ws.Leg.Icon.Name}");
 			}
 		}
 
@@ -222,16 +222,10 @@ namespace SoulmaskDataMiner.Miners
 			//     `leg_ico` varchar(127),
 			//     primary key (`name`, `special`));
 
-			string dbStr(string? value)
-			{
-				if (value is null) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			sqlWriter.WriteLine("truncate table `wenshen`;");
 			foreach(CombinedWenShenData ws in data)
 			{
-				sqlWriter.WriteLine($"insert into `wenshen` values ({dbStr(ws.Key.Name)}, {ws.Key.IsSpecial}, {ws.Head.MaleId}, {ws.Head.FemaleId}, {dbStr(ws.Head.Icon.Name)}, {ws.Chest.MaleId}, {ws.Chest.FemaleId}, {dbStr(ws.Chest.Icon.Name)}, {ws.Arm.MaleId}, {ws.Arm.FemaleId}, {dbStr(ws.Arm.Icon.Name)}, {ws.Leg.MaleId}, {ws.Leg.FemaleId}, {dbStr(ws.Leg.Icon.Name)});");
+				sqlWriter.WriteLine($"insert into `wenshen` values ({DbStr(ws.Key.Name)}, {ws.Key.IsSpecial}, {ws.Head.MaleId}, {ws.Head.FemaleId}, {DbStr(ws.Head.Icon.Name)}, {ws.Chest.MaleId}, {ws.Chest.FemaleId}, {DbStr(ws.Chest.Icon.Name)}, {ws.Arm.MaleId}, {ws.Arm.FemaleId}, {DbStr(ws.Arm.Icon.Name)}, {ws.Leg.MaleId}, {ws.Leg.FemaleId}, {DbStr(ws.Leg.Icon.Name)});");
 			}
 		}
 

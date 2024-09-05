@@ -18,7 +18,6 @@ using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
-using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
@@ -29,11 +28,11 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Mines data about game coefficient settings
 	/// </summary>
-	internal class XiShuMiner : IDataMiner
+	internal class XiShuMiner : MinerBase
 	{
-		public string Name => "XiShu";
+		public override string Name => "XiShu";
 
-		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			if (!TryFindXishu(providerManager, logger, out IReadOnlyDictionary<int, List<XishuData>>? xishuMap))
 			{
@@ -207,7 +206,7 @@ namespace SoulmaskDataMiner.Miners
 
 				foreach (XishuData xishu in pair.Value)
 				{
-					writer.WriteLine($"{xishu.Name},{(int)xishu.Category},{xishu.Index},{xishu.IsToggle},{xishu.IsVisible},\"{xishu.Description}\",\"{xishu.Tip}\",{xishu.Min},{xishu.Max},{xishu.Default},{xishu.Casual},{xishu.Easy},{xishu.Normal},{xishu.Hard},{xishu.Master}");
+					writer.WriteLine($"{CsvStr(xishu.Name)},{(int)xishu.Category},{xishu.Index},{xishu.IsToggle},{xishu.IsVisible},{CsvStr(xishu.Description)},{CsvStr(xishu.Tip)},{xishu.Min},{xishu.Max},{xishu.Default},{xishu.Casual},{xishu.Easy},{xishu.Normal},{xishu.Hard},{xishu.Master}");
 				}
 			}
 
@@ -250,12 +249,6 @@ namespace SoulmaskDataMiner.Miners
 
 			sqlWriter.WriteLine("truncate table `xishu`;");
 
-			string dbStr(string? value)
-			{
-				if (value is null) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			// We will move through the lists in parallel and write the same item from each list before moving to the next item.
 			// This gives us a nicer ordering of statements.
 
@@ -271,7 +264,7 @@ namespace SoulmaskDataMiner.Miners
 				foreach (var pair in enumerators)
 				{
 					XishuData xishu = (XishuData)pair.Value.Current;
-					sqlWriter.WriteLine($"insert into `xishu` values ({dbStr(xishu.Name)}, {pair.Key}, {xishu.Index}, {(int)xishu.Category}, {xishu.IsToggle}, {xishu.IsVisible}, {dbStr(xishu.Description)}, {dbStr(xishu.Tip)}, {xishu.Min}, {xishu.Max}, {xishu.Default}, {xishu.Casual}, {xishu.Easy}, {xishu.Normal}, {xishu.Hard}, {xishu.Master});");
+					sqlWriter.WriteLine($"insert into `xishu` values ({DbStr(xishu.Name)}, {pair.Key}, {xishu.Index}, {(int)xishu.Category}, {xishu.IsToggle}, {xishu.IsVisible}, {DbStr(xishu.Description)}, {DbStr(xishu.Tip)}, {xishu.Min}, {xishu.Max}, {xishu.Default}, {xishu.Casual}, {xishu.Easy}, {xishu.Normal}, {xishu.Hard}, {xishu.Master});");
 				}
 			}
 		}

@@ -28,11 +28,11 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Mines data about natural gifts (talents)
 	/// </summary>
-	internal class NaturalGiftMiner : IDataMiner
+	internal class NaturalGiftMiner : MinerBase
 	{
-		public string Name => "Gift";
+		public override string Name => "Gift";
 
-		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			if (!TryFindGifts(providerManager, config, logger, out IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>>? combinedGifts))
 			{
@@ -176,7 +176,7 @@ namespace SoulmaskDataMiner.Miners
 				foreach (CombinedGiftData gift in pair.Value)
 				{
 					StreamWriter writer = gift.IsGood ? writerGood : writerBad;
-					writer.WriteLine($"{gift.Level1},{gift.Level2},{gift.Level3},\"{gift.Title}\",\"{gift.Description}\",{gift.Icon?.Name}");
+					writer.WriteLine($"{gift.Level1},{gift.Level2},{gift.Level3},{CsvStr(gift.Title)},{CsvStr(gift.Description)},{gift.Icon?.Name}");
 				}
 			}
 		}
@@ -188,22 +188,11 @@ namespace SoulmaskDataMiner.Miners
 
 			sqlWriter.WriteLine("truncate table `ng`;");
 
-			string dbInt(int? value)
-			{
-				return value.HasValue ? value.Value.ToString() : "null";
-			}
-
-			string dbStr(string? value)
-			{
-				if (value is null) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			foreach (var pair in combinedGifts)
 			{
 				foreach (CombinedGiftData gift in pair.Value)
 				{
-					sqlWriter.WriteLine($"insert into `ng` values ({gift.IsGood}, {(int)pair.Key}, {dbInt(gift.Level1)}, {dbInt(gift.Level2)}, {dbInt(gift.Level3)}, {dbStr(gift.Title)}, {dbStr(gift.Description)}, {dbStr(gift.Icon?.Name)});");
+					sqlWriter.WriteLine($"insert into `ng` values ({gift.IsGood}, {(int)pair.Key}, {DbVal(gift.Level1)}, {DbVal(gift.Level2)}, {DbVal(gift.Level3)}, {DbStr(gift.Title)}, {DbStr(gift.Description)}, {DbStr(gift.Icon?.Name)});");
 				}
 			}
 		}

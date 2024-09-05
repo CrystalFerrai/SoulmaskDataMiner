@@ -26,11 +26,11 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Mines data about character proficiencies
 	/// </summary>
-	internal class ProficiencyMiner : IDataMiner
+	internal class ProficiencyMiner : MinerBase
 	{
-		public string Name => "Proficiency";
+		public override string Name => "Proficiency";
 
-		public bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
 			IEnumerable<ProficiencyData>? proficiencies;
 			if (!LoadProficiencyData(providerManager, logger, out proficiencies))
@@ -149,7 +149,7 @@ namespace SoulmaskDataMiner.Miners
 
 			foreach (ProficiencyData proficiency in proficiencies)
 			{
-				writer.WriteLine($"{(int)proficiency.ID},{proficiency.ID},\"{proficiency.Name}\",\"{proficiency.Icon?.Name}\"");
+				writer.WriteLine($"{(int)proficiency.ID},{proficiency.ID},{CsvStr(proficiency.Name)},{CsvStr(proficiency.Icon?.Name)}");
 			}
 		}
 
@@ -164,16 +164,10 @@ namespace SoulmaskDataMiner.Miners
 			//     primary key (`id`)
 			// );
 
-			string dbStr(string? value)
-			{
-				if (value is null) return "null";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			sqlWriter.WriteLine("truncate table `sld`;");
 			foreach (ProficiencyData proficiency in proficiencies)
 			{
-				sqlWriter.WriteLine($"insert into `sld` values ({(int)proficiency.ID},{dbStr(proficiency.ID.ToString())},{dbStr(proficiency.Name)},{dbStr(proficiency.Icon?.Name)});");
+				sqlWriter.WriteLine($"insert into `sld` values ({(int)proficiency.ID},{DbStr(proficiency.ID.ToString())},{DbStr(proficiency.Name)},{DbStr(proficiency.Icon?.Name)});");
 			}
 		}
 
