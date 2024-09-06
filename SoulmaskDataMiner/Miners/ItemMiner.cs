@@ -38,6 +38,7 @@ namespace SoulmaskDataMiner.Miners
 			"CaiLiaoType",
 			"CaiLiaoErJiType",
 			"MaxAmount",
+			"IsSpecialTestDaoJu",
 			"Weight"
 		};
 
@@ -48,9 +49,6 @@ namespace SoulmaskDataMiner.Miners
 				"HDaoJuBase",
 					"HDaoJuZhuangBei",
 						"HDaoJuWuQi",
-							"HDaoJu_SheJiWuQi",
-							"HDaoJu_TouZhi_WuQi",
-							"HDaoJuShuiTong",
 							"HDaoJu_SheJiWuQi",
 							"HDaoJu_TouZhi_WuQi",
 							"HDaoJuShuiTong",
@@ -77,8 +75,15 @@ namespace SoulmaskDataMiner.Miners
 				return false;
 			}
 
+			UTexture2D? testIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/Characters/Mannequin/Character/Textures/T_UE4Logo_Mask.uasset", logger);
+			if (testIcon is null)
+			{
+				logger.LogError("Unable to load test icon texture");
+				return false;
+			}
+
 			IEnumerable<ObjectInfo> itemInfos = FindObjects(baseClassNames);
-			IEnumerable<ItemData> items = ReadItemData(itemInfos, categories);
+			IEnumerable<ItemData> items = ReadItemData(itemInfos, categories, testIcon);
 
 			WriteCsv(items, config, logger);
 			WriteSql(items, sqlWriter, logger);
@@ -127,7 +132,7 @@ namespace SoulmaskDataMiner.Miners
 			return result;
 		}
 
-		private IEnumerable<ItemData> ReadItemData(IEnumerable<ObjectInfo> itemInfos, IReadOnlyDictionary<EDaoJuCaiLiaoType, ItemCategoryData> categories)
+		private IEnumerable<ItemData> ReadItemData(IEnumerable<ObjectInfo> itemInfos, IReadOnlyDictionary<EDaoJuCaiLiaoType, ItemCategoryData> categories, UTexture2D testIcon)
 		{
 			foreach (var itemInfo in itemInfos)
 			{
@@ -162,18 +167,34 @@ namespace SoulmaskDataMiner.Miners
 					stackSize = stackSizeProp.Tag!.GetValue<int>();
 				}
 
+				bool isTestItem = false;
+				if (itemInfo.AdditionalProperties!.TryGetValue("IsSpecialTestDaoJu", out FPropertyTag? isTestItemProp))
+				{
+					isTestItem = isTestItemProp.Tag!.GetValue<bool>();
+				}
+
 				float weight = 0.0f;
 				if (itemInfo.AdditionalProperties!.TryGetValue("Weight", out FPropertyTag? weightProp))
 				{
 					weight = weightProp.Tag!.GetValue<float>();
 				}
 
+				int categoryIdInt = (int)categoryId;
+				string categoryName = categories[categoryId].Name;
+				UTexture2D categoryIcon = categories[categoryId].Icon;
+				if (isTestItem)
+				{
+					categoryIdInt = 999;
+					categoryName = "Test Items";
+					categoryIcon = testIcon;
+				}
+
 				yield return new()
 				{
 					Info = itemInfo,
-					CategoryID = (int)categoryId,
-					CategoryName = categories[categoryId].Name,
-					CategoryIcon = categories[categoryId].Icon,
+					CategoryID = categoryIdInt,
+					CategoryName = categoryName,
+					CategoryIcon = categoryIcon,
 					StackSize = stackSize,
 					Weight = weight
 				};
