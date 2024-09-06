@@ -16,7 +16,6 @@ using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Component;
-using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
@@ -118,7 +117,7 @@ namespace SoulmaskDataMiner.Miners
 
 			FindPoiTextures(lookups, mapIcons, logger);
 
-			return new(lookups.GetAllPois(), (IReadOnlyDictionary<string, LootData>)lookups.Loot);
+			return new(lookups.GetAllPois(), lookups.Loot);
 		}
 
 		private UObject? LoadMapIntel(IProviderManager providerManager, Logger logger)
@@ -373,135 +372,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private bool LoadLootData(IProviderManager providerManager, MapPoiLookups lookups, Logger logger)
 		{
-			foreach (var filePair in providerManager.Provider.Files)
-			{
-				if (!filePair.Key.StartsWith("WS/Content/Blueprints/DataTable/CaiJiBao")) continue;
-				if (!filePair.Key.EndsWith(".uasset")) continue;
-
-				if (!providerManager.Provider.TryLoadPackage(filePair.Value, out IPackage iPackage)) continue;
-
-				Package? package = iPackage as Package;
-				if (package is null) continue;
-
-				UDataTable? table = package.ExportMap[0].ExportObject.Value as UDataTable;
-				if (table is null) continue;
-
-				FPropertyTag? rowStructProperty = table.Properties.FirstOrDefault(p => p.Name.Text.Equals("RowStruct"));
-				if (rowStructProperty is null) continue;
-
-				FPackageIndex pi = rowStructProperty.Tag!.GetValue<FPackageIndex>()!;
-				if (!pi.Name.Equals("CaiJiDaoJuBaoDataTable")) continue;
-
-				foreach (var pair in table.RowMap)
-				{
-					string? name = null;
-					UScriptArray? contentArray = null;
-
-					foreach (FPropertyTag property in pair.Value.Properties)
-					{
-						switch (property.Name.Text)
-						{
-							case "DaoJuBaoName":
-								name = property.Tag!.GetValue<FName>().Text;
-								break;
-							case "DaoJuBaoContent":
-								contentArray = property.Tag!.GetValue<UScriptArray>();
-								break;
-						}
-					}
-
-					if (name is null || contentArray is null)
-					{
-						logger.Log(LogLevel.Warning, $"Could not read chest data from {Path.GetFileNameWithoutExtension(filePair.Key)} row \"{pair.Key.Text}\"");
-						continue;
-					}
-
-					LootData content = new();
-					foreach (FPropertyTagType contentItem in contentArray.Properties)
-					{
-						int probability = 0;
-						UScriptArray? itemArray = null;
-
-						FStructFallback entryData = contentItem.GetValue<FStructFallback>()!;
-						foreach (FPropertyTag property in entryData.Properties)
-						{
-							switch (property.Name.Text)
-							{
-								case "SelectedRandomProbability":
-									probability = property.Tag!.GetValue<int>();
-									break;
-								case "BaoNeiDaoJuInfos":
-									itemArray = property.Tag!.GetValue<UScriptArray>();
-									break;
-							}
-						}
-
-						if (probability == 0 || itemArray is null)
-						{
-							continue;
-						}
-
-						LootEntry entry = new() { Probability = probability };
-
-						int totalWeight = 0;
-						foreach (FPropertyTagType entryItem in itemArray.Properties)
-						{
-							LootItem item = new();
-							FPackageIndex? daoJuIndex = null;
-
-							FStructFallback itemData = entryItem.GetValue<FStructFallback>()!;
-							foreach (FPropertyTag property in itemData.Properties)
-							{
-								switch (property.Name.Text)
-								{
-									case "DaoJuQuanZhong":
-										item.Weight = property.Tag!.GetValue<int>();
-										totalWeight += item.Weight;
-										break;
-									case "DaoJuMagnitude":
-										{
-											TRange<float>? value = GameUtil.ReadRangeProperty<float>(property);
-											if (value.HasValue) item.Amount = value.Value;
-										}
-										break;
-									case "DaoJuPinZhi":
-										if (GameUtil.TryParseEnum(property, out EDaoJuPinZhi pinZhi))
-										{
-											item.Quality = pinZhi;
-										}
-										break;
-									case "DaoJuClass":
-										daoJuIndex = property.Tag!.GetValue<FPackageIndex>();
-										break;
-								}
-							}
-
-							if (daoJuIndex is null)
-							{
-								totalWeight -= item.Weight;
-								continue;
-							}
-
-							item.Asset = daoJuIndex.Name;
-
-							entry.Items.Add(item);
-						}
-
-						for (int i = 0; i < entry.Items.Count; ++i)
-						{
-							LootItem item = entry.Items[i];
-							item.Weight = (int)((float)item.Weight / totalWeight * 100.0f);
-							entry.Items[i] = item;
-						}
-
-						content.Entries.Add(entry);
-					}
-
-					lookups.Loot.Add(name, content);
-				}
-			}
-
-			return true;
+			return lookups.Loot.Load(providerManager.Provider, logger);
 		}
 
 		private bool LoadSpawnLayers(IProviderManager providerManager, MapPoiLookups lookups, Logger logger)
@@ -529,7 +400,9 @@ namespace SoulmaskDataMiner.Miners
 			UTexture2D? lamasIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_yangtuo.uasset", logger);
 			UTexture2D? catsIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_baozi.uasset", logger);
 			UTexture2D? ostrichIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_tuoniao.uasset", logger);
-			if (lamasIcon is null || catsIcon is null || ostrichIcon is null)
+			UTexture2D? turkeyIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_huoji.uasset", logger);
+			UTexture2D? capybaraIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_shuitun.uasset", logger);
+			if (lamasIcon is null || catsIcon is null || ostrichIcon is null || turkeyIcon is null || capybaraIcon is null)
 			{
 				logger.LogError("Failed to load spawner icon texture.");
 				return false;
@@ -539,6 +412,8 @@ namespace SoulmaskDataMiner.Miners
 			lookups.SpawnLayerMap[NpcCategory.Lamas] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lamasIcon };
 			lookups.SpawnLayerMap[NpcCategory.Cats] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = catsIcon };
 			lookups.SpawnLayerMap[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
+			lookups.SpawnLayerMap[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
+			lookups.SpawnLayerMap[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
 
 			return true;
 		}
@@ -927,6 +802,8 @@ namespace SoulmaskDataMiner.Miners
 						case NpcCategory.Lamas:
 						case NpcCategory.Cats:
 						case NpcCategory.Ostrich:
+						case NpcCategory.Turkey:
+						case NpcCategory.Capybara:
 							group = SpawnLayerGroup.BabyAnimal;
 							type = poiName;
 							break;
@@ -969,23 +846,86 @@ namespace SoulmaskDataMiner.Miners
 					occupation = string.Join(", ", spawnData.Occupations.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
 				}
 
-				string? lootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot;
+				string? lootId = null;
 				string? lootMap = null;
-				if (spawnData.NpcData.Skip(1).Any(d => (d.Value.SpawnerLoot ?? d.Value.CharacterLoot) != lootId))
-				{
-					// Multiple loot tables referenced
-					lootId = null;
 
-					StringBuilder lootMapBuilder = new("{");
+				void applyAnimalLoot(bool onlyBabies)
+				{
+					string firstClass = firstNpc.CharacterClass.Name;
+					bool isMultiAnimal = false;
+
+					Dictionary<string, CollectionData> collectionMap = new();
 					foreach (NpcData npc in spawnData.NpcData.Select(d => d.Value))
 					{
-						string? loot = npc.SpawnerLoot ?? npc.CharacterLoot;
-						lootMapBuilder.Append($"\"{npc.Name}\": \"{loot}\",");
-					}
-					lootMapBuilder.Length -= 1; // Remove trailing comma
-					lootMapBuilder.Append("}");
+						if (!firstClass.Equals(npc.CharacterClass.Name))
+						{
+							isMultiAnimal = true;
+						}
 
-					lootMap = lootMapBuilder.ToString();
+						if (collectionMap.ContainsKey(npc.CharacterClass.Name)) continue;
+
+						BlueprintHeirarchy.SearchInheritance(npc.CharacterClass, (current) =>
+						{
+							if (lookups.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
+							{
+								collectionMap.Add(npc.CharacterClass.Name, collectionData);
+								return true;
+							}
+							return false;
+						});
+					}
+
+					if (collectionMap.Count > 0)
+					{
+						StringBuilder lootMapBuilder = new("{");
+						foreach (var pair in collectionMap)
+						{
+							NpcData npc = spawnData.NpcData.First(wv => wv.Value.CharacterClass.Name.Equals(pair.Key)).Value;
+							string npcName = isMultiAnimal ? npc.Name + ": " : string.Empty;
+
+							if (npc.IsBaby && !spawnData.IsMixedAge || onlyBabies)
+							{
+								if (pair.Value.Baby is not null) lootMapBuilder.Append($"\"{npcName}On Hit (Baby)\": \"{pair.Value.Baby}\",");
+							}
+							else
+							{
+								if (pair.Value.Hit is not null) lootMapBuilder.Append($"\"{npcName}On Hit (Adult)\": \"{pair.Value.Hit}\",");
+								if (pair.Value.FinalHit is not null) lootMapBuilder.Append($"\"{npcName}On Final Hit\": \"{pair.Value.FinalHit}\",");
+							}
+						}
+						if (lootMapBuilder.Length > 1)
+						{
+							lootMapBuilder.Length -= 1; // Remove trailing comma
+						}
+						lootMapBuilder.Append("}");
+
+						lootMap = lootMapBuilder.ToString();
+					}
+				}
+
+				if (group == SpawnLayerGroup.Animal || group == SpawnLayerGroup.BabyAnimal)
+				{
+					applyAnimalLoot(false);
+				}
+				else
+				{
+					lootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot;
+					if (spawnData.NpcData.Skip(1).Any(d => (d.Value.SpawnerLoot ?? d.Value.CharacterLoot) != lootId))
+					{
+						// Multiple loot tables referenced
+						lootId = null;
+
+						StringBuilder lootMapBuilder = new("{");
+						foreach (NpcData npc in spawnData.NpcData.Select(d => d.Value))
+						{
+							string? loot = npc.SpawnerLoot ?? npc.CharacterLoot;
+							lootMapBuilder.Append($"\"{npc.Name}\": \"{loot}\",");
+						}
+						lootMapBuilder.Length -= 1; // Remove trailing comma
+						lootMapBuilder.Append("}");
+
+						lootMap = lootMapBuilder.ToString();
+					}
 				}
 
 				MapPoi poi = new()
@@ -1021,6 +961,9 @@ namespace SoulmaskDataMiner.Miners
 
 					levelText = (minLevel == maxLevel) ? minLevel.ToString() : $"{minLevel} - {maxLevel}";
 
+					lootMap = null;
+					applyAnimalLoot(true);
+
 					poi = new(poi)
 					{
 						GroupIndex = group,
@@ -1030,7 +973,8 @@ namespace SoulmaskDataMiner.Miners
 						Male = male,
 						Female = female,
 						SpawnCount = babyData.Sum(b => b.Value.SpawnCount),
-						Icon = layerInfo.Icon
+						Icon = layerInfo.Icon,
+						LootMap = lootMap
 					};
 
 					lookups.Spawners.Add(poi);
@@ -1235,7 +1179,7 @@ namespace SoulmaskDataMiner.Miners
 
 			writer.WriteLine("id,entry,item,chance,weight,min,max,quality,asset");
 
-			foreach (var pair in mapData.Loot)
+			foreach (var pair in mapData.Loot.LootMap)
 			{
 				for (int e = 0; e < pair.Value.Entries.Count; ++e)
 				{
@@ -1280,7 +1224,7 @@ namespace SoulmaskDataMiner.Miners
 			//     `intr` float,
 			//     `loot` varchar(127),
 			//     `lootitem` varchar(127),
-			//     `lootmap` varchar(255),
+			//     `lootmap` varchar(511),
 			//     `icon` varchar(127),
 			//     `ach` varchar(127),
 			//     `achDesc` varchar(255),
@@ -1329,7 +1273,7 @@ namespace SoulmaskDataMiner.Miners
 
 			sqlWriter.WriteLine("truncate table `loot`;");
 
-			foreach (var pair in mapData.Loot)
+			foreach (var pair in mapData.Loot.LootMap)
 			{
 				for (int e = 0; e < pair.Value.Entries.Count; ++e)
 				{
@@ -1347,9 +1291,9 @@ namespace SoulmaskDataMiner.Miners
 		{
 			public IReadOnlyDictionary<string, List<MapPoi>> POIs { get; }
 
-			public IReadOnlyDictionary<string, LootData> Loot { get; }
+			public LootDatabase Loot { get; }
 
-			public MapData(IReadOnlyDictionary<string, List<MapPoi>> pois, IReadOnlyDictionary<string, LootData> loot)
+			public MapData(IReadOnlyDictionary<string, List<MapPoi>> pois, LootDatabase loot)
 			{
 				POIs = pois;
 				Loot = loot;
@@ -1364,7 +1308,7 @@ namespace SoulmaskDataMiner.Miners
 
 			public IDictionary<string, MapPoi> Tablets { get; } = new Dictionary<string, MapPoi>();
 
-			public IDictionary<string, LootData> Loot { get; } = new Dictionary<string, LootData>();
+			public LootDatabase Loot { get; } = new();
 
 			public IDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; } = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
 
@@ -1460,59 +1404,6 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private struct LootData
-		{
-			public List<LootEntry> Entries;
-
-			public LootData()
-			{
-				Entries = new();
-			}
-
-			public override string? ToString()
-			{
-				return $"{Entries.Count} entries";
-			}
-		}
-
-		private struct LootEntry
-		{
-			public int Probability;
-			public List<LootItem> Items;
-
-			public LootEntry()
-			{
-				Probability = 0;
-				Items = new();
-			}
-
-			public override string ToString()
-			{
-				return $"{Probability}, {Items.Count} items";
-			}
-		}
-
-		private struct LootItem
-		{
-			public int Weight;
-			public TRange<float> Amount;
-			public EDaoJuPinZhi Quality;
-			public string Asset;
-
-			public LootItem()
-			{
-				Weight = 0;
-				Amount = new TRange<float>();
-				Quality = EDaoJuPinZhi.EDJPZ_Level1;
-				Asset = null!;
-			}
-
-			public override string ToString()
-			{
-				return $"{Weight}, {Amount.LowerBound.Value}-{Amount.UpperBound.Value} {Asset} (Quality {(int)Quality})";
-			}
-		}
-
 		private struct SpawnLayerInfo
 		{
 			public string Name;
@@ -1533,17 +1424,6 @@ namespace SoulmaskDataMiner.Miners
 			Human,
 			Npc,
 			Chest
-		}
-
-		private enum EDaoJuPinZhi
-		{
-			EDJPZ_Level1,
-			EDJPZ_Level2,
-			EDJPZ_Level3,
-			EDJPZ_Level4,
-			EDJPZ_Level5,
-			EDJPZ_Level6,
-			EDJPZ_Max
 		}
 
 		private enum ETanSuoDianType

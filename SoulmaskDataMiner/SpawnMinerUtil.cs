@@ -458,9 +458,17 @@ namespace SoulmaskDataMiner
 					{
 						return NpcCategory.Cats;
 					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YangTuo_C") || bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_DaYangTuo_C"))
+					else if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YangTuo_C") || bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_DaYangTuo_C"))
 					{
 						return NpcCategory.Lamas;
+					}
+					else if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_HuoJi_C"))
+					{
+						return NpcCategory.Turkey;
+					}
+					else if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_ShuiTun_C"))
+					{
+						return NpcCategory.Capybara;
 					}
 				}
 				return NpcCategory.Animal;
@@ -776,6 +784,8 @@ namespace SoulmaskDataMiner
 		Lamas,
 		Cats,
 		Ostrich,
+		Turkey,
+		Capybara,
 		Count
 	}
 
