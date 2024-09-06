@@ -848,6 +848,8 @@ namespace SoulmaskDataMiner.Miners
 
 				string? lootId = null;
 				string? lootMap = null;
+				string? collectMap = null;
+				string? lootNote = null;
 
 				void applyAnimalLoot(bool onlyBabies)
 				{
@@ -877,29 +879,39 @@ namespace SoulmaskDataMiner.Miners
 
 					if (collectionMap.Count > 0)
 					{
-						StringBuilder lootMapBuilder = new("{");
+						StringBuilder collectMapBuilder = new("[");
 						foreach (var pair in collectionMap)
 						{
+							collectMapBuilder.Append("{");
+
 							NpcData npc = spawnData.NpcData.First(wv => wv.Value.CharacterClass.Name.Equals(pair.Key)).Value;
-							string npcName = isMultiAnimal ? npc.Name + ": " : string.Empty;
+							
+							if (isMultiAnimal)
+							{
+								collectMapBuilder.Append($"\"name\":\"{npc.Name}\",");
+							}
 
 							if (npc.IsBaby && !spawnData.IsMixedAge || onlyBabies)
 							{
-								if (pair.Value.Baby is not null) lootMapBuilder.Append($"\"{npcName}On Hit (Baby)\": \"{pair.Value.Baby}\",");
+								if (pair.Value.Baby is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Baby}\",");
+								else if (pair.Value.Hit is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Hit}\",");
 							}
 							else
 							{
-								if (pair.Value.Hit is not null) lootMapBuilder.Append($"\"{npcName}On Hit (Adult)\": \"{pair.Value.Hit}\",");
-								if (pair.Value.FinalHit is not null) lootMapBuilder.Append($"\"{npcName}On Final Hit\": \"{pair.Value.FinalHit}\",");
+								if (pair.Value.Hit is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Hit}\",");
+								if (pair.Value.FinalHit is not null) collectMapBuilder.Append($"\"bonus\":\"{pair.Value.FinalHit}\",");
 							}
+							collectMapBuilder.Append($"\"amount\":{pair.Value.Amount}");
+							collectMapBuilder.Append("},");
 						}
-						if (lootMapBuilder.Length > 1)
+						if (collectMapBuilder.Length > 1)
 						{
-							lootMapBuilder.Length -= 1; // Remove trailing comma
+							collectMapBuilder.Length -= 1; // Remove trailing comma
 						}
-						lootMapBuilder.Append("}");
+						collectMapBuilder.Append("]");
 
-						lootMap = lootMapBuilder.ToString();
+						lootNote = "Animal loot amount calculations are complex. Values are approximated for a low tier knife.";
+						collectMap = collectMapBuilder.ToString();
 					}
 				}
 
@@ -935,6 +947,7 @@ namespace SoulmaskDataMiner.Miners
 					Title = poiName,
 					Name = layerInfo.Name,
 					Description = $"Level {levelText}",
+					Extra = lootNote,
 					Male = male,
 					Female = female,
 					TribeStatus = tribeStatus,
@@ -945,7 +958,8 @@ namespace SoulmaskDataMiner.Miners
 					MapLocation = GameUtil.WorldToMap(location),
 					Icon = layerInfo.Icon,
 					LootId = lootId,
-					LootMap = lootMap
+					LootMap = lootMap,
+					CollectMap = collectMap
 				};
 
 				lookups.Spawners.Add(poi);
@@ -961,7 +975,7 @@ namespace SoulmaskDataMiner.Miners
 
 					levelText = (minLevel == maxLevel) ? minLevel.ToString() : $"{minLevel} - {maxLevel}";
 
-					lootMap = null;
+					collectMap = null;
 					applyAnimalLoot(true);
 
 					poi = new(poi)
@@ -974,7 +988,7 @@ namespace SoulmaskDataMiner.Miners
 						Female = female,
 						SpawnCount = babyData.Sum(b => b.Value.SpawnCount),
 						Icon = layerInfo.Icon,
-						LootMap = lootMap
+						CollectMap = collectMap
 					};
 
 					lookups.Spawners.Add(poi);
@@ -1152,11 +1166,11 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,icon,ach,achDesc,achIcon");
+				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,collectmap,icon,ach,achDesc,achIcon");
 
 				foreach (MapPoi poi in pair.Value)
 				{
-					string spawnerSegment = ",,,,,,,,";
+					string spawnerSegment = ",,,,,,,,,";
 					string poiSegment = ",,";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
@@ -1164,7 +1178,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)}";
+						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)},{CsvStr(poi.CollectMap)}";
 					}
 					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{CsvStr(poi.Type)},{poi.Location.X:0},{poi.Location.Y:0},{poi.Location.Z:0},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
 				}
@@ -1224,7 +1238,8 @@ namespace SoulmaskDataMiner.Miners
 			//     `intr` float,
 			//     `loot` varchar(127),
 			//     `lootitem` varchar(127),
-			//     `lootmap` varchar(511),
+			//     `lootmap` varchar(255),
+			//     `collectmap` varchar(511),
 			//     `icon` varchar(127),
 			//     `ach` varchar(127),
 			//     `achDesc` varchar(255),
@@ -1240,7 +1255,7 @@ namespace SoulmaskDataMiner.Miners
 					// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
 					if (poi.Location == FVector.ZeroVector) continue;
 
-					string spawnerSegment = "null, null, null, null, null, null, null, null, null";
+					string spawnerSegment = "null, null, null, null, null, null, null, null, null, null";
 					string poiSegment = "null, null, null";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
@@ -1248,7 +1263,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}";
+						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.CollectMap)}";
 					}
 
 					sqlWriter.WriteLine($"insert into `poi` values ({(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment});");
@@ -1353,6 +1368,7 @@ namespace SoulmaskDataMiner.Miners
 			public string? LootId { get; set; }
 			public string? LootItem { get; set; }
 			public string? LootMap { get; set; }
+			public string? CollectMap { get; set; }
 			public FVector Location { get; set; }
 			public FVector2D MapLocation { get; set; }
 			public UTexture2D Icon { get; set; } = null!;

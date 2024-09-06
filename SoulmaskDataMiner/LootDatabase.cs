@@ -220,6 +220,7 @@ namespace SoulmaskDataMiner
 
 				UScriptMap? collectMap = null;
 				int amount = 0;
+				float totalDamage = 0, damagePerReward = 0;
 				foreach (FPropertyTag property in config.Properties)
 				{
 					switch (property.Name.Text)
@@ -230,10 +231,16 @@ namespace SoulmaskDataMiner
 						case "ShengWuCollectAmount":
 							amount = property.Tag!.GetValue<int>();
 							break;
+						case "ShengWuCollectableTotalAmount":
+							totalDamage = property.Tag!.GetValue<float>();
+							break;
+						case "ShengWuCollectGainDaojuDamage":
+							damagePerReward = property.Tag!.GetValue<float>();
+							break;
 					}
 				}
 
-				if (collectMap is null)
+				if (collectMap is null || amount == 0 || totalDamage == 0 || damagePerReward == 0)
 				{
 					logger.Log(LogLevel.Warning, $"Unable to locate collection data for {key}");
 					continue;
