@@ -34,21 +34,35 @@ namespace SoulmaskDataMiner.Miners
 
 		private const string BaseClassName_NonHuman = "HCharacterDongWu";
 		private const string BaseClassName_Human = "HCharacterRen";
-		//private const string BaseClassName_Other = "HCharacterBase";
 
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
 		{
-			IEnumerable<ObjectInfo> nonHumanClasses = FindObjects(BaseClassName_NonHuman.AsEnumerable());
-			IEnumerable<ObjectInfo> humanClasses = FindObjects(BaseClassName_Human.AsEnumerable());
+			IEnumerable<ObjectInfo> nonHumans = FindObjects(BaseClassName_NonHuman.AsEnumerable());
+			IEnumerable<ObjectInfo> humans = FindObjects(BaseClassName_Human.AsEnumerable());
+
+			List<ObjectInfo> animals = new();
+			List<ObjectInfo> mechanical = new();
+			foreach (ObjectInfo nonHuman in nonHumans)
+			{
+				if (BlueprintHeirarchy.Get().IsDerivedFrom(nonHuman.ClassName, "BP_JiXie_Base_C"))
+				{
+					mechanical.Add(nonHuman);
+				}
+				else
+				{
+					animals.Add(nonHuman);
+				}
+			}
 
 			IEnumerable<SpecifiedManData>? specifiedManData = FindSpecifiedManData(providerManager, logger);
 			if (specifiedManData is null) return false;
 
-			WriteCsv(nonHumanClasses, "NonHuman.csv", config, logger);
-			WriteCsv(humanClasses, "Human.csv", config, logger);
+			WriteCsv(animals, "Animal.csv", config, logger);
+			WriteCsv(mechanical, "Mechanical.csv", config, logger);
+			WriteCsv(humans, "Human.csv", config, logger);
 			WriteCsv(specifiedManData, "SpecifiedMan.csv", config, logger);
 
-			WriteSql(nonHumanClasses, humanClasses, specifiedManData, sqlWriter, logger);
+			WriteSql(animals, mechanical, humans, specifiedManData, sqlWriter, logger);
 
 			return true;
 		}
@@ -274,47 +288,39 @@ namespace SoulmaskDataMiner.Miners
 			using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
 			using (StreamWriter writer = new(outFile))
 			{
-				string? csvStr(string? value)
-				{
-					if (value is null) return null;
-					return $"\"{value.Replace("\"", "\"\"")}\"";
-				}
-
 				writer.WriteLine("number,name,quality,status,prof,ng,male,fermale,min,max");
 				foreach (SpecifiedManData sm in specifiedManData)
 				{
 					string proficiencies = string.Join('\n', sm.Proficiencies.Select(p => p.ToString()));
 					string gifts = string.Join('\n', sm.NaturalGifts.Select(g => g.ToString()));
-					writer.WriteLine($"{sm.Number},{csvStr(sm.Name)},{sm.Quality},{csvStr(sm.ClanStatus.ToEn())},{csvStr(proficiencies)},{csvStr(gifts)},{sm.HasMale},{sm.HasFemale},{sm.MinLevel},{sm.MaxLevel}");
+					writer.WriteLine($"{sm.Number},{CsvStr(sm.Name)},{sm.Quality},{CsvStr(sm.ClanStatus.ToEn())},{CsvStr(proficiencies)},{CsvStr(gifts)},{sm.HasMale},{sm.HasFemale},{sm.MinLevel},{sm.MaxLevel}");
 				}
 			}
 		}
 
-		private void WriteSql(IEnumerable<ObjectInfo> nonhumans, IEnumerable<ObjectInfo> humans, IEnumerable<SpecifiedManData> specifiedManData, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<ObjectInfo> animals, IEnumerable<ObjectInfo> mechanical, IEnumerable<ObjectInfo> humans, IEnumerable<SpecifiedManData> specifiedManData, TextWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `npc`
 			// (
-			//   `human` bool not null,
+			//   `type` int not null,
 			//   `name` varchar(255) not null,
 			//   `class` varchar(255) not null
 			// )
 
-			string dbStr(string? value)
-			{
-				if (value is null) return "''";
-				return $"'{value.Replace("\'", "\'\'")}'";
-			}
-
 			sqlWriter.WriteLine("truncate table `npc`;");
 
-			foreach (ObjectInfo objectInfo in nonhumans)
+			foreach (ObjectInfo npc in animals)
 			{
-				sqlWriter.WriteLine($"insert into `npc` values (false, {dbStr(objectInfo.Name)}, {dbStr(objectInfo.ClassName)});");
+				sqlWriter.WriteLine($"insert into `npc` values (0, {DbStr(npc.Name, true)}, {DbStr(npc.ClassName)});");
 			}
-			foreach (ObjectInfo objectInfo in humans)
+			foreach (ObjectInfo npc in mechanical)
 			{
-				sqlWriter.WriteLine($"insert into `npc` values (true, {dbStr(objectInfo.Name)} ,  {dbStr(objectInfo.ClassName)});");
+				sqlWriter.WriteLine($"insert into `npc` values (1, {DbStr(npc.Name, true)}, {DbStr(npc.ClassName)});");
+			}
+			foreach (ObjectInfo npc in humans)
+			{
+				sqlWriter.WriteLine($"insert into `npc` values (2, {DbStr(npc.Name, true)} ,  {DbStr(npc.ClassName)});");
 			}
 
 			sqlWriter.WriteLine();
@@ -340,7 +346,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				string proficiencies = string.Join("<br/>", sm.Proficiencies.Select(p => p.ToString()));
 				string gifts = string.Join("<br/>", sm.NaturalGifts.Select(g => g.ToString()));
-				sqlWriter.WriteLine($"insert into `sm` values ({sm.Number},{dbStr(sm.Name)},{sm.Quality},{dbStr(sm.ClanStatus.ToEn())},{dbStr(proficiencies)},{dbStr(gifts)},{sm.HasMale},{sm.HasFemale},{sm.MinLevel},{sm.MaxLevel});");
+				sqlWriter.WriteLine($"insert into `sm` values ({sm.Number},{DbStr(sm.Name)},{sm.Quality},{DbStr(sm.ClanStatus.ToEn())},{DbStr(proficiencies)},{DbStr(gifts)},{sm.HasMale},{sm.HasFemale},{sm.MinLevel},{sm.MaxLevel});");
 			}
 		}
 
