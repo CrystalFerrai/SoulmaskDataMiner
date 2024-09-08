@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Engine;
@@ -59,6 +60,8 @@ namespace SoulmaskDataMiner
 				multiData.NpcData,
 				multiData.Statuses,
 				multiData.Occupations,
+				multiData.EquipmentClasses,
+				multiData.WeaponClasses,
 				multiData.ClanType,
 				multiData.MinLevel,
 				multiData.MaxLevel,
@@ -76,6 +79,8 @@ namespace SoulmaskDataMiner
 		/// <returns>The spawn data if successfully loaded, else null</returns>
 		public static MultiSpawnData? LoadSpawnData(IEnumerable<UBlueprintGeneratedClass> scgClasses, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
 		{
+			NpcEquipmentUtil equipmentUtil = new();
+
 			List<ScgData> scgDataList = new();
 			foreach (UBlueprintGeneratedClass scgClass in scgClasses)
 			{
@@ -137,6 +142,26 @@ namespace SoulmaskDataMiner
 									}
 								}
 								break;
+							case "DiWeiAndZhuangBeiDataTable":
+								if (scgData.EquipmentTable is null)
+								{
+									UDataTable? table = property.Tag?.GetValue<FPackageIndex>()?.Load() as UDataTable;
+									if (table is not null)
+									{
+										scgData.EquipmentTable = equipmentUtil.LoadEquipmentTable(table, logger);
+									}
+								}
+								break;
+							case "DiWeiAndWuQiDataTable":
+								if (scgData.WeaponTable is null)
+								{
+									UDataTable? table = property.Tag?.GetValue<FPackageIndex>()?.Load() as UDataTable;
+									if (table is not null)
+									{
+										scgData.WeaponTable = equipmentUtil.LoadEquipmentTable(table, logger);
+									}
+								}
+								break;
 						}
 					}
 
@@ -162,6 +187,8 @@ namespace SoulmaskDataMiner
 			List<int> spawnCounts = new();
 			List<WeightedValue<EClanDiWei>> tribeStatusList = new();
 			List<WeightedValue<EClanZhiYe>> occupationList = new();
+			IReadOnlyDictionary<string, Range<int>>? equipmentList = null;
+			IReadOnlyDictionary<string, Range<int>>? weaponList = null;
 			EClanType clanType = EClanType.CLAN_TYPE_NONE;
 			foreach (ScgData scgData in scgDataList)
 			{
@@ -222,6 +249,15 @@ namespace SoulmaskDataMiner
 						occupations.Add(new(status, weight));
 					}
 					occupationList.AddRange(WeightedValue<EClanZhiYe>.Reduce(occupations));
+
+					if (scgData.EquipmentTable is not null)
+					{
+						equipmentList = scgData.EquipmentTable.GetItemsForOccupations(occupationList.Select(wv => wv.Value));
+					}
+					if (scgData.WeaponTable is not null)
+					{
+						weaponList = scgData.WeaponTable.GetItemsForOccupations(occupationList.Select(wv => wv.Value));
+					}
 				}
 
 				if (scgData.ClanType is not null)
@@ -397,7 +433,7 @@ namespace SoulmaskDataMiner
 
 			int totalSpawnCount = isMixedAge ? npcData.Select(wv => wv.Value).Where(n => !n.IsBaby).Sum(n => n.SpawnCount) : spawnCounts.Sum();
 
-			return new(outNames, npcData, tribeStatusList, occupationList, clanType, minLevel, maxLevel, totalSpawnCount, isMixedAge);
+			return new(outNames, npcData, tribeStatusList, occupationList, equipmentList, weaponList, clanType, minLevel, maxLevel, totalSpawnCount, isMixedAge);
 		}
 
 		public static void CalculateLevels(IEnumerable<WeightedValue<NpcData>> npcData, bool isMixedAge, out int minLevel, out int maxLevel)
@@ -484,12 +520,14 @@ namespace SoulmaskDataMiner
 
 		private struct ScgData
 		{
-			public bool? IsRandomBarbarian;
 			public List<FStructFallback>? ScgInfo;
+			public bool? IsRandomBarbarian;
 			public string? HumanName;
 			public UScriptMap? TribeStatusMap;
 			public UScriptMap? OccupationMap;
 			public EClanType? ClanType;
+			public EquipmentTable? EquipmentTable;
+			public EquipmentTable? WeaponTable;
 
 			public bool IsValid()
 			{
@@ -498,7 +536,15 @@ namespace SoulmaskDataMiner
 
 			public bool IsComplete()
 			{
-				return ScgInfo is not null && IsRandomBarbarian.HasValue && HumanName is not null && TribeStatusMap is not null && OccupationMap is not null && ClanType.HasValue;
+				return
+					ScgInfo is not null &&
+					IsRandomBarbarian.HasValue &&
+					HumanName is not null &&
+					TribeStatusMap is not null &&
+					OccupationMap is not null &&
+					ClanType.HasValue &&
+					EquipmentTable is not null &&
+					WeaponTable is not null;
 			}
 		}
 	}
@@ -621,10 +667,22 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public bool IsMixedAge { get; }
 
+		/// <summary>
+		/// Possible equipment NPCs can spawn with
+		/// </summary>
+		public IReadOnlyDictionary<string, Range<int>>? EquipmentClasses { get; }
+
+		/// <summary>
+		/// Possible weapons NPCs can spawn with
+		/// </summary>
+		public IReadOnlyDictionary<string, Range<int>>? WeaponClasses { get; }
+
 		protected SpawnData(
 			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
+			IReadOnlyDictionary<string, Range<int>>? equipmentClasses,
+			IReadOnlyDictionary<string, Range<int>>? weaponClasses,
 			EClanType clanType,
 			int minLevel,
 			int maxLevel,
@@ -634,6 +692,8 @@ namespace SoulmaskDataMiner
 			NpcData = npcClasses;
 			Statuses = statuses;
 			Occupations = occupations;
+			EquipmentClasses = equipmentClasses;
+			WeaponClasses = weaponClasses;
 			ClanType = clanType;
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
@@ -657,12 +717,14 @@ namespace SoulmaskDataMiner
 			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
+			IReadOnlyDictionary<string, Range<int>>? equipmentClasses,
+			IReadOnlyDictionary<string, Range<int>>? weaponClasses,
 			EClanType clanType,
 			int minLevel,
 			int maxLevel,
 			int spawnCount,
 			bool isMixedAge)
-			: base(npcClasses, statuses, occupations, clanType, minLevel, maxLevel, spawnCount, isMixedAge)
+			: base(npcClasses, statuses, occupations, equipmentClasses, weaponClasses, clanType, minLevel, maxLevel, spawnCount, isMixedAge)
 		{
 			NpcName = npcName;
 		}
@@ -688,12 +750,14 @@ namespace SoulmaskDataMiner
 			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
+			IReadOnlyDictionary<string, Range<int>>? equipmentClasses,
+			IReadOnlyDictionary<string, Range<int>>? weaponClasses,
 			EClanType clanType,
 			int minLevel,
 			int maxLevel,
 			int spawnCount,
 			bool isMixedAge)
-			: base(npcClasses, statuses, occupations, clanType, minLevel, maxLevel, spawnCount, isMixedAge)
+			: base(npcClasses, statuses, occupations, equipmentClasses, weaponClasses, clanType, minLevel, maxLevel, spawnCount, isMixedAge)
 		{
 			NpcNames = npcNames;
 		}
