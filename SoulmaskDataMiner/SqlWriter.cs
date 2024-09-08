@@ -154,6 +154,9 @@ namespace SoulmaskDataMiner
 			mWriter.Write($"({data})");
 		}
 
+		/// <summary>
+		/// Writes an empty line
+		/// </summary>
 		public void WriteEmptyLine()
 		{
 			mWriter.WriteLine();
@@ -164,9 +167,6 @@ namespace SoulmaskDataMiner
 			if (mState != state) throw new InvalidOperationException($"[{nameof(SqlWriter)}] {functionName}: Writer in incorrect state '{mState}'. Expected state '{state}'.");
 		}
 
-		/// <summary>
-		/// Writes an empty line
-		/// </summary>
 		private enum WriterState
 		{
 			None,
