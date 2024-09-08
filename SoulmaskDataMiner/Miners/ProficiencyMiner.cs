@@ -30,7 +30,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "Proficiency";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			IEnumerable<ProficiencyData>? proficiencies;
 			if (!LoadProficiencyData(providerManager, logger, out proficiencies))
@@ -153,22 +153,23 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(IEnumerable<ProficiencyData> proficiencies, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<ProficiencyData> proficiencies, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `sld` (
-			//     `id` int not null,
-			//     `type` varchar(127) not null,
-			//     `name` varchar(127),
-			//     `icon` varchar(127),
-			//     primary key (`id`)
-			// );
+			//   `id` int not null,
+			//   `type` varchar(127) not null,
+			//   `name` varchar(127),
+			//   `icon` varchar(127),
+			//   primary key (`id`)
+			// )
 
-			sqlWriter.WriteLine("truncate table `sld`;");
+			sqlWriter.WriteStartTable("sld");
 			foreach (ProficiencyData proficiency in proficiencies)
 			{
-				sqlWriter.WriteLine($"insert into `sld` values ({(int)proficiency.ID},{DbStr(proficiency.ID.ToString())},{DbStr(proficiency.Name)},{DbStr(proficiency.Icon?.Name)});");
+				sqlWriter.WriteRow($"{(int)proficiency.ID},{DbStr(proficiency.ID.ToString())},{DbStr(proficiency.Name)},{DbStr(proficiency.Icon?.Name)}");
 			}
+			sqlWriter.WriteEndTable();
 		}
 
 		private void WriteTextures(IEnumerable<ProficiencyData> proficiencies, Config config, Logger logger)

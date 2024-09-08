@@ -32,7 +32,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "XiShu";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			if (!TryFindXishu(providerManager, logger, out IReadOnlyDictionary<int, List<XishuData>>? xishuMap))
 			{
@@ -225,29 +225,28 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(IReadOnlyDictionary<int, List<XishuData>> xishuMap, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IReadOnlyDictionary<int, List<XishuData>> xishuMap, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `xishu` (
-			//     `name` varchar(127) not null,
-			//     `group` int not null,
-			//     `index` int not null,
-			//     `category` int not null,
-			//     `toggle` bool not null,
-			//     `visible` bool not null,
-			//     `desc` varchar(255) not null,
-			//     `tip` varchar(255),
-			//     `min` float not null,
-			//     `max` float not null,
-			//     `default` float not null,
-			//     `casual` float not null,
-			//     `easy` float not null,
-			//     `normal` float not null,
-			//     `hard` float not null,
-			//     `master` float not null,
-			//     primary key (`name`, `group`))
-
-			sqlWriter.WriteLine("truncate table `xishu`;");
+			//   `name` varchar(127) not null,
+			//   `group` int not null,
+			//   `index` int not null,
+			//   `category` int not null,
+			//   `toggle` bool not null,
+			//   `visible` bool not null,
+			//   `desc` varchar(255) not null,
+			//   `tip` varchar(255),
+			//   `min` float not null,
+			//   `max` float not null,
+			//   `default` float not null,
+			//   `casual` float not null,
+			//   `easy` float not null,
+			//   `normal` float not null,
+			//   `hard` float not null,
+			//   `master` float not null,
+			//   primary key (`name`, `group`)
+			// )
 
 			// We will move through the lists in parallel and write the same item from each list before moving to the next item.
 			// This gives us a nicer ordering of statements.
@@ -259,14 +258,16 @@ namespace SoulmaskDataMiner.Miners
 				enumerators[pair.Key] = pair.Value.GetEnumerator();
 			}
 
+			sqlWriter.WriteStartTable("xishu");
 			while (enumerators.All(e => e.Value.MoveNext()))
 			{
 				foreach (var pair in enumerators)
 				{
 					XishuData xishu = (XishuData)pair.Value.Current;
-					sqlWriter.WriteLine($"insert into `xishu` values ({DbStr(xishu.Name)}, {pair.Key}, {xishu.Index}, {(int)xishu.Category}, {xishu.IsToggle}, {xishu.IsVisible}, {DbStr(xishu.Description)}, {DbStr(xishu.Tip)}, {xishu.Min}, {xishu.Max}, {xishu.Default}, {xishu.Casual}, {xishu.Easy}, {xishu.Normal}, {xishu.Hard}, {xishu.Master});");
+					sqlWriter.WriteRow($"{DbStr(xishu.Name)}, {pair.Key}, {xishu.Index}, {(int)xishu.Category}, {xishu.IsToggle}, {xishu.IsVisible}, {DbStr(xishu.Description)}, {DbStr(xishu.Tip)}, {xishu.Min}, {xishu.Max}, {xishu.Default}, {xishu.Casual}, {xishu.Easy}, {xishu.Normal}, {xishu.Hard}, {xishu.Master}");
 				}
 			}
+			sqlWriter.WriteEndTable();
 		}
 
 		private struct AssetsData

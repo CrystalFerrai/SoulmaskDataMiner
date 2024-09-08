@@ -17,7 +17,6 @@ using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
-using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -30,7 +29,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "WenShen";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			IEnumerable<CombinedWenShenData> data = GetWenShenData(providerManager, logger);
 			if (!data.Any())
@@ -202,31 +201,33 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(IEnumerable<CombinedWenShenData> data, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<CombinedWenShenData> data, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `wenshen` (
-			//     `name` varchar(127) not null,
-			//     `special` bool not null,
-			//     `head_m` int,
-			//     `head_f` int,
-			//     `head_ico` varchar(127),
-			//     `chest_m` int,
-			//     `chest_f` int,
-			//     `chest_ico` varchar(127),
-			//     `arm_m` int,
-			//     `arm_f` int,
-			//     `arm_ico` varchar(127),
-			//     `leg_m` int,
-			//     `leg_f` int,
-			//     `leg_ico` varchar(127),
-			//     primary key (`name`, `special`));
+			//   `name` varchar(127) not null,
+			//   `special` bool not null,
+			//   `head_m` int,
+			//   `head_f` int,
+			//   `head_ico` varchar(127),
+			//   `chest_m` int,
+			//   `chest_f` int,
+			//   `chest_ico` varchar(127),
+			//   `arm_m` int,
+			//   `arm_f` int,
+			//   `arm_ico` varchar(127),
+			//   `leg_m` int,
+			//   `leg_f` int,
+			//   `leg_ico` varchar(127),
+			//   primary key (`name`, `special`)
+			// )
 
-			sqlWriter.WriteLine("truncate table `wenshen`;");
+			sqlWriter.WriteStartTable("wenshen");
 			foreach(CombinedWenShenData ws in data)
 			{
-				sqlWriter.WriteLine($"insert into `wenshen` values ({DbStr(ws.Key.Name)}, {ws.Key.IsSpecial}, {ws.Head.MaleId}, {ws.Head.FemaleId}, {DbStr(ws.Head.Icon.Name)}, {ws.Chest.MaleId}, {ws.Chest.FemaleId}, {DbStr(ws.Chest.Icon.Name)}, {ws.Arm.MaleId}, {ws.Arm.FemaleId}, {DbStr(ws.Arm.Icon.Name)}, {ws.Leg.MaleId}, {ws.Leg.FemaleId}, {DbStr(ws.Leg.Icon.Name)});");
+				sqlWriter.WriteRow($"{DbStr(ws.Key.Name)}, {ws.Key.IsSpecial}, {ws.Head.MaleId}, {ws.Head.FemaleId}, {DbStr(ws.Head.Icon.Name)}, {ws.Chest.MaleId}, {ws.Chest.FemaleId}, {DbStr(ws.Chest.Icon.Name)}, {ws.Arm.MaleId}, {ws.Arm.FemaleId}, {DbStr(ws.Arm.Icon.Name)}, {ws.Leg.MaleId}, {ws.Leg.FemaleId}, {DbStr(ws.Leg.Icon.Name)}");
 			}
+			sqlWriter.WriteEndTable();
 		}
 
 		private void WriteTextures(IEnumerable<CombinedWenShenData> data, Config config, Logger logger)

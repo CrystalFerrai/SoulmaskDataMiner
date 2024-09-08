@@ -36,7 +36,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "Mastery";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>>? masteries;
 			if (!LoadMasteryData(providerManager, logger, out masteries))
@@ -277,34 +277,35 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>> masteries, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>> masteries, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `zj` (
-			//     `type` int not null,
-			//     `idx` int not null,
-			//     `id` int not null,
-			//     `name` varchar(127) not null,
-			//     `desc` varchar(511),
-			//     `start` bool not null,
-			//     `c30` float not null,
-			//     `c60` float not null,
-			//     `c90` float not null,
-			//     `c120` float not null,
-			//     `icon` varchar(127),
-			//     primary key (`type`, `idx`)
-			// );
+			//   `type` int not null,
+			//   `idx` int not null,
+			//   `id` int not null,
+			//   `name` varchar(127) not null,
+			//   `desc` varchar(511),
+			//   `start` bool not null,
+			//   `c30` float not null,
+			//   `c60` float not null,
+			//   `c90` float not null,
+			//   `c120` float not null,
+			//   `icon` varchar(127),
+			//   primary key (`type`, `idx`)
+			// )
 
-			sqlWriter.WriteLine("truncate table `zj`;");
+			sqlWriter.WriteStartTable("zj");
 			foreach (var pair in masteries)
 			{
 				for (int i = 0; i < pair.Value.Count; ++i)
 				{
 					MasteryData data = pair.Value[i];
 					string isStart = data.IsStartingAbility.ToString().ToLowerInvariant();
-					sqlWriter.WriteLine($"insert into `zj` values ({(int)pair.Key}, {i}, {data.ID}, {DbStr(data.Name)}, {DbStr(data.Description)}, {isStart}, {data.Chance30}, {data.Chance60}, {data.Chance90}, {data.Chance120}, {DbStr(data.Icon?.Name)});");
+					sqlWriter.WriteRow($"{(int)pair.Key}, {i}, {data.ID}, {DbStr(data.Name)}, {DbStr(data.Description)}, {isStart}, {data.Chance30}, {data.Chance60}, {data.Chance90}, {data.Chance120}, {DbStr(data.Icon?.Name)}");
 				}
 			}
+			sqlWriter.WriteEndTable();
 		}
 
 		private void WriteTextures(IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>> masteries, Config config, Logger logger)

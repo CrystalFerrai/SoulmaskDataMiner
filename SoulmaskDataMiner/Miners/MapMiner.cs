@@ -35,7 +35,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "Map";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			logger.Log(LogLevel.Information, "Exporting map images...");
 			if (!ExportMapImages(providerManager, config, logger))
@@ -1238,72 +1238,54 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(MapData mapData, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(MapData mapData, ISqlWriter sqlWriter, Logger logger)
 		{
 			WriteSqlPois(mapData, sqlWriter, logger);
-			sqlWriter.WriteLine();
+			sqlWriter.WriteEmptyLine();
 			WriteSqlLoot(mapData, sqlWriter, logger);
 		}
 
-		private void WriteSqlPois(MapData mapData, TextWriter sqlWriter, Logger logger)
+		private void WriteSqlPois(MapData mapData, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `poi` (
-			//     `gpIdx` int not null,
-			//     `gpName` varchar(63) not null,
-			//     `type` varchar(63) not null,
-			//     `posX` float not null,
-			//     `posY` float not null,
-			//     `posZ` float not null,
-			//     `mapX` int not null,
-			//     `mapY` int not null,
-			//     `title` varchar(127),
-			//     `name` varchar(127),
-			//     `desc` varchar(511),
-			//     `extra` varchar(511),
-			//     `m` bool,
-			//     `f` bool,
-			//     `stat` varchar(63),
-			//     `occ` varchar(127),
-			//     `num` int,
-			//     `intr` float,
-			//     `loot` varchar(127),
-			//     `lootitem` varchar(127),
-			//     `lootmap` varchar(255),
-			//     `equipmap` varchar(2047),
-			//     `collectmap` varchar(511),
-			//     `icon` varchar(127),
-			//     `ach` varchar(127),
-			//     `achDesc` varchar(255),
-			//     `achIcon` varchar(127)
+			//   `gpIdx` int not null,
+			//   `gpName` varchar(63) not null,
+			//   `type` varchar(63) not null,
+			//   `posX` float not null,
+			//   `posY` float not null,
+			//   `posZ` float not null,
+			//   `mapX` int not null,
+			//   `mapY` int not null,
+			//   `title` varchar(127),
+			//   `name` varchar(127),
+			//   `desc` varchar(511),
+			//   `extra` varchar(511),
+			//   `m` bool,
+			//   `f` bool,
+			//   `stat` varchar(63),
+			//   `occ` varchar(127),
+			//   `num` int,
+			//   `intr` float,
+			//   `loot` varchar(127),
+			//   `lootitem` varchar(127),
+			//   `lootmap` varchar(255),
+			//   `equipmap` varchar(2047),
+			//   `collectmap` varchar(511),
+			//   `icon` varchar(127),
+			//   `ach` varchar(127),
+			//   `achDesc` varchar(255),
+			//   `achIcon` varchar(127)
 			// )
 
-			sqlWriter.WriteLine("truncate table `poi`;");
+			sqlWriter.WriteStartTable("poi");
 
 			foreach (var pair in mapData.POIs)
 			{
-				int n = 0;
 				foreach (MapPoi poi in pair.Value)
 				{
 					// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
 					if (poi.Location == FVector.ZeroVector) continue;
-
-					if (n == 999)
-					{
-						sqlWriter.WriteLine(";");
-						n = 0;
-					}
-					
-					if (n == 0)
-					{
-						sqlWriter.WriteLine($"insert into `poi` values ");
-					}
-					else
-					{
-						sqlWriter.WriteLine(",");
-					}
-
-					++n;
 
 					string spawnerSegment = "null, null, null, null, null, null, null, null, null, null, null";
 					string poiSegment = "null, null, null";
@@ -1316,66 +1298,44 @@ namespace SoulmaskDataMiner.Miners
 						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
 					}
 
-					sqlWriter.Write($"({(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment})");
-				}
-				if (n > 0)
-				{
-					sqlWriter.WriteLine(";");
+					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
 				}
 			}
+
+			sqlWriter.WriteEndTable();
 		}
 
-		private void WriteSqlLoot(MapData mapData, TextWriter sqlWriter, Logger logger)
+		private void WriteSqlLoot(MapData mapData, ISqlWriter sqlWriter, Logger logger)
 		{
 			// create table `loot` (
-			//     `id` varchar(127) not null,
-			//     `entry` int not null,
-			//     `item` int not null,
-			//     `chance` int not null,
-			//     `weight` int not null,
-			//     `min` int not null,
-			//     `max` int not null,
-			//     `quality` int not null,
-			//     `asset` varchar(127) not null,
-			//     primary key (`id`, `entry`, `item`)
+			//   `id` varchar(127) not null,
+			//   `entry` int not null,
+			//   `item` int not null,
+			//   `chance` int not null,
+			//   `weight` int not null,
+			//   `min` int not null,
+			//   `max` int not null,
+			//   `quality` int not null,
+			//   `asset` varchar(127) not null,
+			//   primary key (`id`, `entry`, `item`)
 			// )
 
-			sqlWriter.WriteLine("truncate table `loot`;");
+			sqlWriter.WriteStartTable("loot");
 
 			foreach (var pair in mapData.Loot.LootMap)
 			{
-				int n = 0;
 				for (int e = 0; e < pair.Value.Entries.Count; ++e)
 				{
 					LootEntry entry = pair.Value.Entries[e];
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
-						if (n == 999)
-						{
-							sqlWriter.WriteLine(";");
-							n = 0;
-						}
-
-						if (n == 0)
-						{
-							sqlWriter.WriteLine($"insert into `loot` values ");
-						}
-						else
-						{
-							sqlWriter.WriteLine(",");
-						}
-
-						++n;
-
 						LootItem item = entry.Items[i];
-						sqlWriter.Write($"({DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {DbStr(item.Asset)})");
+						sqlWriter.WriteRow($"{DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {DbStr(item.Asset)}");
 					}
 				}
-				if (n > 0)
-				{
-					sqlWriter.WriteLine(";");
-				}
 			}
+
+			sqlWriter.WriteEndTable();
 		}
 
 		private class MapData

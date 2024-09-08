@@ -42,7 +42,7 @@ namespace SoulmaskDataMiner.Miners
 			"Weight"
 		};
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			string[] baseClassNames = new string[]
 			{
@@ -215,27 +215,27 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(IEnumerable<ItemData> items, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<ItemData> items, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `item` (
-			//     `name` varchar(255) not null,
-			//     `class` varchar(255) not null
-			//     `desc` varchar(511),
-			//     `icon` varchar(255),
-			//     `stack` int not null,
-			//     `weight` float not null,
-			//     `cat` int not null,
-			//     `cat_name` varchar(63) not null,
-			//     `cat_icon` varchar(63)
+			//   `name` varchar(255) not null,
+			//   `class` varchar(255) not null
+			//   `desc` varchar(511),
+			//   `icon` varchar(255),
+			//   `stack` int not null,
+			//   `weight` float not null,
+			//   `cat` int not null,
+			//   `cat_name` varchar(63) not null,
+			//   `cat_icon` varchar(63)
 			// )
 
-			sqlWriter.WriteLine("truncate table `item`;");
-
+			sqlWriter.WriteStartTable("item");
 			foreach (ItemData item in items)
 			{
-				sqlWriter.WriteLine($"insert into `item` values ({DbStr(item.Info.Name, true)}, {DbStr(item.Info.ClassName)}, {DbStr(item.Info.Description)}, {DbStr(item.Info.Icon?.Name)}, {item.StackSize}, {item.Weight}, {item.CategoryID}, {DbStr(item.CategoryName)}, {DbStr(item.CategoryIcon.Name)});");
+				sqlWriter.WriteRow($"{DbStr(item.Info.Name, true)}, {DbStr(item.Info.ClassName)}, {DbStr(item.Info.Description)}, {DbStr(item.Info.Icon?.Name)}, {item.StackSize}, {item.Weight}, {item.CategoryID}, {DbStr(item.CategoryName)}, {DbStr(item.CategoryIcon.Name)}");
 			}
+			sqlWriter.WriteEndTable();
 		}
 
 		private void WriteTextures(IEnumerable<ItemData> items, IReadOnlyDictionary<EDaoJuCaiLiaoType, ItemCategoryData> categories, Config config, Logger logger)

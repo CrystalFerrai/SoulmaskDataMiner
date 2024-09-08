@@ -33,7 +33,7 @@ namespace SoulmaskDataMiner
 		/// <param name="logger">For logging any output messages while running</param>
 		/// <param name="sqlWriter">Add sql statements needed to perform a database update to this writer</param>
 		/// <returns>Whether the miner was successful (true) or encountered errors (false)</returns>
-		bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter);
+		bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter);
 	}
 
 	/// <summary>

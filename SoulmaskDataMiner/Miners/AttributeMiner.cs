@@ -27,7 +27,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "Attribute";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			IEnumerable<string>? attributes;
 			if (!FindAttributeData(providerManager, logger, out attributes))
@@ -88,21 +88,22 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(IEnumerable<string> attributes, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<string> attributes, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `attr` (
-			//     `idx` int not null,
-			//     `name` varchar(127) not null,
-			//     primary key (`idx`)
-			// );
+			//   `idx` int not null,
+			//   `name` varchar(127) not null,
+			//   primary key (`idx`)
+			// )
 
-			sqlWriter.WriteLine("truncate table `attr`;");
+			sqlWriter.WriteStartTable("attr");
 			int i = 0;
 			foreach (string attribute in attributes)
 			{
-				sqlWriter.WriteLine($"insert into `attr` values ({i++}, {DbStr(attribute)});");
+				sqlWriter.WriteRow($"{i++}, {DbStr(attribute)}");
 			}
+			sqlWriter.WriteEndTable();
 		}
 	}
 }

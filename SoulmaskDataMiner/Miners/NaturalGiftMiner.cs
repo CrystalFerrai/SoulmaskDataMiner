@@ -32,7 +32,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "Gift";
 
-		public override bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter)
+		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			if (!TryFindGifts(providerManager, config, logger, out IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>>? combinedGifts))
 			{
@@ -181,20 +181,29 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>> combinedGifts, TextWriter sqlWriter, Logger logger)
+		private void WriteSql(IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>> combinedGifts, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
-			// create table `ng` (`positive` bool, `source` int, `id1` int, `id2` int, `id3` int, `title` varchar(255) not null, `description` varchar(1023), `icon` varchar(255))
+			// create table `ng` (
+			//   `positive` bool,
+			//   `source` int,
+			//   `id1` int,
+			//   `id2` int,
+			//   `id3` int,
+			//   `title` varchar(255) not null,
+			//   `description` varchar(1023),
+			//   `icon` varchar(255)
+			// )
 
-			sqlWriter.WriteLine("truncate table `ng`;");
-
+			sqlWriter.WriteStartTable("ng");
 			foreach (var pair in combinedGifts)
 			{
 				foreach (CombinedGiftData gift in pair.Value)
 				{
-					sqlWriter.WriteLine($"insert into `ng` values ({gift.IsGood}, {(int)pair.Key}, {DbVal(gift.Level1)}, {DbVal(gift.Level2)}, {DbVal(gift.Level3)}, {DbStr(gift.Title)}, {DbStr(gift.Description)}, {DbStr(gift.Icon?.Name)});");
+					sqlWriter.WriteRow($"{gift.IsGood}, {(int)pair.Key}, {DbVal(gift.Level1)}, {DbVal(gift.Level2)}, {DbVal(gift.Level3)}, {DbStr(gift.Title)}, {DbStr(gift.Description)}, {DbStr(gift.Icon?.Name)}");
 				}
 			}
+			sqlWriter.WriteEndTable();
 		}
 
 		private void WriteTextures(IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>> combinedGifts, Config config, Logger logger)

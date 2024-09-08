@@ -21,7 +21,7 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public abstract string Name { get; }
 
-		public abstract bool Run(IProviderManager providerManager, Config config, Logger logger, TextWriter sqlWriter);
+		public abstract bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter);
 
 		/// <summary>
 		/// Formats a string so that it is safe to insert into a CSV cell
