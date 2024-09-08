@@ -13,10 +13,12 @@
 // limitations under the License.
 
 using System.Runtime.CompilerServices;
-using System.Xml;
 
 namespace SoulmaskDataMiner
 {
+	/// <summary>
+	/// Helper for writing SQL table insert statements
+	/// </summary>
 	internal class SqlWriter : ISqlWriter
 	{
 		private readonly TextWriter mWriter;
@@ -32,6 +34,9 @@ namespace SoulmaskDataMiner
 			mState = WriterState.None;
 		}
 
+		/// <summary>
+		/// Writes the start of the update file
+		/// </summary>
 		public void WriteStartFile()
 		{
 			EnsureState(WriterState.None);
@@ -43,6 +48,9 @@ namespace SoulmaskDataMiner
 			mState = WriterState.InFile;
 		}
 
+		/// <summary>
+		/// Writes the end of the update file
+		/// </summary>
 		public void WriteEndFile()
 		{
 			EnsureState(WriterState.InFile);
@@ -52,6 +60,10 @@ namespace SoulmaskDataMiner
 			mState = WriterState.None;
 		}
 
+		/// <summary>
+		/// Starts a new section
+		/// </summary>
+		/// <param name="sectionName">The name of the section to start</param>
 		public void WriteStartSection(string sectionName)
 		{
 			EnsureState(WriterState.InFile);
@@ -64,6 +76,9 @@ namespace SoulmaskDataMiner
 			mState = WriterState.InSection;
 		}
 
+		/// <summary>
+		/// Ends the current section
+		/// </summary>
 		public void WriteEndSection()
 		{
 			EnsureState(WriterState.InSection);
@@ -73,6 +88,10 @@ namespace SoulmaskDataMiner
 			mState = WriterState.InFile;
 		}
 
+		/// <summary>
+		/// Start inserting into a table
+		/// </summary>
+		/// <param name="tableName">The name of the table</param>
 		public void WriteStartTable(string tableName)
 		{
 			EnsureState(WriterState.InSection);
@@ -85,6 +104,9 @@ namespace SoulmaskDataMiner
 			mRowCounter = 0;
 		}
 
+		/// <summary>
+		/// Finishes inserting into a table
+		/// </summary>
 		public void WriteEndTable()
 		{
 			EnsureState(WriterState.InTable);
@@ -99,6 +121,14 @@ namespace SoulmaskDataMiner
 			mState = WriterState.InSection;
 		}
 
+		/// <summary>
+		/// Write a row to the current table.
+		/// </summary>
+		/// <param name="data">The row data</param>
+		/// <remarks>
+		/// The row should be preformatted valid SQL consisting of a comma-delimeted
+		/// series of values that will be inserted into the table, and nothing else.
+		/// </remarks>
 		public void WriteRow(string data)
 		{
 			EnsureState(WriterState.InTable);
@@ -134,6 +164,9 @@ namespace SoulmaskDataMiner
 			if (mState != state) throw new InvalidOperationException($"[{nameof(SqlWriter)}] {functionName}: Writer in incorrect state '{mState}'. Expected state '{state}'.");
 		}
 
+		/// <summary>
+		/// Writes an empty line
+		/// </summary>
 		private enum WriterState
 		{
 			None,
