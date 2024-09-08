@@ -35,6 +35,8 @@ namespace SoulmaskDataMiner
 
 		private bool mRequireHeirarchy;
 
+		private bool mRequireLootDatabase;
+
 		public MineRunner(Config config, Logger logger)
 		{
 			mConfig = config;
@@ -42,6 +44,7 @@ namespace SoulmaskDataMiner
 			mProviderManager = new ProviderManager(config);
 			mMiners = new();
 			mRequireHeirarchy = false;
+			mRequireLootDatabase = false;
 		}
 
 		public bool Initialize()
@@ -100,6 +103,11 @@ namespace SoulmaskDataMiner
 				BlueprintHeirarchy.Load(mProviderManager, mLogger);
 			}
 
+			if (mRequireLootDatabase)
+			{
+				mProviderManager.LoadLootDatabase(mLogger);
+			}
+
 			string sqlPath = Path.Combine(mConfig.OutputDirectory, "update.sql");
 			using FileStream sqlFile = IOUtil.CreateFile(sqlPath, mLogger);
 			using StreamWriter sqlStream = new(sqlFile, Encoding.UTF8) { NewLine = "\n" };
@@ -138,6 +146,13 @@ namespace SoulmaskDataMiner
 				sqlWriter.WriteEndSection();
 
 				mLogger.Log(LogLevel.Information, $"[{miner.Name}] completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
+			}
+
+			if (mRequireLootDatabase)
+			{
+				sqlWriter.WriteStartSection("loot");
+				mProviderManager.LootDatabase.SaveData(sqlWriter, mConfig, mLogger);
+				sqlWriter.WriteEndSection();
 			}
 
 			sqlWriter.WriteEndFile();
@@ -234,6 +249,9 @@ namespace SoulmaskDataMiner
 						continue;
 					}
 
+					RequireLootDatabaseAttribute? requireLootDatabaseAttribute = type.GetCustomAttribute<RequireLootDatabaseAttribute>();
+					bool requireLootDatabase = requireLootDatabaseAttribute?.IsRequired ?? false;
+
 					IDataMiner? miner;
 					try
 					{
@@ -255,6 +273,7 @@ namespace SoulmaskDataMiner
 						includeMiners?.Remove(name);
 						mMiners.Add(miner);
 						mRequireHeirarchy |= requireHeirarchy;
+						mRequireLootDatabase |= requireLootDatabase;
 					}
 					else if (miner is IDisposable disposable)
 					{

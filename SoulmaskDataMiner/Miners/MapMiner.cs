@@ -30,7 +30,7 @@ namespace SoulmaskDataMiner.Miners
 	/// <summary>
 	/// Mines map images and information about points of interest
 	/// </summary>
-	[RequireHeirarchy(true)]
+	[RequireHeirarchy(true), RequireLootDatabase(true)]
 	internal class MapMiner : MinerBase
 	{
 		public override string Name => "Map";
@@ -79,18 +79,13 @@ namespace SoulmaskDataMiner.Miners
 			IReadOnlyDictionary<ETanSuoDianType, UTexture2D>? mapIcons = GetMapIcons(mapIntel, logger);
 			if (mapIcons is null) return null;
 
-			MapPoiLookups? lookups = GetPois(mapIntel, providerManager.Achievements, logger);
+			MapPoiLookups? lookups = GetPois(providerManager, mapIntel, providerManager.Achievements, logger);
 			if (lookups is null) return null;
 
 			lookups.LootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
 			if (lookups.LootIcon is null) return null;
 
 			if (!FindTabletData(providerManager, lookups, providerManager.Achievements, logger))
-			{
-				return null;
-			}
-
-			if (!LoadLootData(providerManager, lookups, logger))
 			{
 				return null;
 			}
@@ -117,7 +112,7 @@ namespace SoulmaskDataMiner.Miners
 
 			FindPoiTextures(lookups, mapIcons, logger);
 
-			return new(lookups.GetAllPois(), lookups.Loot);
+			return new(lookups.GetAllPois());
 		}
 
 		private UObject? LoadMapIntel(IProviderManager providerManager, Logger logger)
@@ -165,13 +160,13 @@ namespace SoulmaskDataMiner.Miners
 			return null;
 		}
 
-		private MapPoiLookups? GetPois(UObject mapIntel, Achievements achievements, Logger logger)
+		private MapPoiLookups? GetPois(IProviderManager providerManager, UObject mapIntel, Achievements achievements, Logger logger)
 		{
 			foreach (FPropertyTag property in mapIntel.Properties)
 			{
 				if (!property.Name.Text.Equals("AllTanSuoDianInfoMap")) continue;
 
-				MapPoiLookups lookups = new();
+				MapPoiLookups lookups = new(providerManager.LootDatabase);
 
 				UScriptMap poiMap = property.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
 				foreach (var pair in poiMap.Properties)
@@ -368,11 +363,6 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			return lookups.Tablets.Any();
-		}
-
-		private bool LoadLootData(IProviderManager providerManager, MapPoiLookups lookups, Logger logger)
-		{
-			return lookups.Loot.Load(providerManager.Provider, logger);
 		}
 
 		private bool LoadSpawnLayers(IProviderManager providerManager, MapPoiLookups lookups, Logger logger)
@@ -1185,12 +1175,6 @@ namespace SoulmaskDataMiner.Miners
 
 		private void WriteCsv(MapData mapData, Config config, Logger logger)
 		{
-			WriteCsvPois(mapData, config, logger);
-			WriteCsvLoot(mapData, config, logger);
-		}
-
-		private void WriteCsvPois(MapData mapData, Config config, Logger logger)
-		{
 			foreach (var pair in mapData.POIs)
 			{
 				string outPath = Path.Combine(config.OutputDirectory, Name, $"{pair.Key}.csv");
@@ -1216,36 +1200,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteCsvLoot(MapData mapData, Config config, Logger logger)
-		{
-			string outPath = Path.Combine(config.OutputDirectory, Name, "loot.csv");
-			using FileStream outFile = IOUtil.CreateFile(outPath, logger);
-			using StreamWriter writer = new(outFile, Encoding.UTF8);
-
-			writer.WriteLine("id,entry,item,chance,weight,min,max,quality,asset");
-
-			foreach (var pair in mapData.Loot.LootMap)
-			{
-				for (int e = 0; e < pair.Value.Entries.Count; ++e)
-				{
-					LootEntry entry = pair.Value.Entries[e];
-					for (int i = 0; i < entry.Items.Count; ++i)
-					{
-						LootItem item = entry.Items[i];
-						writer.WriteLine($"{CsvStr(pair.Key)},{e},{i},{entry.Probability},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{CsvStr(item.Asset)}");
-					}
-				}
-			}
-		}
-
 		private void WriteSql(MapData mapData, ISqlWriter sqlWriter, Logger logger)
-		{
-			WriteSqlPois(mapData, sqlWriter, logger);
-			sqlWriter.WriteEmptyLine();
-			WriteSqlLoot(mapData, sqlWriter, logger);
-		}
-
-		private void WriteSqlPois(MapData mapData, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `poi` (
@@ -1305,49 +1260,13 @@ namespace SoulmaskDataMiner.Miners
 			sqlWriter.WriteEndTable();
 		}
 
-		private void WriteSqlLoot(MapData mapData, ISqlWriter sqlWriter, Logger logger)
-		{
-			// create table `loot` (
-			//   `id` varchar(127) not null,
-			//   `entry` int not null,
-			//   `item` int not null,
-			//   `chance` int not null,
-			//   `weight` int not null,
-			//   `min` int not null,
-			//   `max` int not null,
-			//   `quality` int not null,
-			//   `asset` varchar(127) not null,
-			//   primary key (`id`, `entry`, `item`)
-			// )
-
-			sqlWriter.WriteStartTable("loot");
-
-			foreach (var pair in mapData.Loot.LootMap)
-			{
-				for (int e = 0; e < pair.Value.Entries.Count; ++e)
-				{
-					LootEntry entry = pair.Value.Entries[e];
-					for (int i = 0; i < entry.Items.Count; ++i)
-					{
-						LootItem item = entry.Items[i];
-						sqlWriter.WriteRow($"{DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {DbStr(item.Asset)}");
-					}
-				}
-			}
-
-			sqlWriter.WriteEndTable();
-		}
-
 		private class MapData
 		{
 			public IReadOnlyDictionary<string, List<MapPoi>> POIs { get; }
 
-			public LootDatabase Loot { get; }
-
-			public MapData(IReadOnlyDictionary<string, List<MapPoi>> pois, LootDatabase loot)
+			public MapData(IReadOnlyDictionary<string, List<MapPoi>> pois)
 			{
 				POIs = pois;
-				Loot = loot;
 			}
 		}
 
@@ -1359,7 +1278,7 @@ namespace SoulmaskDataMiner.Miners
 
 			public IDictionary<string, MapPoi> Tablets { get; } = new Dictionary<string, MapPoi>();
 
-			public LootDatabase Loot { get; } = new();
+			public LootDatabase Loot { get; }
 
 			public IDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; } = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
 
@@ -1368,6 +1287,11 @@ namespace SoulmaskDataMiner.Miners
 			public IList<MapPoi> Lootables { get; } = new List<MapPoi>();
 
 			public UTexture2D LootIcon { get; set; } = null!;
+
+			public MapPoiLookups(LootDatabase loot)
+			{
+				Loot = loot;
+			}
 
 			public IReadOnlyDictionary<string, List<MapPoi>> GetAllPois()
 			{

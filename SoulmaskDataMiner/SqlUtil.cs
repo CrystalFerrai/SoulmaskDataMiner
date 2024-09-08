@@ -12,47 +12,52 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-namespace SoulmaskDataMiner.Miners
+namespace SoulmaskDataMiner
 {
 	/// <summary>
-	/// Base class for all data mienrs
+	/// Utility to assist with creating SQL statements
 	/// </summary>
-	internal abstract class MinerBase : IDataMiner
+	internal static class SqlUtil
 	{
-		public abstract string Name { get; }
-
-		public abstract bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter);
-
 		/// <summary>
 		/// Formats a string so that it is safe to insert into a CSV cell
 		/// </summary>
-		protected static string? CsvStr(string? value)
+		public static string? CsvStr(string? value)
 		{
-			return SqlUtil.CsvStr(value);
+			if (value is null || value.Equals("None")) return null;
+			return $"\"{value.Replace("\"", "\"\"")}\"";
 		}
 
 		/// <summary>
 		/// Formats a string so that it is safe to insert into a SQL database cell
 		/// </summary>
-		protected static string DbStr(string? value, bool treatNullAsEmpty = false)
+		public static string DbStr(string? value, bool treatNullAsEmpty = false)
 		{
-			return SqlUtil.DbStr(value, treatNullAsEmpty);
+			if (value is null || value.Equals("None")) return treatNullAsEmpty ? "''" : "null";
+			return $"'{value.Replace("\'", "\'\'")}'";
 		}
 
 		/// <summary>
 		/// Formats a bool to be inserted into a SQL database cell
 		/// </summary>
-		protected static string DbBool(bool value)
+		public static string DbBool(bool value)
 		{
-			return SqlUtil.DbBool(value);
+			return value ? "true" : "false";
 		}
 
 		/// <summary>
 		/// Formats a nullable value to be inserted into a SQL database cell
 		/// </summary>
-		protected static string DbVal<T>(Nullable<T> value) where T : struct
+		public static string DbVal<T>(Nullable<T> value) where T : struct
 		{
-			return SqlUtil.DbVal(value);
+			if (!value.HasValue) return "null";
+
+			if (value.Value is bool b)
+			{
+				return DbBool(b);
+			}
+
+			return value.Value.ToString() ?? "null";
 		}
 	}
 }

@@ -80,4 +80,18 @@ namespace SoulmaskDataMiner
 			IsRequired = isRequired;
 		}
 	}
+
+	/// <summary>
+	/// Indicates whether a data miner requires that a loot database is avaialble.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class)]
+	internal class RequireLootDatabaseAttribute : Attribute
+	{
+		public bool IsRequired { get; set; }
+
+		public RequireLootDatabaseAttribute(bool isRequired)
+		{
+			IsRequired = isRequired;
+		}
+	}
 }

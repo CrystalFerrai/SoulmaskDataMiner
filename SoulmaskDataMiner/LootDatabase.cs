@@ -20,6 +20,10 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.UObject;
+using System.Diagnostics;
+using System.Text;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace SoulmaskDataMiner
 {
@@ -57,11 +61,33 @@ namespace SoulmaskDataMiner
 		{
 			if (mIsLoaded) return true;
 
+			logger.Log(LogLevel.Information, "Loading loot database");
+
+			Stopwatch timer = new Stopwatch();
+			timer.Start();
+
 			if (!LoadLootData(provider, logger)) return false;
 			if (!LoadCollectionData(provider, logger)) return false;
 
+			timer.Stop();
+
+			logger.Log(LogLevel.Information, $"Loot database load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
+
 			mIsLoaded = true;
 			return true;
+		}
+
+		/// <summary>
+		/// Saves loot data to output directory
+		/// </summary>
+		/// <param name="sqlWriter">For writing sql data</param>
+		/// <param name="config">For obtaining an directory for csv output</param>
+		/// <param name="logger">For logging messages</param>
+		public void SaveData(ISqlWriter sqlWriter, Config config, Logger logger)
+		{
+			logger.Log(LogLevel.Information, "Saving loot data...");
+			WriteCsvLoot(config, logger);
+			WriteSqlLoot(sqlWriter, logger);
 		}
 
 		private bool LoadLootData(IFileProvider provider, Logger logger)
@@ -194,6 +220,12 @@ namespace SoulmaskDataMiner
 				}
 			}
 
+			if (mLootMap.Count == 0)
+			{
+				logger.LogError("Failed to load any loot tables");
+				return false;
+			}
+
 			return true;
 		}
 
@@ -311,6 +343,61 @@ namespace SoulmaskDataMiner
 			}
 
 			return true;
+		}
+
+		private void WriteCsvLoot(Config config, Logger logger)
+		{
+			string outPath = Path.Combine(config.OutputDirectory, "loot.csv");
+			using FileStream outFile = IOUtil.CreateFile(outPath, logger);
+			using StreamWriter writer = new(outFile, Encoding.UTF8);
+
+			writer.WriteLine("id,entry,item,chance,weight,min,max,quality,asset");
+
+			foreach (var pair in LootMap)
+			{
+				for (int e = 0; e < pair.Value.Entries.Count; ++e)
+				{
+					LootEntry entry = pair.Value.Entries[e];
+					for (int i = 0; i < entry.Items.Count; ++i)
+					{
+						LootItem item = entry.Items[i];
+						writer.WriteLine($"{SqlUtil.CsvStr(pair.Key)},{e},{i},{entry.Probability},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{SqlUtil.CsvStr(item.Asset)}");
+					}
+				}
+			}
+		}
+
+		private void WriteSqlLoot(ISqlWriter sqlWriter, Logger logger)
+		{
+			// create table `loot` (
+			//   `id` varchar(127) not null,
+			//   `entry` int not null,
+			//   `item` int not null,
+			//   `chance` int not null,
+			//   `weight` int not null,
+			//   `min` int not null,
+			//   `max` int not null,
+			//   `quality` int not null,
+			//   `asset` varchar(127) not null,
+			//   primary key (`id`, `entry`, `item`)
+			// )
+
+			sqlWriter.WriteStartTable("loot");
+
+			foreach (var pair in LootMap)
+			{
+				for (int e = 0; e < pair.Value.Entries.Count; ++e)
+				{
+					LootEntry entry = pair.Value.Entries[e];
+					for (int i = 0; i < entry.Items.Count; ++i)
+					{
+						LootItem item = entry.Items[i];
+						sqlWriter.WriteRow($"{SqlUtil.DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {SqlUtil.DbStr(item.Asset)}");
+					}
+				}
+			}
+
+			sqlWriter.WriteEndTable();
 		}
 	}
 

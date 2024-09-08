@@ -13,7 +13,6 @@
 // limitations under the License.
 
 using CUE4Parse.UE4.Assets;
-using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics;
 
@@ -48,7 +47,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public static void Load(IProviderManager providerManager, Logger logger)
 		{
-			logger.Log(LogLevel.Important, "Loading blueprint heirarchy...");
+			logger.Log(LogLevel.Information, "Loading blueprint heirarchy...");
 
 			Stopwatch timer = new Stopwatch();
 			timer.Start();

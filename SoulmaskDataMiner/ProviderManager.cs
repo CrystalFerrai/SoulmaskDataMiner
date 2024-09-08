@@ -38,6 +38,8 @@ namespace SoulmaskDataMiner
 
 		private Achievements? mAchievements;
 
+		private LootDatabase? mLootDatabase;
+
 		public IFileProvider Provider => mProvider;
 
 		public IReadOnlyDictionary<string, MetaClass>? ClassMetadata => mClassMetadata;
@@ -66,6 +68,18 @@ namespace SoulmaskDataMiner
 			}
 		}
 
+		public LootDatabase LootDatabase
+		{
+			get
+			{
+				if (mLootDatabase is null)
+				{
+					throw new InvalidOperationException("LootDatabase not found. Has the provider manager been initialized, and has a running miner declared a RequireLootDatabase attribute?");
+				}
+				return mLootDatabase;
+			}
+		}
+
 		public ProviderManager(Config config)
 		{
 			mConfig = config;
@@ -82,6 +96,17 @@ namespace SoulmaskDataMiner
 			mResourceManager = GameResourceManager.Load(mProvider, logger);
 			mAchievements = Achievements.Load(mProvider, logger);
 
+			return true;
+		}
+
+		public bool LoadLootDatabase(Logger logger)
+		{
+			mLootDatabase = new();
+			if (!mLootDatabase.Load(mProvider, logger))
+			{
+				mLootDatabase = null;
+				return false;
+			}
 			return true;
 		}
 

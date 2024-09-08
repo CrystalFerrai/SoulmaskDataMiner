@@ -46,5 +46,14 @@ namespace SoulmaskDataMiner
 		/// Game achievement data
 		/// </summary>
 		Achievements Achievements { get; }
+
+		/// <summary>
+		/// Provides access to game loot tables
+		/// </summary>
+		/// A miner which requires this data should declare the attribute [RequireLootDatabase(true)]. This
+		/// will ensure the loot database is loaded before running the miner. The property will throw an
+		/// exception if the loot database has not been loaded.
+		/// </remarks>
+		LootDatabase LootDatabase { get; }
 	}
 }
