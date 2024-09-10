@@ -271,24 +271,5 @@ namespace SoulmaskDataMiner.Miners
 			public string CategoryName;
 			public UTexture2D CategoryIcon;
 		}
-
-		private enum EDaoJuCaiLiaoType
-		{
-			EDJCL_QiTa,
-			EDJCL_ZhiWu,
-			EDJCL_KuangWu,
-			EDJCL_DongWu,
-			EDJCL_WuQi,
-			EDJCL_FangJu,
-			EDJCL_GongJu,
-			EDJCL_QiMin,
-			EDJCL_JiaJu,
-			EDJCL_JianZhu,
-			EDJCL_ShiCai,
-			EDJCL_YaoWu,
-			EDJCL_BanChenPin,
-			EDJCL_LiaoLi,
-			EDJCL_Max,
-		};
 	}
 }

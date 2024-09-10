@@ -358,21 +358,5 @@ namespace SoulmaskDataMiner.Miners
 				return $"[{ID}] {Name}";
 			}
 		}
-
-		private enum EWuQiLeiXing
-		{
-			WUQI_LEIXING_NONE,
-			WUQI_LEIXING_DAO,
-			WUQI_LEIXING_MAO,
-			WUQI_LEIXING_GONG,
-			WUQI_LEIXING_CHUI,
-			WUQI_LEIXING_DUN,
-			WUQI_LEIXING_QUANTAO,
-			WUQI_LEIXING_SHUANGDAO,
-			WUQI_LEIXING_JIAN,
-			WUQI_LEIXING_TOUZHIWU,
-			WUQI_LEIXING_GONGCHENGCHUI,
-			WUQI_LEIXING_MAX
-		};
 	}
 }

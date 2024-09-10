@@ -22,8 +22,6 @@ using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics;
 using System.Text;
-using System.Xml;
-using System.Xml.Linq;
 
 namespace SoulmaskDataMiner
 {
@@ -61,7 +59,7 @@ namespace SoulmaskDataMiner
 		{
 			if (mIsLoaded) return true;
 
-			logger.Log(LogLevel.Information, "Loading loot database");
+			logger.Log(LogLevel.Information, "Loading loot database..");
 
 			Stopwatch timer = new Stopwatch();
 			timer.Start();
@@ -201,7 +199,7 @@ namespace SoulmaskDataMiner
 								continue;
 							}
 
-							item.Asset = daoJuIndex.Name;
+							item.Asset = daoJuIndex;
 
 							entry.Items.Add(item);
 						}
@@ -361,7 +359,7 @@ namespace SoulmaskDataMiner
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						writer.WriteLine($"{SqlUtil.CsvStr(pair.Key)},{e},{i},{entry.Probability},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{SqlUtil.CsvStr(item.Asset)}");
+						writer.WriteLine($"{SqlUtil.CsvStr(pair.Key)},{e},{i},{entry.Probability},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{SqlUtil.CsvStr(item.Asset.Name)}");
 					}
 				}
 			}
@@ -392,7 +390,7 @@ namespace SoulmaskDataMiner
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						sqlWriter.WriteRow($"{SqlUtil.DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {SqlUtil.DbStr(item.Asset)}");
+						sqlWriter.WriteRow($"{SqlUtil.DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {SqlUtil.DbStr(item.Asset.Name)}");
 					}
 				}
 			}
@@ -458,7 +456,7 @@ namespace SoulmaskDataMiner
 		public int Weight;
 		public TRange<float> Amount;
 		public EDaoJuPinZhi Quality;
-		public string Asset;
+		public FPackageIndex Asset;
 
 		public LootItem()
 		{
@@ -470,21 +468,7 @@ namespace SoulmaskDataMiner
 
 		public override string ToString()
 		{
-			return $"{Weight}, {Amount.LowerBound.Value}-{Amount.UpperBound.Value} {Asset} (Quality {(int)Quality})";
+			return $"{Weight}, {Amount.LowerBound.Value}-{Amount.UpperBound.Value} {Asset.Name} (Quality {(int)Quality})";
 		}
-	}
-
-	/// <summary>
-	/// Item quality
-	/// </summary>
-	internal enum EDaoJuPinZhi
-	{
-		EDJPZ_Level1,
-		EDJPZ_Level2,
-		EDJPZ_Level3,
-		EDJPZ_Level4,
-		EDJPZ_Level5,
-		EDJPZ_Level6,
-		EDJPZ_Max
 	}
 }

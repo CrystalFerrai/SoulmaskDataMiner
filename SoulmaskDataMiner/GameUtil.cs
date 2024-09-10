@@ -253,27 +253,5 @@ namespace SoulmaskDataMiner
 
 			return null;
 		}
-
-		/// <summary>
-		/// Converts a location from world space to map space
-		/// </summary>
-		/// <param name="world">The coordinate to convert</param>
-		/// <param name="worldSize">The full width/height of the world</param>
-		/// <param name="mapSize">The full width/height of the map texture</param>
-		public static FVector2D WorldToMap(FVector world, float worldSize = 816000.0f, float mapSize = 4096.0f)
-		{
-			return new(WorldToMap(world.X, worldSize, mapSize), WorldToMap(world.Y, worldSize, mapSize));
-		}
-
-		/// <summary>
-		/// Converts a coordinate value from world space to map space
-		/// </summary>
-		/// <param name="world">The value to convert</param>
-		/// <param name="worldSize">The full width/height of the world</param>
-		/// <param name="mapSize">The full width/height of the map texture</param>
-		public static float WorldToMap(float world, float worldSize = 816000.0f, float mapSize = 4096.0f)
-		{
-			return (float)Math.Round((world + worldSize * 0.5f) / worldSize * mapSize);
-		}
 	}
 }

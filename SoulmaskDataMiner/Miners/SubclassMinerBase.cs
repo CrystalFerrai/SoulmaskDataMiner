@@ -54,7 +54,7 @@ namespace SoulmaskDataMiner.Miners
 			List<ObjectInfo> infos = new();
 			foreach (string className in baseClassNames)
 			{
-				foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Get().GetDerivedClasses(className))
+				foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Instance.GetDerivedClasses(className))
 				{
 					if (classInfo.Export?.ExportObject.Value is UClass classObj)
 					{

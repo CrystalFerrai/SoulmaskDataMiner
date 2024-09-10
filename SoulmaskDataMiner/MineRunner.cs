@@ -294,7 +294,7 @@ namespace SoulmaskDataMiner
 			}
 			else
 			{
-				mLogger.Log(LogLevel.Information, $"The following miners will be run: {string.Join(',', mMiners.Select(m => m.Name))}");
+				mLogger.Log(LogLevel.Important, $"The following miners will be run: {string.Join(',', mMiners.Select(m => m.Name))}");
 			}
 		}
 	}

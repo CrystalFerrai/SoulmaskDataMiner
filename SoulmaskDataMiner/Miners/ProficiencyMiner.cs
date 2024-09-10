@@ -194,38 +194,4 @@ namespace SoulmaskDataMiner.Miners
 			return $"[{ID}] {Name}";
 		}
 	}
-
-	internal enum EProficiency
-	{
-		FaMu,
-		CaiKuang,
-		ZhongZhi,
-		BuZhuo,
-		CaiShou,
-		YangZhi,
-		TuZai,
-		PaoMu,
-		QieShi,
-		RongLian,
-		RouPi,
-		FangZhi,
-		ZhiTao,
-		YanMo,
-		QiJu,
-		WuQi,
-		JiaZhou,
-		ZhuBao,
-		JianZhu,
-		LianJin,
-		PengRen,
-		Dao,
-		ShuangDao,
-		Mao,
-		Chui,
-		QuanTao,
-		Gong,
-		DaJian,
-		PouJie,
-		DunPai
-	}
 }

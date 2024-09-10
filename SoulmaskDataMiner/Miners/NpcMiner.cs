@@ -44,7 +44,7 @@ namespace SoulmaskDataMiner.Miners
 			List<ObjectInfo> mechanical = new();
 			foreach (ObjectInfo nonHuman in nonHumans)
 			{
-				if (BlueprintHeirarchy.Get().IsDerivedFrom(nonHuman.ClassName, "BP_JiXie_Base_C"))
+				if (BlueprintHeirarchy.Instance.IsDerivedFrom(nonHuman.ClassName, "BP_JiXie_Base_C"))
 				{
 					mechanical.Add(nonHuman);
 				}

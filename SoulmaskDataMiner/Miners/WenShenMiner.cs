@@ -426,23 +426,5 @@ namespace SoulmaskDataMiner.Miners
 				return $"[{Id}] {Key}";
 			}
 		}
-
-		private enum EXingBieType
-		{
-			CHARACTER_XINGBIE_NAN, // Male
-			CHARACTER_XINGBIE_NV,  // Female
-			CHARACTER_XINGBIE_MAX,
-			CHARACTER_XINGBIE_WEIZHI
-		};
-
-		enum EHWenShenBuWei
-		{
-			Min,
-			Tou,   // Head
-			Xiong, // Chest
-			Shou,  // Arm
-			Jiao,  // Leg
-			Max
-		};
 	}
 }

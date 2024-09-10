@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using CUE4Parse.UE4.Assets;
+using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics;
 
@@ -27,19 +28,25 @@ namespace SoulmaskDataMiner
 
 		private readonly Dictionary<string, InternalClassInfo> mSuperMap;
 
+		public IReadOnlySet<string> FoliageComponentClasses { get; private set; }
+
+		/// <summary>
+		/// Gets the loaded blueprint heiarchy.
+		/// </summary>
+		/// <exception cref="InvalidOperationException">The hierarchy has not been loaded</exception>
+		public static BlueprintHeirarchy Instance
+		{
+			get
+			{
+				if (sInstance is null) throw new InvalidOperationException("BluePrintHierarchy has not been loaded. Any miner needing this resource should declare so by adding the RequireHierarchy attribute to the class.");
+				return sInstance;
+			}
+		}
+
 		private BlueprintHeirarchy(Dictionary<string, InternalClassInfo> superMap)
 		{
 			mSuperMap = superMap;
-		}
-
-		/// <summary>
-		/// Returns the loaded blueprint heiarchy.
-		/// </summary>
-		/// <exception cref="InvalidOperationException">The hierarchy has not been loaded</exception>
-		public static BlueprintHeirarchy Get()
-		{
-			if (sInstance is null) throw new InvalidOperationException("BluePrintHierarchy has not been loaded. Any miner needing this resource should declare so by adding the RequireHierarchy attribute to the class.");
-			return sInstance;
+			FoliageComponentClasses = null!;
 		}
 
 		/// <summary>
@@ -109,6 +116,22 @@ namespace SoulmaskDataMiner
 			}
 
 			sInstance = new(superMap);
+
+			HashSet<string> foliageComponents = new();
+			foreach (BlueprintClassInfo zhiBeiComponent in sInstance.GetDerivedClasses("HZhiBeiComponent"))
+			{
+				foliageComponents.Add(zhiBeiComponent.Name);
+			}
+			foreach (BlueprintClassInfo zhiBeiComponent in sInstance.GetDerivedClasses("HBuLuoZhiBeiComponent"))
+			{
+				foliageComponents.Add(zhiBeiComponent.Name);
+			}
+
+			sInstance.FoliageComponentClasses = foliageComponents;
+			foreach (string component in foliageComponents)
+			{
+				ObjectTypeRegistry.RegisterClass(component, typeof(UInstancedStaticMeshComponent));
+			}
 
 			timer.Stop();
 			logger.Log(LogLevel.Information, $"Blueprint hierarchy load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency):0.###}s");

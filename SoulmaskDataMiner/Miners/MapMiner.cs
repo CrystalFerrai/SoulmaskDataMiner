@@ -35,6 +35,13 @@ namespace SoulmaskDataMiner.Miners
 	{
 		public override string Name => "Map";
 
+		private static readonly MapData sMapData;
+
+		static MapMiner()
+		{
+			sMapData = new();
+		}
+
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			logger.Log(LogLevel.Information, "Exporting map images...");
@@ -43,13 +50,13 @@ namespace SoulmaskDataMiner.Miners
 				return false;
 			}
 
-			logger.Log(LogLevel.Information, "Begin processing map.");
-			MapData? mapData = ProcessMap(providerManager, logger);
+			logger.Log(LogLevel.Information, "<<< Begin processing map >>>");
+			MapInfo? mapData = ProcessMap(providerManager, logger);
 			if (mapData is null)
 			{
 				return false;
 			}
-			logger.Log(LogLevel.Information, "Finished processing map.");
+			logger.Log(LogLevel.Information, "<<< Finished processing map >>>");
 
 			logger.Log(LogLevel.Information, "Exporting data...");
 			WriteIcons(mapData, config, logger);
@@ -69,7 +76,7 @@ namespace SoulmaskDataMiner.Miners
 			return success;
 		}
 
-		private MapData? ProcessMap(IProviderManager providerManager, Logger logger)
+		private MapInfo? ProcessMap(IProviderManager providerManager, Logger logger)
 		{
 			logger.Log(LogLevel.Information, "Loading dependencies...");
 
@@ -79,23 +86,23 @@ namespace SoulmaskDataMiner.Miners
 			IReadOnlyDictionary<ETanSuoDianType, UTexture2D>? mapIcons = GetMapIcons(mapIntel, logger);
 			if (mapIcons is null) return null;
 
-			MapPoiLookups? lookups = GetPois(providerManager, mapIntel, providerManager.Achievements, logger);
-			if (lookups is null) return null;
+			MapPoiDatabase? poiDatabase = GetPois(providerManager, mapIntel, providerManager.Achievements, logger);
+			if (poiDatabase is null) return null;
 
-			lookups.LootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
-			if (lookups.LootIcon is null) return null;
+			poiDatabase.LootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
+			if (poiDatabase.LootIcon is null) return null;
 
-			if (!FindTabletData(providerManager, lookups, providerManager.Achievements, logger))
+			if (!FindTabletData(providerManager, poiDatabase, providerManager.Achievements, logger))
 			{
 				return null;
 			}
 
-			if (!LoadSpawnLayers(providerManager, lookups, logger))
+			if (!LoadSpawnLayers(providerManager, poiDatabase, logger))
 			{
 				return null;
 			}
 
-			if (!FindMapObjects(providerManager, logger, lookups,
+			if (!FindMapObjects(providerManager, logger, poiDatabase,
 				out IReadOnlyList<FObjectExport>? poiObjects,
 				out IReadOnlyList<FObjectExport>? tabletObjects,
 				out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
@@ -105,14 +112,19 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
-			ProcessPois(lookups, poiObjects, logger);
-			ProcessTablets(lookups, tabletObjects, logger);
-			ProcessSpawners(lookups, spawnerObjects, barracksObjects, logger);
-			ProcessChests(lookups, chestObjects, logger);
+			OreUtil oreUtil = new(sMapData);
+			IReadOnlyDictionary<string, FoliageData>? oreData = oreUtil.LoadOreData(providerManager, logger);
+			if (oreData is null) return null;
 
-			FindPoiTextures(lookups, mapIcons, logger);
+			ProcessPois(poiDatabase, poiObjects, logger);
+			ProcessTablets(poiDatabase, tabletObjects, logger);
+			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger);
+			ProcessChests(poiDatabase, chestObjects, logger);
+			ProcessOres(poiDatabase, oreData, logger);
 
-			return new(lookups.GetAllPois());
+			FindPoiTextures(poiDatabase, mapIcons, logger);
+
+			return new(poiDatabase.GetAllPois());
 		}
 
 		private UObject? LoadMapIntel(IProviderManager providerManager, Logger logger)
@@ -160,13 +172,13 @@ namespace SoulmaskDataMiner.Miners
 			return null;
 		}
 
-		private MapPoiLookups? GetPois(IProviderManager providerManager, UObject mapIntel, Achievements achievements, Logger logger)
+		private MapPoiDatabase? GetPois(IProviderManager providerManager, UObject mapIntel, Achievements achievements, Logger logger)
 		{
 			foreach (FPropertyTag property in mapIntel.Properties)
 			{
 				if (!property.Name.Text.Equals("AllTanSuoDianInfoMap")) continue;
 
-				MapPoiLookups lookups = new(providerManager.LootDatabase);
+				MapPoiDatabase poiDatabase = new(providerManager.LootDatabase);
 
 				UScriptMap poiMap = property.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
 				foreach (var pair in poiMap.Properties)
@@ -232,22 +244,22 @@ namespace SoulmaskDataMiner.Miners
 						poi.Achievement = achievement;
 					}
 
-					lookups.IndexLookup.Add(index, poi);
-					if (!lookups.TypeLookup.TryGetValue(poiType.Value, out List<MapPoi>? list))
+					poiDatabase.IndexLookup.Add(index, poi);
+					if (!poiDatabase.TypeLookup.TryGetValue(poiType.Value, out List<MapPoi>? list))
 					{
 						list = new();
-						lookups.TypeLookup.Add(poiType.Value, list);
+						poiDatabase.TypeLookup.Add(poiType.Value, list);
 					}
 					list.Add(poi);
 				}
 
-				return lookups;
+				return poiDatabase;
 			}
 
 			return null;
 		}
 
-		private bool FindTabletData(IProviderManager providerManager, MapPoiLookups lookups, Achievements achievements, Logger logger)
+		private bool FindTabletData(IProviderManager providerManager, MapPoiDatabase poiDatabase, Achievements achievements, Logger logger)
 		{
 			if (!achievements.AllAchievements.TryGetValue("BP_ChengJiu_ShiBan_001_C", out AchievementData? ancientAchievement))
 			{
@@ -359,13 +371,13 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
-				lookups.Tablets.Add(className, tabletData);
+				poiDatabase.Tablets.Add(className, tabletData);
 			}
 
-			return lookups.Tablets.Any();
+			return poiDatabase.Tablets.Any();
 		}
 
-		private bool LoadSpawnLayers(IProviderManager providerManager, MapPoiLookups lookups, Logger logger)
+		private bool LoadSpawnLayers(IProviderManager providerManager, MapPoiDatabase poiDatabase, Logger logger)
 		{
 			string[] texturePaths = new string[]
 			{
@@ -384,7 +396,7 @@ namespace SoulmaskDataMiner.Miners
 					return false;
 				}
 
-				lookups.SpawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = ((NpcCategory)i).ToString(), Icon = icon };
+				poiDatabase.SpawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = ((NpcCategory)i).ToString(), Icon = icon };
 			}
 
 			UTexture2D? lamasIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_yangtuo.uasset", logger);
@@ -399,16 +411,16 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			const string babyAnimalSpawnName = "Baby Animal Spawn";
-			lookups.SpawnLayerMap[NpcCategory.Lamas] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lamasIcon };
-			lookups.SpawnLayerMap[NpcCategory.Cats] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = catsIcon };
-			lookups.SpawnLayerMap[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
-			lookups.SpawnLayerMap[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
-			lookups.SpawnLayerMap[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Lamas] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lamasIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Cats] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = catsIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
 
 			return true;
 		}
 
-		private bool FindMapObjects(IProviderManager providerManager, Logger logger, MapPoiLookups lookups,
+		private bool FindMapObjects(IProviderManager providerManager, Logger logger, MapPoiDatabase poiDatabase,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? poiObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? tabletObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
@@ -457,7 +469,7 @@ namespace SoulmaskDataMiner.Miners
 			List<BlueprintClassInfo> spawnerBpClasses = new();
 			foreach (String searchClass in spawnerBaseClasses)
 			{
-				spawnerBpClasses.AddRange(BlueprintHeirarchy.Get().GetDerivedClasses(searchClass));
+				spawnerBpClasses.AddRange(BlueprintHeirarchy.Instance.GetDerivedClasses(searchClass));
 			}
 
 			Dictionary<string, UObject?> spawnerClasses = spawnerBaseClasses.ToDictionary(c => c, c => (UObject?)null);
@@ -469,11 +481,11 @@ namespace SoulmaskDataMiner.Miners
 				spawnerClasses.Add(bpClass.Name, defaultScgObj);
 			}
 
-			HashSet<string> barracksClasses = new(BlueprintHeirarchy.Get().GetDerivedClasses(barracksBaseClass).Select(c => c.Name));
+			HashSet<string> barracksClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(barracksBaseClass).Select(c => c.Name));
 
 			const string chestBaseClass = "HJianZhuBaoXiang";
 
-			List<BlueprintClassInfo> chestBpClasses = new(BlueprintHeirarchy.Get().GetDerivedClasses(chestBaseClass));
+			List<BlueprintClassInfo> chestBpClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(chestBaseClass));
 
 			Dictionary<string, UObject?> chestClasses = spawnerBaseClasses.ToDictionary(c => c, c => (UObject?)null);
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
@@ -511,7 +523,7 @@ namespace SoulmaskDataMiner.Miners
 					{
 						chestObjectList.Add(new() { Export = export, DefaultsObject = defaultObj });
 					}
-					else if (lookups.Tablets.ContainsKey(export.ClassName))
+					else if (poiDatabase.Tablets.ContainsKey(export.ClassName))
 					{
 						tabletObjectList.Add(export);
 					}
@@ -527,7 +539,7 @@ namespace SoulmaskDataMiner.Miners
 			return true;
 		}
 
-		private void ProcessPois(MapPoiLookups lookups, IReadOnlyList<FObjectExport> poiObjects, Logger logger)
+		private void ProcessPois(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> poiObjects, Logger logger)
 		{
 			logger.Log(LogLevel.Information, $"Processing {poiObjects.Count} POIs...");
 			foreach (FObjectExport poiObject in poiObjects)
@@ -551,7 +563,7 @@ namespace SoulmaskDataMiner.Miners
 
 				if (!index.HasValue) continue;
 
-				if (!lookups.IndexLookup.TryGetValue(index.Value, out MapPoi? poi))
+				if (!poiDatabase.IndexLookup.TryGetValue(index.Value, out MapPoi? poi))
 				{
 					continue;
 				}
@@ -569,16 +581,16 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 				poi.Location = locationProperty.Tag!.GetValue<FVector>();
-				poi.MapLocation = GameUtil.WorldToMap(poi.Location);
+				poi.MapLocation = WorldToMap(poi.Location.Value);
 			}
 		}
 
-		private void ProcessTablets(MapPoiLookups lookups, IReadOnlyList<FObjectExport> tabletObjects, Logger logger)
+		private void ProcessTablets(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> tabletObjects, Logger logger)
 		{
 			logger.Log(LogLevel.Information, $"Processing {tabletObjects.Count} tablets...");
 			foreach (FObjectExport tabletObject in tabletObjects)
 			{
-				if (!lookups.Tablets.TryGetValue(tabletObject.ClassName, out MapPoi? poi))
+				if (!poiDatabase.Tablets.TryGetValue(tabletObject.ClassName, out MapPoi? poi))
 				{
 					logger.Log(LogLevel.Warning, "Tablet object data missing. This should not happen.");
 					continue;
@@ -595,11 +607,11 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				poi.Location = locationProperty.Tag!.GetValue<FVector>();
-				poi.MapLocation = GameUtil.WorldToMap(poi.Location);
+				poi.MapLocation = WorldToMap(poi.Location.Value);
 			}
 		}
 
-		private void ProcessSpawners(MapPoiLookups lookups, IReadOnlyList<ObjectWithDefaults> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger)
+		private void ProcessSpawners(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger)
 		{
 			// Process barracks
 
@@ -766,7 +778,7 @@ namespace SoulmaskDataMiner.Miners
 
 				void applyLayerTypeAndSex(bool onlyBabies)
 				{
-					layerInfo = lookups.SpawnLayerMap[layerType];
+					layerInfo = poiDatabase.SpawnLayerMap[layerType];
 					group = SpawnLayerGroup.Npc;
 					type = layerInfo.Name;
 					male = false;
@@ -888,7 +900,7 @@ namespace SoulmaskDataMiner.Miners
 
 						BlueprintHeirarchy.SearchInheritance(npc.CharacterClass, (current) =>
 						{
-							if (lookups.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
+							if (poiDatabase.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
 							{
 								collectionMap.Add(npc.CharacterClass.Name, collectionData);
 								return true;
@@ -976,14 +988,14 @@ namespace SoulmaskDataMiner.Miners
 					SpawnCount = spawnData.SpawnCount,
 					SpawnInterval = spawnInterval.Value,
 					Location = location,
-					MapLocation = GameUtil.WorldToMap(location),
+					MapLocation = WorldToMap(location),
 					Icon = layerInfo.Icon,
 					LootId = lootId,
 					LootMap = lootMap,
 					CollectMap = collectMap
 				};
 
-				lookups.Spawners.Add(poi);
+				poiDatabase.Spawners.Add(poi);
 
 				if (spawnData.IsMixedAge)
 				{
@@ -1012,12 +1024,12 @@ namespace SoulmaskDataMiner.Miners
 						CollectMap = collectMap
 					};
 
-					lookups.Spawners.Add(poi);
+					poiDatabase.Spawners.Add(poi);
 				}
 			}
 		}
 
-		private void ProcessChests(MapPoiLookups lookups, IReadOnlyList<ObjectWithDefaults> chestObjects, Logger logger)
+		private void ProcessChests(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> chestObjects, Logger logger)
 		{
 			logger.Log(LogLevel.Information, $"Processing {chestObjects.Count} chests...");
 
@@ -1124,20 +1136,64 @@ namespace SoulmaskDataMiner.Miners
 					Title = poiName,
 					Name = "Lootable Object",
 					Extra = openTip,
-					Icon = lookups.LootIcon,
+					Icon = poiDatabase.LootIcon,
 					Location = location,
-					MapLocation = GameUtil.WorldToMap(location),
+					MapLocation = WorldToMap(location),
 					LootId = lootId,
 					LootItem = lootItem?.Name
 				};
 
-				lookups.Lootables.Add(poi);
+				poiDatabase.Lootables.Add(poi);
 			}
 		}
 
-		private void FindPoiTextures(MapPoiLookups lookups, IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons, Logger logger)
+		private void ProcessOres(MapPoiDatabase poiDatabase, IReadOnlyDictionary<string, FoliageData> oreData, Logger logger)
 		{
-			foreach (var pair in lookups.TypeLookup)
+			foreach (var pair in oreData)
+			{
+				FoliageData ore = pair.Value;
+				if (ore.Locations is null) continue;
+
+				string collectMap;
+				{
+					StringBuilder collectMapBuilder = new("[{");
+					if (ore.HitLootName is not null) collectMapBuilder.Append($"\"base\":\"{ore.HitLootName}\",");
+					if (ore.FinalHitLootName is not null) collectMapBuilder.Append($"\"bonus\":\"{ore.FinalHitLootName}\",");
+					collectMapBuilder.Append($"\"amount\":{ore.Amount}");
+					collectMapBuilder.Append("}]");
+					collectMap = collectMapBuilder.ToString();
+				}
+
+				string? toolClass = ore.SuggestedToolClass;
+				float spawnInterval = ore.RespawnTime;
+				string lootNote = "Ore loot amount calculations are complex. Values are approximated for a low tier pickaxe.";
+				
+				foreach (Cluster location in ore.Locations)
+				{
+					MapPoi poi = new()
+					{
+						GroupIndex = SpawnLayerGroup.Ore,
+						Type = ore.Name,
+						Title = ore.Name,
+						Name = $"{location.Count} deposits",
+						Description = toolClass,
+						Extra = lootNote,
+						SpawnCount = location.Count,
+						SpawnInterval = spawnInterval,
+						CollectMap = collectMap,
+						MapLocation = WorldToMap(new(location.MinX, location.MinY, 0.0f)),
+						MapLocation2 = WorldToMap(new(location.MaxX, location.MaxY, 0.0f)),
+						Icon = ore.Icon
+					};
+
+					poiDatabase.Ores.Add(poi);
+				}
+			}
+		}
+
+		private void FindPoiTextures(MapPoiDatabase poiDatabase, IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons, Logger logger)
+		{
+			foreach (var pair in poiDatabase.TypeLookup)
 			{
 				if (!mapIcons.TryGetValue(pair.Key, out var texture))
 				{
@@ -1150,7 +1206,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteIcons(MapData mapData, Config config, Logger logger)
+		private void WriteIcons(MapInfo mapData, Config config, Logger logger)
 		{
 			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
 
@@ -1173,15 +1229,20 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteCsv(MapData mapData, Config config, Logger logger)
+		private void WriteCsv(MapInfo mapData, Config config, Logger logger)
 		{
+			string valOrNull(float value)
+			{
+				return value == 0.0f ? "" : value.ToString();
+			}
+
 			foreach (var pair in mapData.POIs)
 			{
 				string outPath = Path.Combine(config.OutputDirectory, Name, $"{pair.Key}.csv");
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon");
+				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,mapX2,mapY2,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -1195,23 +1256,32 @@ namespace SoulmaskDataMiner.Miners
 					{
 						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)},{CsvStr(poi.Equipment)},{CsvStr(poi.CollectMap)}";
 					}
-					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{CsvStr(poi.Type)},{poi.Location.X:0},{poi.Location.Y:0},{poi.Location.Z:0},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
+
+					string posSegment = "null, null, null";
+					if (poi.Location.HasValue)
+					{
+						posSegment = $"{poi.Location.Value.X:0},{poi.Location.Value.Y:0},{poi.Location.Value.Z:0}";
+					}
+
+					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapLocation2.X)},{valOrNull(poi.MapLocation2.Y)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
 				}
 			}
 		}
 
-		private void WriteSql(MapData mapData, ISqlWriter sqlWriter, Logger logger)
+		private void WriteSql(MapInfo mapData, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `poi` (
 			//   `gpIdx` int not null,
 			//   `gpName` varchar(63) not null,
 			//   `type` varchar(63) not null,
-			//   `posX` float not null,
-			//   `posY` float not null,
-			//   `posZ` float not null,
+			//   `posX` float,
+			//   `posY` float,
+			//   `posZ` float,
 			//   `mapX` int not null,
 			//   `mapY` int not null,
+			//   `mapX2` int,
+			//   `mapY2` int,
 			//   `title` varchar(127),
 			//   `name` varchar(127),
 			//   `desc` varchar(511),
@@ -1233,6 +1303,11 @@ namespace SoulmaskDataMiner.Miners
 			//   `achIcon` varchar(127)
 			// )
 
+			string valOrNull(float value)
+			{
+				return value == 0.0f ? "null" : value.ToString();
+			}
+
 			sqlWriter.WriteStartTable("poi");
 
 			foreach (var pair in mapData.POIs)
@@ -1253,51 +1328,72 @@ namespace SoulmaskDataMiner.Miners
 						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
 					}
 
-					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {poi.Location.X:0}, {poi.Location.Y:0}, {poi.Location.Z:0}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
+					string posSegment = "null, null, null";
+					if (poi.Location.HasValue)
+					{
+						posSegment = $"{poi.Location.Value.X:0}, {poi.Location.Value.Y:0}, {poi.Location.Value.Z:0}";
+					}
+
+					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapLocation2.X)}, {valOrNull(poi.MapLocation2.Y)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
 				}
 			}
 
 			sqlWriter.WriteEndTable();
 		}
 
-		private class MapData
+		private static FVector2D WorldToMap(FVector world)
+		{
+			return sMapData.WorldToImage(world);
+		}
+
+		private class MapInfo
 		{
 			public IReadOnlyDictionary<string, List<MapPoi>> POIs { get; }
 
-			public MapData(IReadOnlyDictionary<string, List<MapPoi>> pois)
+			public MapInfo(IReadOnlyDictionary<string, List<MapPoi>> pois)
 			{
 				POIs = pois;
 			}
 		}
 
-		private class MapPoiLookups
+		private class MapPoiDatabase
 		{
-			public IDictionary<int, MapPoi> IndexLookup { get; } = new Dictionary<int, MapPoi>();
-
-			public IDictionary<ETanSuoDianType, List<MapPoi>> TypeLookup { get; } = new Dictionary<ETanSuoDianType, List<MapPoi>>();
-
-			public IDictionary<string, MapPoi> Tablets { get; } = new Dictionary<string, MapPoi>();
-
 			public LootDatabase Loot { get; }
 
-			public IDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; } = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
+			public IDictionary<int, MapPoi> IndexLookup { get; }
 
-			public IList<MapPoi> Spawners { get; } = new List<MapPoi>();
+			public IDictionary<ETanSuoDianType, List<MapPoi>> TypeLookup { get; }
 
-			public IList<MapPoi> Lootables { get; } = new List<MapPoi>();
+			public IDictionary<string, MapPoi> Tablets { get; }
 
-			public UTexture2D LootIcon { get; set; } = null!;
+			public IDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; }
 
-			public MapPoiLookups(LootDatabase loot)
+			public IList<MapPoi> Spawners { get; }
+
+			public IList<MapPoi> Lootables { get; }
+
+			public IList<MapPoi> Ores { get; }
+
+			public UTexture2D LootIcon { get; set; }
+
+			public MapPoiDatabase(LootDatabase loot)
 			{
 				Loot = loot;
+				IndexLookup = new Dictionary<int, MapPoi>();
+				TypeLookup = new Dictionary<ETanSuoDianType, List<MapPoi>>();
+				Tablets = new Dictionary<string, MapPoi>();
+				SpawnLayerMap = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
+				Spawners = new List<MapPoi>();
+				Lootables = new List<MapPoi>();
+				Ores = new List<MapPoi>();
+				LootIcon = null!;
 			}
 
 			public IReadOnlyDictionary<string, List<MapPoi>> GetAllPois()
 			{
 				Dictionary<string, List<MapPoi>> result = new();
 
-				foreach (MapPoi poi in IndexLookup.Values.Concat(Tablets.Values).Concat(Spawners).Concat(Lootables))
+				foreach (MapPoi poi in IndexLookup.Values.Concat(Tablets.Values).Concat(Spawners).Concat(Lootables).Concat(Ores))
 				{
 					if (!result.TryGetValue(poi.Icon.Name, out List<MapPoi>? list))
 					{
@@ -1330,8 +1426,9 @@ namespace SoulmaskDataMiner.Miners
 			public string? LootItem { get; set; }
 			public string? LootMap { get; set; }
 			public string? CollectMap { get; set; }
-			public FVector Location { get; set; }
+			public FVector? Location { get; set; }
 			public FVector2D MapLocation { get; set; }
+			public FVector2D MapLocation2 { get; set; }
 			public UTexture2D Icon { get; set; } = null!;
 			public AchievementData? Achievement { get; set; }
 
@@ -1400,28 +1497,9 @@ namespace SoulmaskDataMiner.Miners
 			Animal,
 			Human,
 			Npc,
-			Chest
+			Chest,
+			Ore
 		}
-
-		private enum ETanSuoDianType
-		{
-			ETSD_TYPE_NOT_DEFINE,
-			ETSD_TYPE_JINZITA,
-			ETSD_TYPE_YIJI,
-			ETSD_TYPE_DIXIA_YIJI,
-			ETSD_TYPE_YEWAI_YIJI,
-			ETSD_TYPE_YEWAI_YIZHI,
-			ETSD_TYPE_BULUO_CHENGZHAI_BIG,
-			ETSD_TYPE_BULUO_CHENGZHAI_MIDDLE,
-			ETSD_TYPE_BULUO_CHENGZHAI_SMALL,
-			ETSD_TYPE_CHAOXUE,
-			ETSD_TYPE_KUANGCHUANG_BIG,
-			ETSD_TYPE_KUANGCHUANG_MIDDLE,
-			ETSD_TYPE_DIXIACHENG,
-			ETSD_TYPE_CHUANSONGMEN,
-			ETSD_TYPE_KUANGCHUANG_SMALL,
-			ETSD_TYPE_SHEN_MIAO
-		};
 
 		private static string GetTitle(ETanSuoDianType type)
 		{
@@ -1482,6 +1560,7 @@ namespace SoulmaskDataMiner.Miners
 				SpawnLayerGroup.Human => "Human Spawn",
 				SpawnLayerGroup.Npc => "Other NPC Spawn",
 				SpawnLayerGroup.Chest => "Lootable Objects",
+				SpawnLayerGroup.Ore => "Ore Deposits",
 				_ => ""
 			};
 		}
