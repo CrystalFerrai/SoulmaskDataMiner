@@ -38,7 +38,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		/// <param name="mapData">Map data</param>
 		public ClusterBuilder(MapData mapData)
-			: this(mapData, mapData.CellSize.X * 0.1f, mapData.CellSize.X * 0.5f)
+			: this(mapData, mapData.CellSize.X * 0.05f, mapData.CellSize.X * 0.25f)
 		{
 		}
 

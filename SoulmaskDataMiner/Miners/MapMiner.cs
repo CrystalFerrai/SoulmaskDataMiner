@@ -23,6 +23,7 @@ using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using System;
+using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -1256,15 +1257,17 @@ namespace SoulmaskDataMiner.Miners
 				string? toolClass = ore.SuggestedToolClass;
 				float spawnInterval = ore.RespawnTime;
 				string lootNote = "Ore loot amount calculations are complex. Values are approximated for a low tier pickaxe.";
-				
+
 				foreach (Cluster location in ore.Locations)
 				{
+					string nameText = location.Count == 1 ? $"{location.Count} deposit" : $"{location.Count} deposits";
+
 					MapPoi poi = new()
 					{
 						GroupIndex = SpawnLayerGroup.Ore,
 						Type = ore.Name,
 						Title = ore.Name,
-						Name = $"{location.Count} deposits",
+						Name = nameText,
 						Description = toolClass,
 						Extra = lootNote,
 						SpawnCount = location.Count,
