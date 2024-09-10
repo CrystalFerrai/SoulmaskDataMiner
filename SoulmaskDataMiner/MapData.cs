@@ -109,5 +109,14 @@ namespace SoulmaskDataMiner
 		{
 			return (float)Math.Round((world - BoundaryMin.Y) / TotalSize.Y * ImageSize.Y);
 		}
+
+		/// <summary>
+		/// Converts a distance from world space to map image space
+		/// </summary>
+		/// <param name="world">The distance to convert</param>
+		public float WorldToImage(float world)
+		{
+			return (float)Math.Round(world / TotalSize.Y * ImageSize.Y);
+		}
 	}
 }

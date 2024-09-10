@@ -1270,8 +1270,8 @@ namespace SoulmaskDataMiner.Miners
 						SpawnCount = location.Count,
 						SpawnInterval = spawnInterval,
 						CollectMap = collectMap,
-						MapLocation = WorldToMap(new(location.MinX, location.MinY, 0.0f)),
-						MapLocation2 = WorldToMap(new(location.MaxX, location.MaxY, 0.0f)),
+						MapLocation = WorldToMap(new(location.CenterX, location.CenterY, 0.0f)),
+						MapRadius = sMapData.WorldToImage(location.CalculateRadius()),
 						Icon = ore.Icon
 					};
 
@@ -1331,7 +1331,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,mapX2,mapY2,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon");
+				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -1352,7 +1352,7 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0},{poi.Location.Value.Y:0},{poi.Location.Value.Z:0}";
 					}
 
-					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapLocation2.X)},{valOrNull(poi.MapLocation2.Y)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
+					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
 				}
 			}
 		}
@@ -1423,7 +1423,7 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0}, {poi.Location.Value.Y:0}, {poi.Location.Value.Z:0}";
 					}
 
-					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapLocation2.X)}, {valOrNull(poi.MapLocation2.Y)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
+					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
 				}
 			}
 
@@ -1523,7 +1523,7 @@ namespace SoulmaskDataMiner.Miners
 			public string? CollectMap { get; set; }
 			public FVector? Location { get; set; }
 			public FVector2D MapLocation { get; set; }
-			public FVector2D MapLocation2 { get; set; }
+			public float MapRadius { get; set; }
 			public UTexture2D Icon { get; set; } = null!;
 			public AchievementData? Achievement { get; set; }
 
@@ -1543,10 +1543,16 @@ namespace SoulmaskDataMiner.Miners
 				Female = other.Female;
 				TribeStatus = other.TribeStatus;
 				Occupation = other.Occupation;
+				Equipment = other.Equipment;
 				SpawnCount = other.SpawnCount;
 				SpawnInterval = other.SpawnInterval;
+				LootId = other.LootId;
+				LootItem = other.LootItem;
+				LootMap = other.LootMap;
+				CollectMap = other.CollectMap;
 				Location = other.Location;
 				MapLocation = other.MapLocation;
+				MapRadius = other.MapRadius;
 				Icon = other.Icon;
 				Achievement = other.Achievement;
 			}

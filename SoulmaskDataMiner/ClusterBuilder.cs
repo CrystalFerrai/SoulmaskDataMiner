@@ -193,6 +193,8 @@ namespace SoulmaskDataMiner
 	{
 		private readonly float mClusterDistanceThreshold;
 
+		private readonly List<FVector> mAllPoints;
+
 		/// <summary>
 		/// The position of the west side of a bounding box encompassing all points in the cluster
 		/// </summary>
@@ -216,7 +218,7 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// The nubmer of points in the cluster
 		/// </summary>
-		public int Count;
+		public int Count => mAllPoints.Count;
 
 		/// <summary>
 		/// The X compoent of the center point of the bouding box
@@ -236,9 +238,12 @@ namespace SoulmaskDataMiner
 		public Cluster(FVector initialLocation, float clusterDistanceThreshold)
 		{
 			mClusterDistanceThreshold = clusterDistanceThreshold;
+			mAllPoints = new List<FVector>();
+
 			MinX = MaxX = initialLocation.X;
 			MinY = MaxY = initialLocation.Y;
-			Count = 1;
+
+			mAllPoints.Add(initialLocation);
 		}
 
 		/// <summary>
@@ -259,7 +264,7 @@ namespace SoulmaskDataMiner
 				if (location.Y < MinY) MinY = location.Y;
 				else if (location.Y > MaxY) MaxY = location.Y;
 
-				++Count;
+				mAllPoints.Add(location);
 
 				return true;
 			}
@@ -285,12 +290,34 @@ namespace SoulmaskDataMiner
 				if (other.MinY < MinY) MinY = other.MinY;
 				else if (other.MaxY > MaxY) MaxY = other.MaxY;
 
-				Count += other.Count;
+				mAllPoints.AddRange(other.mAllPoints);
 
 				return true;
 			}
 
 			return false;
+		}
+
+		/// <summary>
+		/// Calculates the radius of a circle which encompasses all points in the cluster
+		/// </summary>
+		public float CalculateRadius()
+		{
+			float centerX = CenterX;
+			float centerY = CenterY;
+
+			float farthestSquared = 0.0f;
+
+			foreach (FVector point in mAllPoints)
+			{
+				float distanceSquared = (point.X - centerX) * (point.X - centerX) + (point.Y - centerY) * (point.Y - centerY);
+				if (distanceSquared > farthestSquared)
+				{
+					farthestSquared = distanceSquared;
+				}
+			}
+
+			return (float)Math.Sqrt(farthestSquared);
 		}
 
 		public override string ToString()
