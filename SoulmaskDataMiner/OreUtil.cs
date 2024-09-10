@@ -379,7 +379,7 @@ namespace SoulmaskDataMiner
 				{
 					if (!clusterBuilder.AddLocation(location))
 					{
-						logger.Log(LogLevel.Warning, $"Failed to add a location for {pair.Key} to cluster builder");
+						logger.Log(LogLevel.Debug, $"Failed to add a location for {pair.Key} to cluster builder because it is outside of the map bounds. ({location})");
 					}
 				}
 				clusterBuilder.BuildClusters();

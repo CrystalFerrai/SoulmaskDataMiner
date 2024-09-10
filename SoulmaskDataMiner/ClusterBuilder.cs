@@ -38,7 +38,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		/// <param name="mapData">Map data</param>
 		public ClusterBuilder(MapData mapData)
-			: this(mapData, mapData.CellSize.X * 0.1f, mapData.CellSize.X * 0.25f)
+			: this(mapData, mapData.CellSize.X * 0.1f, mapData.CellSize.X * 0.5f)
 		{
 		}
 
@@ -248,10 +248,10 @@ namespace SoulmaskDataMiner
 		/// <returns>Whether the point was successfully added</returns>
 		public bool AddLocation(FVector location)
 		{
-			if (location.X < MaxX + mClusterDistanceThreshold &&
-				location.X > MinX - mClusterDistanceThreshold &&
-				location.Y < MaxY + mClusterDistanceThreshold &&
-				location.Y > MinY - mClusterDistanceThreshold)
+			if (location.X < MinX + mClusterDistanceThreshold &&
+				location.X > MaxX - mClusterDistanceThreshold &&
+				location.Y < MinY + mClusterDistanceThreshold &&
+				location.Y > MaxY - mClusterDistanceThreshold)
 			{
 				if (location.X < MinX) MinX = location.X;
 				else if (location.X > MaxX) MaxX = location.X;
