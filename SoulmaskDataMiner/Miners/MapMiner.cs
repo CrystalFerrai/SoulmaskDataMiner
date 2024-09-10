@@ -22,6 +22,7 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -92,6 +93,9 @@ namespace SoulmaskDataMiner.Miners
 			poiDatabase.LootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
 			if (poiDatabase.LootIcon is null) return null;
 
+			poiDatabase.RespawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
+			if (poiDatabase.RespawnIcon is null) return null;
+
 			if (!FindTabletData(providerManager, poiDatabase, providerManager.Achievements, logger))
 			{
 				return null;
@@ -105,6 +109,7 @@ namespace SoulmaskDataMiner.Miners
 			if (!FindMapObjects(providerManager, logger, poiDatabase,
 				out IReadOnlyList<FObjectExport>? poiObjects,
 				out IReadOnlyList<FObjectExport>? tabletObjects,
+				out IReadOnlyList<FObjectExport>? respawnObjects,
 				out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
 				out IReadOnlyList<FObjectExport>? barracksObjects,
 				out IReadOnlyList<ObjectWithDefaults>? chestObjects))
@@ -118,6 +123,7 @@ namespace SoulmaskDataMiner.Miners
 
 			ProcessPois(poiDatabase, poiObjects, logger);
 			ProcessTablets(poiDatabase, tabletObjects, logger);
+			ProcessRespawnPoints(poiDatabase, respawnObjects, logger);
 			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger);
 			ProcessChests(poiDatabase, chestObjects, logger);
 			ProcessOres(poiDatabase, oreData, logger);
@@ -423,24 +429,26 @@ namespace SoulmaskDataMiner.Miners
 		private bool FindMapObjects(IProviderManager providerManager, Logger logger, MapPoiDatabase poiDatabase,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? poiObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? tabletObjects,
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? respawnObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? barracksObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects)
 		{
 			poiObjects = null;
+			respawnObjects = null;
 			tabletObjects = null;
 			spawnerObjects = null;
 			barracksObjects = null;
 			chestObjects = null;
 
-			Package[] packages = new Package[2];
+			Package[] gameplayPackages = new Package[2];
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Hub/Level01_GamePlay.umap", out GameFile file))
 				{
 					logger.LogError("Unable to load asset Level01_GamePlay.");
 					return false;
 				}
-				packages[0] = (Package)providerManager.Provider.LoadPackage(file);
+				gameplayPackages[0] = (Package)providerManager.Provider.LoadPackage(file);
 			}
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Hub/Level01_GamePlay2.umap", out GameFile file))
@@ -448,10 +456,21 @@ namespace SoulmaskDataMiner.Miners
 					logger.LogError("Unable to load asset Level01_GamePlay2.");
 					return false;
 				}
-				packages[1] = (Package)providerManager.Provider.LoadPackage(file);
+				gameplayPackages[1] = (Package)providerManager.Provider.LoadPackage(file);
+			}
+			Package mainPackage;
+			{
+				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Main.umap", out GameFile file))
+				{
+					logger.LogError("Unable to load asset Level01_Main.");
+					return false;
+				}
+				mainPackage = (Package)providerManager.Provider.LoadPackage(file);
 			}
 
 			const string poiClass = "HVolumeChuFaQi";
+
+			const string respawnClass = "HPlayerStart";
 
 			string[] spawnerBaseClasses = new string[]
 			{
@@ -496,13 +515,14 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			List<FObjectExport> poiObjectList = new();
+			List<FObjectExport> respawnObjectList = new();
 			List<FObjectExport> tabletObjectList = new();
 			List<ObjectWithDefaults> spawnerObjectList = new();
 			List<FObjectExport> barracksObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
 
 			logger.Log(LogLevel.Information, "Scanning for objects...");
-			foreach (Package package in packages)
+			foreach (Package package in gameplayPackages)
 			{
 				logger.Log(LogLevel.Debug, package.Name);
 				foreach (FObjectExport export in package.ExportMap)
@@ -529,8 +549,19 @@ namespace SoulmaskDataMiner.Miners
 					}
 				}
 			}
+			{
+				logger.Log(LogLevel.Debug, mainPackage.Name);
+				foreach (FObjectExport export in mainPackage.ExportMap)
+				{
+					if (export.ClassName.Equals(respawnClass))
+					{
+						respawnObjectList.Add(export);
+					}
+				}
+			}
 
 			poiObjects = poiObjectList;
+			respawnObjects = respawnObjectList;
 			tabletObjects = tabletObjectList;
 			spawnerObjects = spawnerObjectList;
 			barracksObjects = barracksObjectList;
@@ -582,6 +613,64 @@ namespace SoulmaskDataMiner.Miners
 				}
 				poi.Location = locationProperty.Tag!.GetValue<FVector>();
 				poi.MapLocation = WorldToMap(poi.Location.Value);
+			}
+		}
+
+		private void ProcessRespawnPoints(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> respawnObjects, Logger logger)
+		{
+			logger.Log(LogLevel.Information, $"Processing {respawnObjects.Count} respawn points...");
+
+			foreach (FObjectExport respawnObject in respawnObjects)
+			{
+				string? name = null;
+				float radius = 0.0f;
+				USceneComponent? rootComponent = null;
+
+				UObject obj = respawnObject.ExportObject.Value;
+				foreach (FPropertyTag property in obj.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "Name":
+							name = GameUtil.ReadTextProperty(property);
+							break;
+						case "Radius":
+							radius = property.Tag!.GetValue<float>();
+							break;
+						case "RootComponent":
+							rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+							break;
+					}
+				}
+
+				if (name is null || rootComponent is null)
+				{
+					logger.Log(LogLevel.Warning, "Respawn point properties not found");
+					continue;
+				}
+
+				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				if (locationProperty is null)
+				{
+					logger.Log(LogLevel.Warning, "Failed to locate respawn point");
+					continue;
+				}
+
+				FVector location = locationProperty.Tag!.GetValue<FVector>();
+
+				MapPoi poi = new()
+				{
+					GroupIndex = SpawnLayerGroup.PointOfInterest,
+					Type = "Respawn Point",
+					Title = "Respawn Point",
+					Name = name,
+					Description = radius > 0.0f ? $"Radius: {radius}" : null,
+					Location = location,
+					MapLocation = WorldToMap(location),
+					Icon = poiDatabase.RespawnIcon
+				};
+
+				poiDatabase.RespawnPoints.Add(poi);
 			}
 		}
 
@@ -1366,6 +1455,8 @@ namespace SoulmaskDataMiner.Miners
 
 			public IDictionary<string, MapPoi> Tablets { get; }
 
+			public IList<MapPoi> RespawnPoints { get; }
+
 			public IDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; }
 
 			public IList<MapPoi> Spawners { get; }
@@ -1373,6 +1464,8 @@ namespace SoulmaskDataMiner.Miners
 			public IList<MapPoi> Lootables { get; }
 
 			public IList<MapPoi> Ores { get; }
+
+			public UTexture2D RespawnIcon { get; set; }
 
 			public UTexture2D LootIcon { get; set; }
 
@@ -1382,10 +1475,12 @@ namespace SoulmaskDataMiner.Miners
 				IndexLookup = new Dictionary<int, MapPoi>();
 				TypeLookup = new Dictionary<ETanSuoDianType, List<MapPoi>>();
 				Tablets = new Dictionary<string, MapPoi>();
+				RespawnPoints = new List<MapPoi>();
 				SpawnLayerMap = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
 				Spawners = new List<MapPoi>();
 				Lootables = new List<MapPoi>();
 				Ores = new List<MapPoi>();
+				RespawnIcon = null!;
 				LootIcon = null!;
 			}
 
@@ -1393,7 +1488,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				Dictionary<string, List<MapPoi>> result = new();
 
-				foreach (MapPoi poi in IndexLookup.Values.Concat(Tablets.Values).Concat(Spawners).Concat(Lootables).Concat(Ores))
+				foreach (MapPoi poi in IndexLookup.Values.Concat(Tablets.Values).Concat(RespawnPoints).Concat(Spawners).Concat(Lootables).Concat(Ores))
 				{
 					if (!result.TryGetValue(poi.Icon.Name, out List<MapPoi>? list))
 					{
