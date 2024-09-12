@@ -193,7 +193,7 @@ namespace SoulmaskDataMiner
 								}
 							}
 
-							if (daoJuIndex is null)
+							if (daoJuIndex is null || daoJuIndex.Name.Equals("None"))
 							{
 								totalWeight -= item.Weight;
 								continue;
