@@ -22,6 +22,7 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using Serilog.Data;
 using System;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
@@ -202,6 +203,7 @@ namespace SoulmaskDataMiner.Miners
 					ETanSuoDianType? poiType = null;
 					MapPoi poi = new()
 					{
+						Key = index,
 						GroupIndex = SpawnLayerGroup.PointOfInterest
 					};
 					foreach (FPropertyTag poiProperty in poiProperties.Properties)
@@ -339,8 +341,17 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
+				string idStr = className.Substring(className.Length - 5, 3);
+				int key;
+				if (!int.TryParse(idStr, out key))
+				{
+					logger.Log(LogLevel.Warning, $"Unable to parse tablet id from class name {className}");
+					key = -1;
+				}
+
 				MapPoi tabletData = new()
 				{
+					Key = key >= 0 ? (key + 100000) : null,
 					GroupIndex = SpawnLayerGroup.PointOfInterest,
 					Type = "Tablet (Ancient)",
 					Title = "Ancient Tablet",
@@ -971,7 +982,6 @@ namespace SoulmaskDataMiner.Miners
 				string? lootId = null;
 				string? lootMap = null;
 				string? collectMap = null;
-				string? lootNote = null;
 
 				void applyAnimalLoot(bool onlyBabies)
 				{
@@ -1032,7 +1042,6 @@ namespace SoulmaskDataMiner.Miners
 						}
 						collectMapBuilder.Append("]");
 
-						lootNote = "Animal loot amount calculations are complex. Values are approximated for a low tier knife.";
 						collectMap = collectMapBuilder.ToString();
 					}
 				}
@@ -1069,7 +1078,6 @@ namespace SoulmaskDataMiner.Miners
 					Title = poiName,
 					Name = layerInfo.Name,
 					Description = $"Level {levelText}",
-					Extra = lootNote,
 					Male = male,
 					Female = female,
 					TribeStatus = tribeStatus,
@@ -1256,7 +1264,6 @@ namespace SoulmaskDataMiner.Miners
 
 				string? toolClass = ore.SuggestedToolClass;
 				float spawnInterval = ore.RespawnTime;
-				string lootNote = "Ore loot amount calculations are complex. Values are approximated for a low tier pickaxe.";
 
 				foreach (Cluster location in ore.Locations)
 				{
@@ -1269,7 +1276,6 @@ namespace SoulmaskDataMiner.Miners
 						Title = ore.Name,
 						Name = nameText,
 						Description = toolClass,
-						Extra = lootNote,
 						SpawnCount = location.Count,
 						SpawnInterval = spawnInterval,
 						CollectMap = collectMap,
@@ -1334,7 +1340,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon");
+				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -1355,7 +1361,7 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0},{poi.Location.Value.Y:0},{poi.Location.Value.Z:0}";
 					}
 
-					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
+					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
 				}
 			}
 		}
@@ -1366,6 +1372,7 @@ namespace SoulmaskDataMiner.Miners
 			// create table `poi` (
 			//   `gpIdx` int not null,
 			//   `gpName` varchar(63) not null,
+			//   `key` int,
 			//   `type` varchar(63) not null,
 			//   `posX` float,
 			//   `posY` float,
@@ -1426,7 +1433,7 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0}, {poi.Location.Value.Y:0}, {poi.Location.Value.Z:0}";
 					}
 
-					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
+					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
 				}
 			}
 
@@ -1507,6 +1514,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private class MapPoi : ICloneable
 		{
+			public int? Key { get; set; }
 			public SpawnLayerGroup GroupIndex { get; set; }
 			public string Type { get; set; } = null!;
 			public string? Title { get; set; }
@@ -1536,6 +1544,7 @@ namespace SoulmaskDataMiner.Miners
 
 			public MapPoi(MapPoi other)
 			{
+				Key = other.Key;
 				GroupIndex = other.GroupIndex;
 				Type = other.Type;
 				Title = other.Title;
