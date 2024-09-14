@@ -22,9 +22,6 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using Serilog.Data;
-using System;
-using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -588,7 +585,7 @@ namespace SoulmaskDataMiner.Miners
 			foreach (FObjectExport poiObject in poiObjects)
 			{
 				int? index = null;
-				UObject? brush = null;
+				UObject? rootComponent = null;
 
 				UObject obj = poiObject.ExportObject.Value;
 				foreach (FPropertyTag property in obj.Properties)
@@ -598,8 +595,8 @@ namespace SoulmaskDataMiner.Miners
 						case "ParamInt":
 							index = property.Tag?.GetValue<int>();
 							break;
-						case "BrushComponent":
-							brush = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value;
+						case "RootComponent":
+							rootComponent = property.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Object?.Value;
 							break;
 					}
 				}
@@ -611,13 +608,13 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
-				if (brush is null)
+				if (rootComponent is null)
 				{
 					logger.Log(LogLevel.Warning, $"Failed to locate POI {index}");
 					continue;
 				}
 
-				FPropertyTag? locationProperty = brush.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				FPropertyTag? locationProperty = rootComponent.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
 					logger.Log(LogLevel.Warning, $"Failed to locate POI {index}");
