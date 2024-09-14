@@ -40,7 +40,7 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// The game's resource manager asset
 		/// </summary>
-		GameResourceManager ResourceManager { get; }
+		GameSingletonManager SingletonManager { get; }
 
 		/// <summary>
 		/// Game achievement data

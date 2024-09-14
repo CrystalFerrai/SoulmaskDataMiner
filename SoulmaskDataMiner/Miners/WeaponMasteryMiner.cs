@@ -20,10 +20,8 @@ using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
-using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using Serilog.Core;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -55,7 +53,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			List<FPropertyTagType>? masteryArray = null;
 			List<FPropertyTagType>? startMasteryArray = null;
-			foreach (FPropertyTag prop in providerManager.ResourceManager.Properties)
+			foreach (FPropertyTag prop in providerManager.SingletonManager.ResourceManager.Properties)
 			{
 				switch (prop.Name.Text)
 				{

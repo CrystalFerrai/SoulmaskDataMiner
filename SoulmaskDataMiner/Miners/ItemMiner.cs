@@ -94,7 +94,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private IReadOnlyDictionary<EDaoJuCaiLiaoType, ItemCategoryData>? GetItemCategories(IProviderManager providerManager, Logger logger)
 		{
-			UScriptMap? typeInfoList = providerManager.ResourceManager.Properties.FirstOrDefault(p => p.Name.Text.Equals("DaoJuCaiLiaoTypeInfo"))?.Tag?.GetValue<UScriptMap>();
+			UScriptMap? typeInfoList = providerManager.SingletonManager.ResourceManager.Properties.FirstOrDefault(p => p.Name.Text.Equals("DaoJuCaiLiaoTypeInfo"))?.Tag?.GetValue<UScriptMap>();
 			if (typeInfoList is null) return null;
 
 			Dictionary<EDaoJuCaiLiaoType, ItemCategoryData> result = new();

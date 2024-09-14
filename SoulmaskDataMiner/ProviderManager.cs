@@ -34,7 +34,7 @@ namespace SoulmaskDataMiner
 
 		private Dictionary<string, MetaClass>? mClassMetadata;
 
-		private GameResourceManager? mResourceManager;
+		private GameSingletonManager? mResourceManager;
 
 		private Achievements? mAchievements;
 
@@ -44,7 +44,7 @@ namespace SoulmaskDataMiner
 
 		public IReadOnlyDictionary<string, MetaClass>? ClassMetadata => mClassMetadata;
 
-		public GameResourceManager ResourceManager
+		public GameSingletonManager SingletonManager
 		{
 			get
 			{
@@ -93,7 +93,7 @@ namespace SoulmaskDataMiner
 			{
 				return false;
 			}
-			mResourceManager = GameResourceManager.Load(mProvider, logger);
+			mResourceManager = GameSingletonManager.Load(mProvider, logger);
 			mAchievements = Achievements.Load(mProvider, logger);
 
 			return true;

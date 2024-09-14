@@ -14,12 +14,9 @@
 
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
-using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
-using CUE4Parse.UE4.Objects.Engine;
-using SkiaSharp;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -70,7 +67,7 @@ namespace SoulmaskDataMiner.Miners
 		private IEnumerable<SpecifiedManData>? FindSpecifiedManData(IProviderManager providerManager, Logger logger)
 		{
 			UScriptArray specifiedManArray;
-			if (!providerManager.ResourceManager.TryGetPropertyValue<UScriptArray>("SpecifiedTribeManArray", out specifiedManArray))
+			if (!providerManager.SingletonManager.ResourceManager.TryGetPropertyValue<UScriptArray>("SpecifiedTribeManArray", out specifiedManArray))
 			{
 				logger.LogError("Failed to find SpecifiedTribeManArray in resource manager");
 				return null;
