@@ -218,6 +218,23 @@ namespace SoulmaskDataMiner
 	};
 
 	/// <summary>
+	/// Game function type (buildings/structures)
+	/// </summary>
+	internal enum EJianZhuGameFunctionType
+	{
+		EJZGFT_NOT_DEFINE,
+		EJZGFT_SUMMON_NPC,
+		EJZGFT_ENTRY_DIXIACHENG,
+		EJZGFT_EXIT_DIXIACHENG,
+		EJZGFT_DIXIACHENG_SPECIAL,
+		EJZGFT_READ_SHIBEI,
+		EJZGFT_AREA_CHUANSONGMEN_ACTIVE,
+		EJZGFT_AREA_CHUANSONGMEN_CHUANSONG,
+		EJZGFT_JIESUO_MIANJUXIUFUNODE,
+		EJZGFT_MAX,
+	};
+
+	/// <summary>
 	/// Proficiency type
 	/// </summary>
 	internal enum EProficiency

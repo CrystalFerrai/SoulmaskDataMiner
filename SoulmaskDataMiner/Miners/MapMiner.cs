@@ -23,6 +23,7 @@ using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Text;
 
 namespace SoulmaskDataMiner.Miners
@@ -95,6 +96,10 @@ namespace SoulmaskDataMiner.Miners
 			poiDatabase.RespawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
 			if (poiDatabase.RespawnIcon is null) return null;
 
+			DungeonUtil dungeonUtil = new();
+			poiDatabase.DungeonMap = dungeonUtil.LoadDungeonData(providerManager, logger)!;
+			if (poiDatabase.DungeonMap is null) return null;
+
 			if (!FindTabletData(providerManager, poiDatabase, providerManager.Achievements, logger))
 			{
 				return null;
@@ -111,7 +116,8 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? respawnObjects,
 				out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
 				out IReadOnlyList<FObjectExport>? barracksObjects,
-				out IReadOnlyList<ObjectWithDefaults>? chestObjects))
+				out IReadOnlyList<ObjectWithDefaults>? chestObjects,
+				out IReadOnlyList<FObjectExport>? dungeonObjects))
 			{
 				return null;
 			}
@@ -126,6 +132,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger);
 			ProcessChests(poiDatabase, chestObjects, logger);
 			ProcessOres(poiDatabase, oreData, logger);
+			ProcessDungeons(poiDatabase, dungeonObjects, logger);
 
 			FindPoiTextures(poiDatabase, mapIcons, logger);
 
@@ -257,6 +264,11 @@ namespace SoulmaskDataMiner.Miners
 						poiDatabase.TypeLookup.Add(poiType.Value, list);
 					}
 					list.Add(poi);
+
+					if (poiType == ETanSuoDianType.ETSD_TYPE_DIXIACHENG)
+					{
+						poiDatabase.DungeonPois.Add(poi);
+					}
 				}
 
 				return poiDatabase;
@@ -441,7 +453,8 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? respawnObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? barracksObjects,
-			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects)
+			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects,
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? dungeonObjects)
 		{
 			poiObjects = null;
 			respawnObjects = null;
@@ -449,6 +462,7 @@ namespace SoulmaskDataMiner.Miners
 			spawnerObjects = null;
 			barracksObjects = null;
 			chestObjects = null;
+			dungeonObjects = null;
 
 			Package[] gameplayPackages = new Package[2];
 			{
@@ -529,6 +543,7 @@ namespace SoulmaskDataMiner.Miners
 			List<ObjectWithDefaults> spawnerObjectList = new();
 			List<FObjectExport> barracksObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
+			List<FObjectExport> dungeonObjectList = new();
 
 			logger.Log(LogLevel.Information, "Scanning for objects...");
 			foreach (Package package in gameplayPackages)
@@ -556,6 +571,10 @@ namespace SoulmaskDataMiner.Miners
 					{
 						tabletObjectList.Add(export);
 					}
+					else if (poiDatabase.DungeonMap.ContainsKey(export.ClassName))
+					{
+						dungeonObjectList.Add(export);
+					}
 				}
 			}
 			{
@@ -575,6 +594,7 @@ namespace SoulmaskDataMiner.Miners
 			spawnerObjects = spawnerObjectList;
 			barracksObjects = barracksObjectList;
 			chestObjects = chestObjectList;
+			dungeonObjects = dungeonObjectList;
 
 			return true;
 		}
@@ -1133,6 +1153,7 @@ namespace SoulmaskDataMiner.Miners
 				FObjectExport export = chestObject.Export;
 				UObject obj = export.ExportObject.Value;
 
+				int respawnTime = -1;
 				string? lootId = null;
 				string? poiName = null;
 				string? openTip = null;
@@ -1146,6 +1167,12 @@ namespace SoulmaskDataMiner.Miners
 					{
 						switch (property.Name.Text)
 						{
+							case "ShuaXinTime":
+								if (respawnTime < 0)
+								{
+									respawnTime = property.Tag!.GetValue<int>();
+								}
+								break;
 							case "BaoXiangDiaoLuoID":
 								if (lootId is null)
 								{
@@ -1197,7 +1224,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				searchProperties(obj);
-				if ((lootId is null || poiName is null || openTip is null || rootComponent is null) && obj.Class is UBlueprintGeneratedClass objClass)
+				if ((respawnTime < 0 || lootId is null || poiName is null || openTip is null || rootComponent is null) && obj.Class is UBlueprintGeneratedClass objClass)
 				{
 					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 					{
@@ -1235,7 +1262,8 @@ namespace SoulmaskDataMiner.Miners
 					Location = location,
 					MapLocation = WorldToMap(location),
 					LootId = lootId,
-					LootItem = lootItem?.Name
+					LootItem = lootItem?.Name,
+					SpawnInterval = respawnTime > 0 ? respawnTime : 0
 				};
 
 				poiDatabase.Lootables.Add(poi);
@@ -1244,6 +1272,8 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessOres(MapPoiDatabase poiDatabase, IReadOnlyDictionary<string, FoliageData> oreData, Logger logger)
 		{
+			logger.Log(LogLevel.Information, $"Processing {oreData.Count} ore clusters...");
+
 			foreach (var pair in oreData)
 			{
 				FoliageData ore = pair.Value;
@@ -1282,6 +1312,70 @@ namespace SoulmaskDataMiner.Miners
 					};
 
 					poiDatabase.Ores.Add(poi);
+				}
+			}
+		}
+
+		private void ProcessDungeons(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> dungeonObjects, Logger logger)
+		{
+			logger.Log(LogLevel.Information, $"Processing {dungeonObjects.Count} dungeons...");
+
+			foreach (FObjectExport export in dungeonObjects)
+			{
+				USceneComponent? rootComponent = export.ExportObject.Value.Properties.FirstOrDefault(p => p.Name.Text.Equals("RootComponent"))?.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				if (locationProperty is null)
+				{
+					logger.Log(LogLevel.Warning, $"Failed to locate dungeon entrance {export.ObjectName}");
+					continue;
+				}
+
+				DungeonData dungeonData = poiDatabase.DungeonMap[export.ClassName];
+				FVector location = locationProperty.Tag!.GetValue<FVector>();
+
+				foreach (MapPoi dungeonPoi in poiDatabase.DungeonPois)
+				{
+					FVector v = location - dungeonPoi.Location!.Value;
+					if (v.SizeSquared() < 400000000.0f) // 200 meters
+					{
+						StringBuilder builder = new("{");
+
+						builder.Append($"\"title\":\"{dungeonData.Title}\"");
+						builder.Append($",\"desc\":\"{dungeonData.Description}\"");
+						builder.Append($",\"level\":{dungeonData.Level}");
+						builder.Append($",\"count\":{dungeonData.MaxCount}");
+						builder.Append($",\"time\":{dungeonData.MaxTimeSeconds}");
+						builder.Append($",\"players\":{dungeonData.MaxPlayers}");
+						builder.Append($",\"retry\":{dungeonData.MaxRetryTimes}");
+
+						builder.Append(",\"items\":[");
+						if (dungeonData.EntranceItemCost.Count > 0)
+						{
+							foreach (RecipeComponent item in dungeonData.EntranceItemCost)
+							{
+								builder.Append($"{{\"i\":\"{item.ItemClass}\",\"c\":{item.Count}}},");
+							}
+							builder.Length -= 1; // Remove trailing comma
+						}
+						builder.Append("]");
+
+						builder.Append($",\"mask\":{dungeonData.EntranceMaskEnergyCost}");
+
+						builder.Append("}");
+
+						dungeonPoi.DungeonInfo = builder.ToString();
+						break;
+					}
+				}
+
+				Package themePackage = (Package)dungeonData.ThemeAsset.Load().Owner!;
+				foreach (FObjectExport themeExport in themePackage.ExportMap)
+				{
+					if (poiDatabase.Tablets.TryGetValue(themeExport.ClassName, out MapPoi? tabletPoi))
+					{
+						tabletPoi.InDungeon = true;
+						tabletPoi.MapLocation = WorldToMap(location);
+					}
 				}
 			}
 		}
@@ -1337,7 +1431,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon");
+				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon,inDun,dunInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -1358,7 +1452,9 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0},{poi.Location.Value.Y:0},{poi.Location.Value.Z:0}";
 					}
 
-					writer.WriteLine($"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)},{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment}");
+					writer.WriteLine(
+						$"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
+						$"{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{poi.DungeonInfo}");
 				}
 			}
 		}
@@ -1396,7 +1492,9 @@ namespace SoulmaskDataMiner.Miners
 			//   `icon` varchar(127),
 			//   `ach` varchar(127),
 			//   `achDesc` varchar(255),
-			//   `achIcon` varchar(127)
+			//   `achIcon` varchar(127),
+			//   `inDun` bool,
+			//   `dunInfo` varchar(1023)
 			// )
 
 			string valOrNull(float value)
@@ -1430,7 +1528,9 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0}, {poi.Location.Value.Y:0}, {poi.Location.Value.Z:0}";
 					}
 
-					sqlWriter.WriteRow($"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, {spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}");
+					sqlWriter.WriteRow(
+						$"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
+						$"{spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}");
 				}
 			}
 
@@ -1460,17 +1560,23 @@ namespace SoulmaskDataMiner.Miners
 
 			public IDictionary<ETanSuoDianType, List<MapPoi>> TypeLookup { get; }
 
+			public IList<MapPoi> DungeonPois { get; }
+
 			public IDictionary<string, MapPoi> Tablets { get; }
 
 			public IList<MapPoi> RespawnPoints { get; }
 
 			public IDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; }
 
+			public IReadOnlyDictionary<string, DungeonData> DungeonMap { get; set; }
+
 			public IList<MapPoi> Spawners { get; }
 
 			public IList<MapPoi> Lootables { get; }
 
 			public IList<MapPoi> Ores { get; }
+
+			public IList<MapPoi> Dungeons { get; }
 
 			public UTexture2D RespawnIcon { get; set; }
 
@@ -1481,12 +1587,15 @@ namespace SoulmaskDataMiner.Miners
 				Loot = loot;
 				IndexLookup = new Dictionary<int, MapPoi>();
 				TypeLookup = new Dictionary<ETanSuoDianType, List<MapPoi>>();
+				DungeonPois = new List<MapPoi>();
 				Tablets = new Dictionary<string, MapPoi>();
 				RespawnPoints = new List<MapPoi>();
 				SpawnLayerMap = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
+				DungeonMap = null!;
 				Spawners = new List<MapPoi>();
 				Lootables = new List<MapPoi>();
 				Ores = new List<MapPoi>();
+				Dungeons = new List<MapPoi>();
 				RespawnIcon = null!;
 				LootIcon = null!;
 			}
@@ -1534,6 +1643,8 @@ namespace SoulmaskDataMiner.Miners
 			public float MapRadius { get; set; }
 			public UTexture2D Icon { get; set; } = null!;
 			public AchievementData? Achievement { get; set; }
+			public bool InDungeon { get; set; }
+			public string? DungeonInfo { get; set; }
 
 			public MapPoi()
 			{
@@ -1564,6 +1675,8 @@ namespace SoulmaskDataMiner.Miners
 				MapRadius = other.MapRadius;
 				Icon = other.Icon;
 				Achievement = other.Achievement;
+				InDungeon = other.InDungeon;
+				DungeonInfo = other.DungeonInfo;
 			}
 
 			public object Clone()

@@ -35,25 +35,6 @@ namespace SoulmaskDataMiner
 			"CommonRock_PickUp"
 		};
 
-		private static readonly Dictionary<string, string> sOreNames = new()
-		{
-			{ "BP_Collections_BlackStone_Medium", "Iron Ore" },
-			{ "BP_Collections_Cassiterite_Medium", "Tin Ore" },
-			{ "BP_Collections_Clay_Medium", "Clay" },
-			{ "BP_Collections_Coal_Medium", "Coal Ore" },
-			{ "BP_Collections_Common_Ice_Medium", "Ice" },
-			{ "BP_Collections_Crystal_Medium", "Crystal" },
-			{ "BP_Collections_Cuprite_Medium", "Copper Ore" },
-			{ "BP_Collections_Iron_Medium", "Iron Ore" },
-			{ "BP_Collections_Meteorites_Medium", "Meteorite Ore" },
-			{ "BP_Collections_Nitre_Medium", "Nitrate Ore" },
-			{ "BP_Collections_Obsidian_Medium", "Gold Obsidian" },
-			{ "BP_Collections_Phosphate_Medium", "Phosphate Ore" },
-			{ "BP_Collections_Salt_Medium", "Salt Mine" },
-			{ "BP_Collections_SeaSalt_Medium", "Crude Salt" },
-			{ "BP_Collections_Sulphur_Medium", "Sulfur Ore" }
-		};
-
 		private MapData mMapData;
 
 		public OreUtil(MapData mapData)
