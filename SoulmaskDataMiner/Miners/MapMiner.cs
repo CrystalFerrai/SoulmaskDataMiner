@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using CommunityToolkit.HighPerformance.Buffers;
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Component;
+using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
@@ -96,6 +96,9 @@ namespace SoulmaskDataMiner.Miners
 			poiDatabase.RespawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
 			if (poiDatabase.RespawnIcon is null) return null;
 
+			poiDatabase.BossIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/hud/dusuicon.uasset", logger)!;
+			if (poiDatabase.BossIcon is null) return null;
+
 			DungeonUtil dungeonUtil = new();
 			poiDatabase.DungeonMap = dungeonUtil.LoadDungeonData(providerManager, logger)!;
 			if (poiDatabase.DungeonMap is null) return null;
@@ -117,7 +120,8 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
 				out IReadOnlyList<FObjectExport>? barracksObjects,
 				out IReadOnlyList<ObjectWithDefaults>? chestObjects,
-				out IReadOnlyList<FObjectExport>? dungeonObjects))
+				out IReadOnlyList<FObjectExport>? dungeonObjects,
+				out IReadOnlyList<FObjectExport>? gamefunctionObjects))
 			{
 				return null;
 			}
@@ -133,6 +137,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessChests(poiDatabase, chestObjects, logger);
 			ProcessOres(poiDatabase, oreData, logger);
 			ProcessDungeons(poiDatabase, dungeonObjects, logger);
+			ProcessWorldBosses(poiDatabase, gamefunctionObjects, logger);
 
 			FindPoiTextures(poiDatabase, mapIcons, logger);
 
@@ -454,7 +459,8 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? barracksObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects,
-			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? dungeonObjects)
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? dungeonObjects,
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? gamefunctionObjects)
 		{
 			poiObjects = null;
 			respawnObjects = null;
@@ -463,6 +469,7 @@ namespace SoulmaskDataMiner.Miners
 			barracksObjects = null;
 			chestObjects = null;
 			dungeonObjects = null;
+			gamefunctionObjects = null;
 
 			Package[] gameplayPackages = new Package[2];
 			{
@@ -506,8 +513,6 @@ namespace SoulmaskDataMiner.Miners
 				"HTanChaActor"
 			};
 
-			const string barracksBaseClass = "HBuLuoGuanLiQi";
-
 			List<BlueprintClassInfo> spawnerBpClasses = new();
 			foreach (String searchClass in spawnerBaseClasses)
 			{
@@ -523,6 +528,8 @@ namespace SoulmaskDataMiner.Miners
 				spawnerClasses.Add(bpClass.Name, defaultScgObj);
 			}
 
+			const string barracksBaseClass = "HBuLuoGuanLiQi";
+
 			HashSet<string> barracksClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(barracksBaseClass).Select(c => c.Name));
 
 			const string chestBaseClass = "HJianZhuBaoXiang";
@@ -537,6 +544,10 @@ namespace SoulmaskDataMiner.Miners
 				chestClasses.Add(bpClass.Name, defaultObj);
 			}
 
+			const string gameFunctionBaseClass = "HJianZhuGameFunction";
+			HashSet<string> gameFunctionClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(gameFunctionBaseClass).Select(c => c.Name));
+
+
 			List<FObjectExport> poiObjectList = new();
 			List<FObjectExport> respawnObjectList = new();
 			List<FObjectExport> tabletObjectList = new();
@@ -544,6 +555,7 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> barracksObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
 			List<FObjectExport> dungeonObjectList = new();
+			List<FObjectExport> gameFunctionObjectList = new();
 
 			logger.Log(LogLevel.Information, "Scanning for objects...");
 			foreach (Package package in gameplayPackages)
@@ -575,6 +587,10 @@ namespace SoulmaskDataMiner.Miners
 					{
 						dungeonObjectList.Add(export);
 					}
+					else if (gameFunctionClasses.Contains(export.ClassName))
+					{
+						gameFunctionObjectList.Add(export);
+					}
 				}
 			}
 			{
@@ -595,6 +611,7 @@ namespace SoulmaskDataMiner.Miners
 			barracksObjects = barracksObjectList;
 			chestObjects = chestObjectList;
 			dungeonObjects = dungeonObjectList;
+			gamefunctionObjects = gameFunctionObjectList;
 
 			return true;
 		}
@@ -1420,6 +1437,305 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
+		private void ProcessWorldBosses(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> gameFunctionObjects, Logger logger)
+		{
+			foreach (FObjectExport export in gameFunctionObjects)
+			{
+				UObject obj = export.ExportObject.Value;
+
+				UBlueprintGeneratedClass? objClass = export.ClassIndex.Load<UBlueprintGeneratedClass>();
+				UObject? defaultsObj = objClass?.ClassDefaultObject.Load();
+				if (defaultsObj is null) continue;
+
+				UScriptMap? functionMap = defaultsObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("GameFunctionExecutionMap"))?.Tag?.GetValue<UScriptMap>();
+				if (functionMap is null || functionMap.Properties.Count == 0) continue;
+
+				string? bossName = null;
+				List<BossData> bosses = new();
+				foreach (var pair in functionMap.Properties)
+				{
+					EJianZhuGameFunctionType funcType = EJianZhuGameFunctionType.EJZGFT_NOT_DEFINE;
+					FPackageIndex? npcIndex = null;
+
+					UScriptArray? execList = pair.Value?.GetValue<FStructFallback>()?.Properties[0].Tag?.GetValue<UScriptArray>();
+					if (execList is null || execList.Properties.Count == 0) continue;
+
+					FStructFallback execFunc = execList.Properties.First().GetValue<FStructFallback>()!;
+					foreach (FPropertyTag property in execFunc.Properties)
+					{
+						switch (property.Name.Text)
+						{
+							case "FunctionType":
+								if (GameUtil.TryParseEnum(property, out EJianZhuGameFunctionType value))
+								{
+									funcType = value;
+								}
+								break;
+							case "ExecuteActorClass":
+								npcIndex = property.Tag?.GetValue<FPackageIndex>();
+								break;
+						}
+					}
+
+					if (funcType != EJianZhuGameFunctionType.EJZGFT_SUMMON_NPC)
+					{
+						continue;
+					}
+
+					if (npcIndex is null)
+					{
+						logger.Log(LogLevel.Warning, $"Boss summon function in class {export.ObjectName} is missing an NPC class.");
+						continue;
+					}
+
+					UBlueprintGeneratedClass npcClass = npcIndex.Load<UBlueprintGeneratedClass>()!;
+
+					string? npcName = null;
+					List<FPackageIndex> growthComponentIndices = new();
+					BlueprintHeirarchy.SearchInheritance(npcClass, (current =>
+					{
+						UObject? npcObj = current?.ClassDefaultObject.Load();
+						if (npcObj is null)
+						{
+							return false;
+						}
+
+						foreach (FPropertyTag property in npcObj.Properties)
+						{
+							switch (property.Name.Text)
+							{
+								case "MoRenMingZi":
+									if (npcName is null)
+									{
+										npcName = GameUtil.ReadTextProperty(property);
+									}
+									break;
+								case "ChengZhangComponent":
+									{
+										FPackageIndex? growthComponentIndex = property.Tag?.GetValue<FPackageIndex>();
+										if (growthComponentIndex is not null)
+										{
+											growthComponentIndices.Add(growthComponentIndex);
+										}
+									}
+									break;
+							}
+						}
+
+						return false;
+					}));
+
+					if (npcName is null)
+					{
+						logger.Log(LogLevel.Warning, $"Boss defined by class {npcClass.Name} is missing a name.");
+						continue;
+					}
+
+					if (growthComponentIndices.Count == 0)
+					{
+						logger.Log(LogLevel.Warning, $"Boss defined by class {npcClass.Name} is missing a growth component.");
+						continue;
+					}
+
+					if (bossName is null)
+					{
+						bossName = npcName.Substring(npcName.IndexOf(" ") + 1);
+					}
+
+					int level = 0;
+					UDataTable? statTable = null;
+					foreach (FPackageIndex growthComponentIndex in growthComponentIndices)
+					{
+						UObject growthComponent = growthComponentIndex.Load()!;
+
+						foreach (FPropertyTag property in growthComponent.Properties)
+						{
+							switch (property.Name.Text)
+							{
+								case "AttrMetaDataDT":
+									if (statTable is null)
+									{
+										statTable = property.Tag?.GetValue<FPackageIndex>()?.Load<UDataTable>();
+									}
+									break;
+								case "NeedLevel":
+									if (level == 0)
+									{
+										level = property.Tag!.GetValue<int>();
+									}
+									break;
+							}
+						}
+					}
+
+					if (level == 0 || statTable is null)
+					{
+						logger.Log(LogLevel.Warning, $"Boss defined by class {npcClass.Name} is missing growth data.");
+						continue;
+					}
+
+					int maxHealth = (int)statTable.RowMap.FirstOrDefault(r => r.Key.Text.Equals("HSuperCommonSet.MaxHealth")).Value.Properties.FirstOrDefault(p => p.Name.Text.Equals("BaseValue"))!.Tag!.GetValue<float>();
+
+					UBlueprintGeneratedClass recipeClass = pair.Key.GetValue<FPackageIndex>()!.Load<UBlueprintGeneratedClass>()!;
+					UObject recipeObj = recipeClass.ClassDefaultObject.Load()!;
+
+					int requiredLevel = 0;
+					UScriptArray? recipeItemArray = null;
+					int maskEnergyCost = 0;
+					foreach (FPropertyTag property in recipeObj.Properties)
+					{
+						switch (property.Name.Text)
+						{
+							case "PeiFangDengJi":
+								requiredLevel = property.Tag!.GetValue<int>();
+								break;
+							case "DemandDaoJu":
+								recipeItemArray = property.Tag?.GetValue<UScriptArray>();
+								break;
+							case "DemandMianJuNengLiang":
+								maskEnergyCost = property.Tag!.GetValue<int>();
+								break;
+						}
+					}
+
+					List<RecipeComponent> recipeItems = new();
+
+					if (recipeItemArray is not null)
+					{
+						foreach (FPropertyTagType item in recipeItemArray.Properties)
+						{
+							UScriptArray? itemsArray = null;
+							int count = 0;
+
+							FStructFallback itemObj = item.GetValue<FStructFallback>()!;
+							foreach (FPropertyTag property in itemObj.Properties)
+							{
+								switch (property.Name.Text)
+								{
+									case "DemandDaoJu":
+										itemsArray = property.Tag?.GetValue<UScriptArray>();
+										break;
+									case "DemandCount":
+										count = property.Tag!.GetValue<int>();
+										break;
+								}
+							}
+
+							if (itemsArray is null || itemsArray.Properties.Count == 0) continue;
+							if (count == 0) continue;
+
+							foreach (FPropertyTagType componentItem in itemsArray.Properties)
+							{
+								recipeItems.Add(new() { ItemClass = componentItem.GetValue<FPackageIndex>()!.Name, Count = count });
+							}
+						}
+					}
+
+					string summonRecipe = "{}";
+					if (recipeItems.Count > 0 || maskEnergyCost > 0)
+					{
+						StringBuilder builder = new("{");
+
+						builder.Append("\"items\":[");
+						foreach (RecipeComponent item in recipeItems)
+						{
+							builder.Append($"{{\"i\":\"{item.ItemClass}\",\"c\":{item.Count}}},");
+						}
+						builder.Length -= 1; // Remove trailing comma
+						builder.Append("]");
+
+						builder.Append($",\"mask\":{maskEnergyCost}");
+
+						builder.Append("}");
+
+						summonRecipe = builder.ToString();
+					}
+
+					string loot = "{}";
+					{
+						CollectionData? collectionData = null;
+						BlueprintHeirarchy.SearchInheritance(npcClass, (current) =>
+						{
+							if (poiDatabase.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData value))
+							{
+								collectionData = value;
+								return true;
+							}
+							return false;
+						});
+
+						if (collectionData.HasValue)
+						{
+							StringBuilder collectMapBuilder = new("{");
+
+							if (collectionData.Value.Hit is not null) collectMapBuilder.Append($"\"base\":\"{collectionData.Value.Hit}\",");
+							if (collectionData.Value.FinalHit is not null) collectMapBuilder.Append($"\"bonus\":\"{collectionData.Value.FinalHit}\",");
+
+							collectMapBuilder.Append($"\"amount\":{collectionData.Value.Amount}");
+							collectMapBuilder.Append("}");
+
+							loot = collectMapBuilder.ToString();
+						}
+					}
+
+					bosses.Add(new() { Name = npcName, Level = level, MaxHealth = maxHealth, SummonRecipe = summonRecipe, Loot = loot });
+				}
+
+				if (bosses.Count == 0) continue;
+
+				UObject? rootComponent = obj.Properties.FirstOrDefault(p => p.Name.Text.Equals("RootComponent"))?.Tag?.GetValue<FPackageIndex>()?.Load();
+				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				if (locationProperty is null)
+				{
+					logger.Log(LogLevel.Warning, $"Failed to find location for world boss: {bossName}");
+					continue;
+				}
+				FVector location = locationProperty.Tag!.GetValue<FVector>();
+
+				string bossData;
+				{
+					StringBuilder builder = new("[");
+					foreach (BossData boss in bosses)
+					{
+						builder.Append("{");
+						builder.Append($"\"name\":\"{boss.Name}\"");
+						builder.Append($",\"level\":{boss.Level}");
+						builder.Append($",\"health\":{boss.MaxHealth}");
+						builder.Append($",\"summon\":{boss.SummonRecipe}");
+						builder.Append($",\"loot\":{boss.Loot}");
+						builder.Append("},");
+					}
+					builder.Length -= 1; // Remove trailing comma
+					builder.Append("]");
+
+					bossData = builder.ToString();
+				}
+
+				MapPoi poi = new()
+				{
+					GroupIndex = SpawnLayerGroup.PointOfInterest,
+					Type = "World Boss",
+					Title = bossName,
+					Name = "World boss summoning altar",
+					BossInfo = bossData,
+					Location = location,
+					MapLocation = WorldToMap(location),
+					Icon = poiDatabase.BossIcon
+				};
+
+				poiDatabase.WorldBosses.Add(poi);
+			}
+		}
+
+		private struct BossData
+		{
+			public string Name;
+			public int Level;
+			public int MaxHealth;
+			public string SummonRecipe;
+			public string Loot;
+		}
+
 		private void FindPoiTextures(MapPoiDatabase poiDatabase, IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons, Logger logger)
 		{
 			foreach (var pair in poiDatabase.TypeLookup)
@@ -1471,7 +1787,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon,inDun,dunInfo");
+				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -1494,7 +1810,7 @@ namespace SoulmaskDataMiner.Miners
 
 					writer.WriteLine(
 						$"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
-						$"{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)}");
+						$"{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)}");
 				}
 			}
 		}
@@ -1534,7 +1850,8 @@ namespace SoulmaskDataMiner.Miners
 			//   `achDesc` varchar(255),
 			//   `achIcon` varchar(127),
 			//   `inDun` bool,
-			//   `dunInfo` varchar(1023)
+			//   `dunInfo` varchar(1535),
+			//   `bossInfo` varchar(1023)
 			// )
 
 			string valOrNull(float value)
@@ -1570,7 +1887,7 @@ namespace SoulmaskDataMiner.Miners
 
 					sqlWriter.WriteRow(
 						$"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
-						$"{spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}");
+						$"{spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}");
 				}
 			}
 
@@ -1635,11 +1952,16 @@ namespace SoulmaskDataMiner.Miners
 
 			public IList<MapPoi> Ores { get; }
 
+			public IList<MapPoi> WorldBosses { get; }
+
+			// These are references to main POIs, not their own unique instances
 			public IList<MapPoi> Dungeons { get; }
 
 			public UTexture2D RespawnIcon { get; set; }
 
 			public UTexture2D LootIcon { get; set; }
+
+			public UTexture2D BossIcon { get; set; }
 
 			public MapPoiDatabase(LootDatabase loot)
 			{
@@ -1654,16 +1976,25 @@ namespace SoulmaskDataMiner.Miners
 				Spawners = new List<MapPoi>();
 				Lootables = new List<MapPoi>();
 				Ores = new List<MapPoi>();
+				WorldBosses = new List<MapPoi>();
 				Dungeons = new List<MapPoi>();
 				RespawnIcon = null!;
 				LootIcon = null!;
+				BossIcon = null!;
 			}
 
 			public IReadOnlyDictionary<string, List<MapPoi>> GetAllPois()
 			{
 				Dictionary<string, List<MapPoi>> result = new();
 
-				foreach (MapPoi poi in IndexLookup.Values.Concat(Tablets.Values).Concat(RespawnPoints).Concat(Spawners).Concat(Lootables).Concat(Ores))
+				foreach (MapPoi poi in 
+					IndexLookup.Values
+					.Concat(Tablets.Values)
+					.Concat(RespawnPoints)
+					.Concat(Spawners)
+					.Concat(Lootables)
+					.Concat(Ores)
+					.Concat(WorldBosses))
 				{
 					if (!result.TryGetValue(poi.Icon.Name, out List<MapPoi>? list))
 					{
@@ -1704,6 +2035,7 @@ namespace SoulmaskDataMiner.Miners
 			public AchievementData? Achievement { get; set; }
 			public bool InDungeon { get; set; }
 			public string? DungeonInfo { get; set; }
+			public string? BossInfo { get; set; }
 
 			public MapPoi()
 			{
@@ -1736,6 +2068,7 @@ namespace SoulmaskDataMiner.Miners
 				Achievement = other.Achievement;
 				InDungeon = other.InDungeon;
 				DungeonInfo = other.DungeonInfo;
+				BossInfo = other.BossInfo;
 			}
 
 			public object Clone()

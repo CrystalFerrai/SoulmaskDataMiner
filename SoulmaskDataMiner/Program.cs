@@ -71,7 +71,7 @@ namespace SoulmaskDataMiner
 			if (System.Diagnostics.Debugger.IsAttached)
 			{
 				Console.Out.WriteLine("Press a key to exit");
-				Console.ReadKey();
+				Console.ReadKey(true);
 			}
 			return code;
 		}
