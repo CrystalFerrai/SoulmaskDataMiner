@@ -141,7 +141,7 @@ namespace SoulmaskDataMiner.Miners
 
 			FindPoiTextures(poiDatabase, mapIcons, logger);
 
-			return new(poiDatabase.GetAllPois());
+			return new(poiDatabase.GetAllPois(), poiDatabase.AdditionalIconsToExport.ToArray());
 		}
 
 		private UObject? LoadMapIntel(IProviderManager providerManager, Logger logger)
@@ -1439,6 +1439,8 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessWorldBosses(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> gameFunctionObjects, Logger logger)
 		{
+			logger.Log(LogLevel.Information, "Processing world bosses...");
+
 			foreach (FObjectExport export in gameFunctionObjects)
 			{
 				UObject obj = export.ExportObject.Value;
@@ -1579,6 +1581,7 @@ namespace SoulmaskDataMiner.Miners
 					UBlueprintGeneratedClass recipeClass = pair.Key.GetValue<FPackageIndex>()!.Load<UBlueprintGeneratedClass>()!;
 					UObject recipeObj = recipeClass.ClassDefaultObject.Load()!;
 
+					UTexture2D? recipeIcon = null;
 					int requiredLevel = 0;
 					UScriptArray? recipeItemArray = null;
 					int maskEnergyCost = 0;
@@ -1586,6 +1589,9 @@ namespace SoulmaskDataMiner.Miners
 					{
 						switch (property.Name.Text)
 						{
+							case "PeiFangIcon":
+								recipeIcon = GameUtil.ReadTextureProperty(property);
+								break;
 							case "PeiFangDengJi":
 								requiredLevel = property.Tag!.GetValue<int>();
 								break;
@@ -1678,7 +1684,9 @@ namespace SoulmaskDataMiner.Miners
 						}
 					}
 
-					bosses.Add(new() { Name = npcName, Level = level, MaxHealth = maxHealth, SummonRecipe = summonRecipe, Loot = loot });
+					bosses.Add(new() { Name = npcName, Level = level, MaxHealth = maxHealth, SummonRecipe = summonRecipe, Loot = loot, Icon = recipeIcon });
+					
+					if (recipeIcon is not null) poiDatabase.AdditionalIconsToExport.Add(recipeIcon);
 				}
 
 				if (bosses.Count == 0) continue;
@@ -1701,6 +1709,7 @@ namespace SoulmaskDataMiner.Miners
 						builder.Append($"\"name\":\"{boss.Name}\"");
 						builder.Append($",\"level\":{boss.Level}");
 						builder.Append($",\"health\":{boss.MaxHealth}");
+						builder.Append($",\"icon\":{(boss.Icon?.Name is null ? "null" : $"\"{boss.Icon.Name}\"")}");
 						builder.Append($",\"summon\":{boss.SummonRecipe}");
 						builder.Append($",\"loot\":{boss.Loot}");
 						builder.Append("},");
@@ -1734,6 +1743,7 @@ namespace SoulmaskDataMiner.Miners
 			public int MaxHealth;
 			public string SummonRecipe;
 			public string Loot;
+			public UTexture2D? Icon;
 		}
 
 		private void FindPoiTextures(MapPoiDatabase poiDatabase, IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons, Logger logger)
@@ -1770,6 +1780,14 @@ namespace SoulmaskDataMiner.Miners
 					{
 						TextureExporter.ExportTexture(poi.Achievement.Icon, false, logger, outDir);
 					}
+				}
+			}
+
+			foreach (UTexture2D icon in mapData.AdditionalMapIcons)
+			{
+				if (exported.Add(icon.Name))
+				{
+					TextureExporter.ExportTexture(icon, false, logger, outDir);
 				}
 			}
 		}
@@ -1851,7 +1869,7 @@ namespace SoulmaskDataMiner.Miners
 			//   `achIcon` varchar(127),
 			//   `inDun` bool,
 			//   `dunInfo` varchar(1535),
-			//   `bossInfo` varchar(1023)
+			//   `bossInfo` varchar(1535)
 			// )
 
 			string valOrNull(float value)
@@ -1922,9 +1940,12 @@ namespace SoulmaskDataMiner.Miners
 		{
 			public IReadOnlyDictionary<string, List<MapPoi>> POIs { get; }
 
-			public MapInfo(IReadOnlyDictionary<string, List<MapPoi>> pois)
+			public IReadOnlyList<UTexture2D> AdditionalMapIcons { get; }
+
+			public MapInfo(IReadOnlyDictionary<string, List<MapPoi>> pois, IReadOnlyList<UTexture2D> additionalMapIcons)
 			{
 				POIs = pois;
+				AdditionalMapIcons = additionalMapIcons;
 			}
 		}
 
@@ -1963,6 +1984,8 @@ namespace SoulmaskDataMiner.Miners
 
 			public UTexture2D BossIcon { get; set; }
 
+			public ISet<UTexture2D> AdditionalIconsToExport { get; }
+
 			public MapPoiDatabase(LootDatabase loot)
 			{
 				Loot = loot;
@@ -1981,6 +2004,7 @@ namespace SoulmaskDataMiner.Miners
 				RespawnIcon = null!;
 				LootIcon = null!;
 				BossIcon = null!;
+				AdditionalIconsToExport = new HashSet<UTexture2D>();
 			}
 
 			public IReadOnlyDictionary<string, List<MapPoi>> GetAllPois()
