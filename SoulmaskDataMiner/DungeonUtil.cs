@@ -18,6 +18,7 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using System.Diagnostics.CodeAnalysis;
 
 namespace SoulmaskDataMiner
 {
@@ -46,7 +47,9 @@ namespace SoulmaskDataMiner
 			IReadOnlyDictionary<string, DungeonConfig>? configMap = LoadDungeonConfig(providerManager, logger);
 			if (configMap is null) return null;
 
-			FindDungeonEntrances(providerManager, configMap, logger);
+			FindEntrances(providerManager, configMap, logger);
+			FindLevelObjects(providerManager, configMap, logger);
+			FindThemeObjects(providerManager, configMap, logger);
 
 			return configMap.ToDictionary(p => p.Value.Entrance.AssetName, p => CreateDungeonData(p.Value));
 		}
@@ -93,8 +96,11 @@ namespace SoulmaskDataMiner
 						case "MaxPlayers":
 							config.MaxPlayers = property.Tag!.GetValue<int>();
 							break;
+						case "SGFModuleDataBase":
+							config.ModuleDatabase = property.Tag!.GetValue<FSoftObjectPath>();
+							break;
 						case "SGFTheme":
-							config.ThemeAsset = property.Tag!.GetValue<FSoftObjectPath>()!;
+							config.ThemeAsset = property.Tag!.GetValue<FSoftObjectPath>();
 							break;
 						case "MaxRetryTimes":
 							config.MaxRetryTimes = property.Tag!.GetValue<int>();
@@ -114,7 +120,7 @@ namespace SoulmaskDataMiner
 			return result;
 		}
 
-		private void FindDungeonEntrances(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
+		private void FindEntrances(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
 		{
 			foreach (var filePair in providerManager.Provider.Files)
 			{
@@ -231,6 +237,180 @@ namespace SoulmaskDataMiner
 			}
 		}
 
+		private void FindLevelObjects(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
+		{
+			foreach (var pair in configMap)
+			{
+				UObject moduleDB = pair.Value.ModuleDatabase.Load();
+				UScriptArray? moduleArray = moduleDB.Properties.FirstOrDefault(p => p.Name.Text.Equals("Modules"))?.Tag?.GetValue<UScriptArray>();
+				if (moduleArray is null)
+				{
+					logger.Log(LogLevel.Warning, $"Unable to load module list for dungeon {pair.Key}");
+					continue;
+				}
+
+				Dictionary<string, ModuleLevelData> cachedModuleData = new();
+
+				List<FSoftObjectPath> modulePaths = new();
+				foreach (FPropertyTagType moduleProperty in moduleArray.Properties)
+				{
+					FStructFallback moduleObj = moduleProperty.GetValue<FStructFallback>()!;
+					FPropertyTagType? levelProperty = moduleObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("Level"))?.Tag;
+					if (levelProperty is null)
+					{
+						logger.Log(LogLevel.Warning, $"Unable to load a module for dungeon {pair.Key}");
+						continue;
+					}
+
+					FSoftObjectPath moduleLevelPath = levelProperty.GetValue<FSoftObjectPath>();
+
+					if (!cachedModuleData.TryGetValue(moduleLevelPath.AssetPathName.Text, out ModuleLevelData moduleLevelData))
+					{
+						moduleLevelData = new();
+
+						Package moduleLevelPackage = (Package)moduleLevelPath.Load().Owner!;
+						foreach (FObjectExport export in moduleLevelPackage.ExportMap)
+						{
+							if (!export.ClassName.Equals("HShuaGuaiQiDiXiaCheng")) continue;
+
+							string? dungeonName = null;
+							string? spawnerName = null;
+							SpawnData? spawnerData = null;
+							foreach (FPropertyTag property in export.ExportObject.Value.Properties)
+							{
+								switch (property.Name.Text)
+								{
+									case "UsedDiXiaChengName":
+										dungeonName = property.Tag?.GetValue<string>();
+										break;
+									case "SCGClass":
+										spawnerName = property.Tag?.GetValue<FPackageIndex>()?.Name;
+										spawnerData = SpawnMinerUtil.LoadSpawnData(property, logger, export.ObjectName.Text);
+										break;
+								}
+
+								if (dungeonName is not null && spawnerData is not null)
+								{
+									break;
+								}
+							}
+
+							if (dungeonName is null || spawnerName is null || spawnerData is null)
+							{
+								logger.Log(LogLevel.Warning, $"Unable to find data for a spawner in dungeon level {pair.Key}, module {moduleLevelPath.AssetPathName.Text}");
+								continue;
+							}
+
+							if (!moduleLevelData.SpawnerMap.TryGetValue(dungeonName, out Dictionary<string, SpawnData>? map))
+							{
+								map = new();
+								moduleLevelData.SpawnerMap.Add(dungeonName, map);
+							}
+							map.TryAdd(spawnerName, spawnerData);
+						}
+
+						cachedModuleData.Add(moduleLevelPath.AssetPathName.Text, moduleLevelData);
+					}
+
+					if (moduleLevelData.SpawnerMap.TryGetValue(pair.Key, out Dictionary<string, SpawnData>? spawners))
+					{
+						foreach (var spawnerPair in spawners)
+						{
+							pair.Value.Spawners.TryAdd(spawnerPair.Key, spawnerPair.Value);
+						}
+					}
+				}
+			}
+		}
+
+		private void FindThemeObjects(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
+		{
+			const string chestBaseClass = "HJianZhuBaoXiang";
+
+			List<BlueprintClassInfo> chestBpClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(chestBaseClass));
+
+			Dictionary<string, UObject?> chestClasses = new();
+			foreach (BlueprintClassInfo bpClass in chestBpClasses)
+			{
+				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export?.ExportObject.Value;
+				UObject? defaultObj = exportObj?.ClassDefaultObject.Load();
+				chestClasses.Add(bpClass.Name, defaultObj);
+			}
+
+			foreach (var pair in configMap)
+			{
+				Package package = (Package)pair.Value.ThemeAsset.Load().Owner!;
+
+				List<ObjectWithDefaults> chestObjects = new();
+
+				foreach (FObjectExport export in package.ExportMap)
+				{
+					if (chestClasses.TryGetValue(export.ClassName, out UObject? defaultObj))
+					{
+						chestObjects.Add(new() { Export = export, DefaultsObject = defaultObj });
+					}
+				}
+
+				foreach (ObjectWithDefaults chestObject in chestObjects)
+				{
+					FObjectExport export = chestObject.Export;
+					UObject obj = export.ExportObject.Value;
+
+					string? lootId = null;
+					string? name = null;
+					FPackageIndex? lootItem = null;
+					void searchProperties(UObject searchObj)
+					{
+						foreach (FPropertyTag property in searchObj.Properties)
+						{
+							switch (property.Name.Text)
+							{
+								case "BaoXiangDiaoLuoID":
+									if (lootId is null)
+									{
+										lootId = property.Tag!.GetValue<FName>().Text;
+									}
+									break;
+								case "JianZhuDisplayName":
+									if (name is null)
+									{
+										name = GameUtil.ReadTextProperty(property);
+									}
+									break;
+								case "KaiQiJiaoHuDaoJuClass":
+									if (lootItem is null)
+									{
+										lootItem = property.Tag?.GetValue<FPackageIndex>();
+									}
+									break;
+							}
+						}
+					}
+
+					searchProperties(obj);
+					if ((lootItem is null && lootId is null || name is null) && obj.Class is UBlueprintGeneratedClass objClass)
+					{
+						BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+						{
+							UObject? currentObj = current.ClassDefaultObject.Load();
+							if (currentObj is null) return true;
+
+							searchProperties(currentObj);
+							return (lootItem is not null || lootId is not null) && name is not null;
+						});
+					}
+
+					if (lootId is null && lootItem is null || name is null)
+					{
+						logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Unable to load data for chest");
+						continue;
+					}
+
+					pair.Value.Chests.TryAdd(new(lootId, lootItem?.Name), new() { ChestName = name, LootId = lootId, LootItem = lootItem?.Name });
+				}
+			}
+		}
+
 		private DungeonData CreateDungeonData(DungeonConfig dungeonConfig)
 		{
 			return new(
@@ -243,7 +423,9 @@ namespace SoulmaskDataMiner
 				dungeonConfig.MaxRetryTimes,
 				dungeonConfig.ThemeAsset,
 				dungeonConfig.Entrance.ItemCost,
-				dungeonConfig.Entrance.MaskEnergyCost);
+				dungeonConfig.Entrance.MaskEnergyCost,
+				dungeonConfig.Spawners.Values.ToArray(),
+				dungeonConfig.Chests.Values.ToArray());
 		}
 
 		private class DungeonConfig
@@ -254,13 +436,18 @@ namespace SoulmaskDataMiner
 			public float MaxTimeSeconds { get; set; }
 			public int MaxPlayers { get; set; }
 			public int MaxRetryTimes { get; set; }
+			public FSoftObjectPath ModuleDatabase { get; set; }
 			public FSoftObjectPath ThemeAsset { get; set; }
 			public DungeonEntrance Entrance { get; set; }
+			public Dictionary<string, SpawnData> Spawners { get; set; }
+			public Dictionary<ChestKey, DungeonChestData> Chests { get; set; }
 
 			public DungeonConfig()
 			{
 				Title = null!;
 				Description = null!;
+				Spawners = new();
+				Chests = new();
 			}
 		}
 
@@ -270,6 +457,43 @@ namespace SoulmaskDataMiner
 			public int Level;
 			public List<RecipeComponent> ItemCost;
 			public int MaskEnergyCost;
+		}
+
+		private struct ModuleLevelData
+		{
+			public Dictionary<string, Dictionary<string, SpawnData>> SpawnerMap;
+
+			public ModuleLevelData()
+			{
+				SpawnerMap = new();
+			}
+		}
+
+		private readonly struct ChestKey : IEquatable<ChestKey>
+		{
+			public readonly string? LootId;
+			public readonly string? LootItem;
+
+			public ChestKey(string? lootId, string? lootItem)
+			{
+				LootId = lootId;
+				LootItem = lootItem;
+			}
+
+			public override int GetHashCode()
+			{
+				return HashCode.Combine(LootId, LootItem);
+			}
+
+			public override bool Equals([NotNullWhen(true)] object? obj)
+			{
+				return obj is ChestKey other && Equals(other);
+			}
+
+			public bool Equals(ChestKey other)
+			{
+				return string.Equals(LootId, other.LootId) && string.Equals(LootId, other.LootItem);
+			}
 		}
 	}
 
@@ -328,6 +552,16 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public int EntranceMaskEnergyCost { get; }
 
+		/// <summary>
+		/// Possible spawners that can be found in the dungeon
+		/// </summary>
+		public IReadOnlyList<SpawnData> Spawners { get; }
+
+		/// <summary>
+		/// Possible chests that can be found in the dungeon
+		/// </summary>
+		public IReadOnlyList<DungeonChestData> Chests { get; }
+
 		public DungeonData(
 			string title,
 			string description,
@@ -338,7 +572,9 @@ namespace SoulmaskDataMiner
 			int maxRetryTimes,
 			FSoftObjectPath themeAsset,
 			IReadOnlyList<RecipeComponent> entranceItemCost,
-			int entranceMaskEnergyCost)
+			int entranceMaskEnergyCost,
+			IReadOnlyList<SpawnData> spawners,
+			IReadOnlyList<DungeonChestData> chests)
 		{
 			Title = title;
 			Description = description;
@@ -350,6 +586,8 @@ namespace SoulmaskDataMiner
 			ThemeAsset = themeAsset;
 			EntranceItemCost = entranceItemCost;
 			EntranceMaskEnergyCost = entranceMaskEnergyCost;
+			Spawners = spawners;
+			Chests = chests;
 		}
 	}
 
@@ -367,5 +605,26 @@ namespace SoulmaskDataMiner
 		/// How many of the item is required
 		/// </summary>
 		public int Count;
+	}
+
+	/// <summary>
+	/// A lootable object from a procedural dungeon
+	/// </summary>
+	internal struct DungeonChestData
+	{
+		/// <summary>
+		/// The name of the chest object
+		/// </summary>
+		public string ChestName;
+
+		/// <summary>
+		/// Loot table ID for chest content
+		/// </summary>
+		public string? LootId;
+
+		/// <summary>
+		/// Set if the chest has a single special loot item
+		/// </summary>
+		public string? LootItem;
 	}
 }

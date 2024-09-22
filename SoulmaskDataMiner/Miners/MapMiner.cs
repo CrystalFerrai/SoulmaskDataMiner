@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using CommunityToolkit.HighPerformance.Buffers;
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
@@ -23,7 +24,6 @@ using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Text;
 
 namespace SoulmaskDataMiner.Miners
@@ -529,7 +529,7 @@ namespace SoulmaskDataMiner.Miners
 
 			List<BlueprintClassInfo> chestBpClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(chestBaseClass));
 
-			Dictionary<string, UObject?> chestClasses = spawnerBaseClasses.ToDictionary(c => c, c => (UObject?)null);
+			Dictionary<string, UObject?> chestClasses = new();
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
 			{
 				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export?.ExportObject.Value;
@@ -770,7 +770,7 @@ namespace SoulmaskDataMiner.Miners
 
 			// Process spawners
 
-			Dictionary<string, MultiSpawnData?> spawnDataCache = new();
+			Dictionary<string, SpawnData?> spawnDataCache = new();
 
 			logger.Log(LogLevel.Information, $"Processing {spawnerObjects.Count} spawners...");
 			foreach (ObjectWithDefaults spawnerObject in spawnerObjects)
@@ -865,7 +865,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				string spawnDataKey = string.Join(',', scgClasses.Select(c => c.Name));
-				MultiSpawnData? spawnData = null;
+				SpawnData? spawnData = null;
 				if (!spawnDataCache.TryGetValue(spawnDataKey, out spawnData))
 				{
 					spawnData = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, spawnerObject.DefaultsObject);
@@ -1070,22 +1070,8 @@ namespace SoulmaskDataMiner.Miners
 				else
 				{
 					lootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot;
-					if (spawnData.NpcData.Skip(1).Any(d => (d.Value.SpawnerLoot ?? d.Value.CharacterLoot) != lootId))
-					{
-						// Multiple loot tables referenced
-						lootId = null;
-
-						StringBuilder lootMapBuilder = new("{");
-						foreach (NpcData npc in spawnData.NpcData.Select(d => d.Value))
-						{
-							string? loot = npc.SpawnerLoot ?? npc.CharacterLoot;
-							lootMapBuilder.Append($"\"{npc.Name}\": \"{loot}\",");
-						}
-						lootMapBuilder.Length -= 1; // Remove trailing comma
-						lootMapBuilder.Append("}");
-
-						lootMap = lootMapBuilder.ToString();
-					}
+					lootMap = LootMapToString(spawnData, lootId);
+					if (lootMap is not null) lootId = null;
 				}
 
 				MapPoi poi = new()
@@ -1361,6 +1347,60 @@ namespace SoulmaskDataMiner.Miners
 
 						builder.Append($",\"mask\":{dungeonData.EntranceMaskEnergyCost}");
 
+						builder.Append(",\"spawns\":[");
+						if (dungeonData.Spawners.Count > 0)
+						{
+							foreach (SpawnData spawner in dungeonData.Spawners)
+							{
+								NpcData firstNpc = spawner.NpcData.First().Value;
+								NpcCategory category = SpawnMinerUtil.GetNpcCategory(firstNpc);
+								if (category != NpcCategory.Mechanical)
+								{
+									logger.Log(LogLevel.Warning, $"Unhandled NPC type {category}");
+									continue;
+								}
+
+								string levelText = (spawner.MinLevel == spawner.MaxLevel) ? spawner.MinLevel.ToString() : $"{spawner.MinLevel} - {spawner.MaxLevel}";
+
+								Dictionary<string, List<NpcData>> lootMap = new();
+								foreach (var npc in spawner.NpcData)
+								{
+									string lootId = npc.Value.SpawnerLoot ?? npc.Value.CharacterLoot!;
+									if (!lootMap.TryGetValue(lootId, out List<NpcData>? list))
+									{
+										list = new();
+										lootMap.Add(lootId, list);
+									}	
+									list.Add(npc.Value);
+								}
+
+								foreach (var pair in lootMap)
+								{
+									builder.Append("{");
+									builder.Append($"\"name\":\"{string.Join(", ", pair.Value.Select(npc => npc.Name))}\"");
+									builder.Append($",\"level\":\"{levelText}\"");
+									builder.Append($",\"loot\":\"{pair.Key}\"");
+									builder.Append("},");
+								}
+							}
+							builder.Length -= 1; // Remove trailing comma
+						}
+						builder.Append("]");
+
+						builder.Append(",\"chests\":[");
+						if (dungeonData.Chests.Count > 0)
+						{
+							foreach (DungeonChestData chest in dungeonData.Chests)
+							{
+								builder.Append("{");
+								builder.Append($"\"name\":\"{chest.ChestName}\"");
+								builder.Append($",\"loot\":{(chest.LootId is null ? "null" : $"\"{chest.LootId}\"")}");
+								builder.Append("},");
+							}
+							builder.Length -= 1; // Remove trailing comma
+						}
+						builder.Append("]");
+
 						builder.Append("}");
 
 						dungeonPoi.DungeonInfo = builder.ToString();
@@ -1454,7 +1494,7 @@ namespace SoulmaskDataMiner.Miners
 
 					writer.WriteLine(
 						$"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
-						$"{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{poi.DungeonInfo}");
+						$"{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)}");
 				}
 			}
 		}
@@ -1540,6 +1580,25 @@ namespace SoulmaskDataMiner.Miners
 		private static FVector2D WorldToMap(FVector world)
 		{
 			return sMapData.WorldToImage(world);
+		}
+
+		private string? LootMapToString(SpawnData spawner, string? firstLootId)
+		{
+			if (spawner.NpcData.Skip(1).Any(d => (d.Value.SpawnerLoot ?? d.Value.CharacterLoot) != firstLootId))
+			{
+				// Multiple loot tables referenced
+				StringBuilder lootMapBuilder = new("{");
+				foreach (NpcData npc in spawner.NpcData.Select(d => d.Value))
+				{
+					string? loot = npc.SpawnerLoot ?? npc.CharacterLoot;
+					lootMapBuilder.Append($"\"{npc.Name}\": \"{loot}\",");
+				}
+				lootMapBuilder.Length -= 1; // Remove trailing comma
+				lootMapBuilder.Append("}");
+
+				return lootMapBuilder.ToString();
+			}
+			return null;
 		}
 
 		private class MapInfo
@@ -1687,17 +1746,6 @@ namespace SoulmaskDataMiner.Miners
 			public override string ToString()
 			{
 				return $"{Title}: {Name} [{Location}]";
-			}
-		}
-
-		private struct ObjectWithDefaults
-		{
-			public FObjectExport Export;
-			public UObject? DefaultsObject;
-
-			public override string ToString()
-			{
-				return Export.ObjectName.Text;
 			}
 		}
 

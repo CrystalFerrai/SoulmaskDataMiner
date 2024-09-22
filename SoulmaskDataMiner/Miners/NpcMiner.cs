@@ -92,7 +92,7 @@ namespace SoulmaskDataMiner.Miners
 			foreach (FPropertyTagType specifiedManObjProp in specifiedManArray.Properties)
 			{
 				SpecifiedManData specifiedMan = new();
-				SingleSpawnData? spawnData = null;
+				SpawnData? spawnData = null;
 				UScriptArray? profArray = null;
 				UScriptArray? giftIdArray = null;
 
@@ -131,7 +131,7 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
-				specifiedMan.Name = spawnData.NpcName;
+				specifiedMan.Name = spawnData.NpcNames.First();
 				specifiedMan.MinLevel = spawnData.MinLevel;
 				specifiedMan.MaxLevel = spawnData.MaxLevel;
 

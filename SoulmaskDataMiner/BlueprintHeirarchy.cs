@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using CUE4Parse.UE4.Assets;
+using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics;
@@ -232,5 +233,16 @@ namespace SoulmaskDataMiner
 		public string Name;
 		public FObjectExport? Export;
 		public FObjectExport? Super;
+	}
+
+	internal struct ObjectWithDefaults
+	{
+		public FObjectExport Export;
+		public UObject? DefaultsObject;
+
+		public override string ToString()
+		{
+			return Export.ObjectName.Text;
+		}
 	}
 }
