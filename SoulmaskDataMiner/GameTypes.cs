@@ -273,7 +273,8 @@ namespace SoulmaskDataMiner
 		Gong,
 		DaJian,
 		PouJie,
-		DunPai
+		DunPai,
+		Max
 	}
 
 	internal enum ETanSuoDianType

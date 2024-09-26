@@ -126,16 +126,16 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
-			OreUtil oreUtil = new(sMapData);
-			IReadOnlyDictionary<string, FoliageData>? oreData = oreUtil.LoadOreData(providerManager, logger);
-			if (oreData is null) return null;
+			FoliageUtil foliageUtil = new(sMapData);
+			IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? foliageData = foliageUtil.LoadFoliage(providerManager, logger);
+			if (foliageData is null) return null;
 
 			ProcessPois(poiDatabase, poiObjects, logger);
 			ProcessTablets(poiDatabase, tabletObjects, logger);
 			ProcessRespawnPoints(poiDatabase, respawnObjects, logger);
 			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger);
 			ProcessChests(poiDatabase, chestObjects, logger);
-			ProcessOres(poiDatabase, oreData, logger);
+			ProcessFoliage(poiDatabase, foliageData, logger);
 			ProcessDungeons(poiDatabase, dungeonObjects, logger);
 			ProcessWorldBosses(poiDatabase, gamefunctionObjects, logger);
 
@@ -1303,48 +1303,58 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void ProcessOres(MapPoiDatabase poiDatabase, IReadOnlyDictionary<string, FoliageData> oreData, Logger logger)
+		private void ProcessFoliage(MapPoiDatabase poiDatabase, IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>> foliageData, Logger logger)
 		{
-			logger.Log(LogLevel.Information, $"Processing {oreData.Count} ore clusters...");
+			logger.Log(LogLevel.Information, $"Processing {foliageData.Count} ore clusters...");
 
-			foreach (var pair in oreData)
+			foreach (var map in foliageData)
 			{
-				FoliageData ore = pair.Value;
-				if (ore.Locations is null) continue;
+				// Max = hand, CaiKuang = mining
+				if (map.Key != EProficiency.Max && map.Key != EProficiency.CaiKuang) continue;
 
-				string collectMap;
+				bool isOre = map.Key == EProficiency.CaiKuang;
+
+				foreach (var pair in map.Value)
 				{
-					StringBuilder collectMapBuilder = new("[{");
-					if (ore.HitLootName is not null) collectMapBuilder.Append($"\"base\":\"{ore.HitLootName}\",");
-					if (ore.FinalHitLootName is not null) collectMapBuilder.Append($"\"bonus\":\"{ore.FinalHitLootName}\",");
-					collectMapBuilder.Append($"\"amount\":{ore.Amount}");
-					collectMapBuilder.Append("}]");
-					collectMap = collectMapBuilder.ToString();
-				}
+					FoliageData foliage = pair.Value;
+					if (foliage.Locations is null) continue;
 
-				string? toolClass = ore.SuggestedToolClass;
-				float spawnInterval = ore.RespawnTime;
-
-				foreach (Cluster location in ore.Locations)
-				{
-					string nameText = location.Count == 1 ? $"{location.Count} deposit" : $"{location.Count} deposits";
-
-					MapPoi poi = new()
+					string collectMap;
 					{
-						GroupIndex = SpawnLayerGroup.Ore,
-						Type = ore.Name,
-						Title = ore.Name,
-						Name = nameText,
-						Description = toolClass,
-						SpawnCount = location.Count,
-						SpawnInterval = spawnInterval,
-						CollectMap = collectMap,
-						MapLocation = WorldToMap(new(location.CenterX, location.CenterY, 0.0f)),
-						MapRadius = sMapData.WorldToImage(location.CalculateRadius()),
-						Icon = ore.Icon
-					};
+						StringBuilder collectMapBuilder = new("[{");
+						if (foliage.HitLootName is not null) collectMapBuilder.Append($"\"base\":\"{foliage.HitLootName}\",");
+						if (foliage.FinalHitLootName is not null) collectMapBuilder.Append($"\"bonus\":\"{foliage.FinalHitLootName}\",");
+						collectMapBuilder.Append($"\"amount\":{foliage.Amount}");
+						collectMapBuilder.Append("}]");
+						collectMap = collectMapBuilder.ToString();
+					}
 
-					poiDatabase.Ores.Add(poi);
+					string? toolClass = foliage.SuggestedToolClass;
+					float spawnInterval = foliage.RespawnTime;
+
+					foreach (Cluster location in foliage.Locations)
+					{
+						string nameText = isOre
+							? (location.Count == 1 ? $"{location.Count} deposit" : $"{location.Count} deposits")
+							: (location.Count == 1 ? $"{location.Count} object" : $"{location.Count} objects");
+
+						MapPoi poi = new()
+						{
+							GroupIndex = isOre ? SpawnLayerGroup.Ore : SpawnLayerGroup.Pickup,
+							Type = foliage.Name,
+							Title = foliage.Name,
+							Name = nameText,
+							Description = toolClass,
+							SpawnCount = location.Count,
+							SpawnInterval = spawnInterval,
+							CollectMap = collectMap,
+							MapLocation = WorldToMap(new(location.CenterX, location.CenterY, 0.0f)),
+							MapRadius = sMapData.WorldToImage(location.CalculateRadius()),
+							Icon = foliage.Icon
+						};
+
+						poiDatabase.Ores.Add(poi);
+					}
 				}
 			}
 		}
@@ -2159,6 +2169,7 @@ namespace SoulmaskDataMiner.Miners
 			Human,
 			Npc,
 			Chest,
+			Pickup,
 			Ore
 		}
 
@@ -2220,6 +2231,7 @@ namespace SoulmaskDataMiner.Miners
 				SpawnLayerGroup.Animal => "Animal Spawn",
 				SpawnLayerGroup.Human => "Human Spawn",
 				SpawnLayerGroup.Npc => "Other NPC Spawn",
+				SpawnLayerGroup.Pickup => "Collectible Objects",
 				SpawnLayerGroup.Chest => "Lootable Objects",
 				SpawnLayerGroup.Ore => "Ore Deposits",
 				_ => ""

@@ -121,7 +121,7 @@ namespace SoulmaskDataMiner.Miners
 				return false;
 			}
 
-			EProficiency[] allProfIds = Enum.GetValues<EProficiency>();
+			EProficiency[] allProfIds = Enum.GetValues<EProficiency>().Take((int)EProficiency.Max).ToArray();
 			ProficiencyData[] allProfs = new ProficiencyData[allProfIds.Length];
 			for (int i = 0; i < allProfs.Length; ++i)
 			{

@@ -24,7 +24,7 @@ using CUE4Parse.UE4.Objects.UObject;
 
 namespace SoulmaskDataMiner
 {
-	internal class OreUtil
+	internal class FoliageUtil
 	{
 		// Type of ore related foliage to skip
 		private static readonly HashSet<string> sFoliageBlackList = new()
@@ -37,32 +37,33 @@ namespace SoulmaskDataMiner
 
 		private MapData mMapData;
 
-		public OreUtil(MapData mapData)
+		public FoliageUtil(MapData mapData)
 		{
 			mMapData = mapData;
 		}
 
-		public IReadOnlyDictionary<string, FoliageData>? LoadOreData(IProviderManager providerManager, Logger logger)
+		public IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? LoadFoliage(IProviderManager providerManager, Logger logger)
 		{
-			IReadOnlyDictionary<string, FoliageData>? foliageData = LoadFoliageData(providerManager, logger);
+			IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? foliageData = LoadFoliageData(providerManager, logger);
 			if (foliageData is null)
 			{
 				return null;
 			}
+			Dictionary<string, FoliageData> allFoliage = new(foliageData.SelectMany(d => d.Value));
 
-			IReadOnlyDictionary<string, IReadOnlyList<FVector>> foliage = FindFoliage(providerManager, foliageData, logger);
+			IReadOnlyDictionary<string, IReadOnlyList<FVector>> foliage = FindFoliage(providerManager, allFoliage, logger);
 
 			IReadOnlyDictionary<string, IReadOnlyList<Cluster>> clusters = BuildClusters(foliage, logger);
 
 			foreach (var pair in clusters)
 			{
-				foliageData[pair.Key].Locations = pair.Value;
+				allFoliage[pair.Key].Locations = pair.Value;
 			}
 
 			return foliageData;
 		}
 
-		private IReadOnlyDictionary<string, FoliageData>? LoadFoliageData(IProviderManager providerManager, Logger logger)
+		private IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? LoadFoliageData(IProviderManager providerManager, Logger logger)
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZhiBei/BP_ZhiBeiConfig.uasset", out GameFile? file))
 			{
@@ -79,7 +80,7 @@ namespace SoulmaskDataMiner
 				return null;
 			}
 
-			Dictionary<string, FoliageData> result = new();
+			Dictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>> result = new();
 
 			foreach (var pair in foliageMap.Properties)
 			{
@@ -120,12 +121,6 @@ namespace SoulmaskDataMiner
 							damagePerReward = property.Tag!.GetValue<float>();
 							break;
 					}
-				}
-
-				if (proficiency != EProficiency.CaiKuang)
-				{
-					// Not a mining resource
-					continue;
 				}
 
 				if (toolMap is null)
@@ -218,9 +213,9 @@ namespace SoulmaskDataMiner
 					continue;
 				}
 
-				string? oreName = null;
-				UTexture2D? oreIcon = null;
-				void getOreNameAndIcon(string lootId)
+				string? foliageName = null;
+				UTexture2D? foliageIcon = null;
+				void getFoliageNameAndIcon(string lootId)
 				{
 					if (!providerManager.LootDatabase.LootMap.TryGetValue(lootId, out LootTable? table))
 					{
@@ -281,25 +276,31 @@ namespace SoulmaskDataMiner
 						logger.Log(LogLevel.Warning, $"Foliage entry {name} failed to load properties from {topItem.Asset.Name} which is referenced from table entry {hitLootName}.");
 					}
 
-					oreName = resultName;
-					oreIcon = resultIcon;
+					foliageName = resultName;
+					foliageIcon = resultIcon;
 				}
 
 				if (hitLootName is not null)
 				{
-					getOreNameAndIcon(hitLootName);
+					getFoliageNameAndIcon(hitLootName);
 				}
 				else if (finalHitLootName is not null)
 				{
-					getOreNameAndIcon(finalHitLootName);
+					getFoliageNameAndIcon(finalHitLootName);
 				}
 
-				if (oreName is null || oreIcon is null)
+				if (foliageName is null || foliageIcon is null)
 				{
 					continue;
 				}
 
-				result.Add(name, new(oreName, hitLootName, finalHitLootName, suggestedToolClass, amount, respawnTime, oreIcon));
+				if (!result.TryGetValue(proficiency, out IReadOnlyDictionary<string, FoliageData>? entry))
+				{
+					entry = new Dictionary<string, FoliageData>();
+					result.Add(proficiency, entry);
+				}
+
+				((Dictionary<string, FoliageData>)entry).Add(name, new(foliageName, hitLootName, finalHitLootName, suggestedToolClass, amount, respawnTime, foliageIcon));
 			}
 
 			return result;
