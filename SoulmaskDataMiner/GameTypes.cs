@@ -201,6 +201,11 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		EGXST_AI,
 
+		/// <summary>
+		/// Battle Time
+		/// </summary>
+		EGXST_WARTIME,
+
 		EGXST_MAX
 	};
 

@@ -371,6 +371,7 @@ namespace SoulmaskDataMiner.Miners
 					Title = "Ancient Tablet",
 					Achievement = ancientAchievement
 				};
+				List<string> unlocks = new();
 				foreach (FPropertyTag property in tabletDataObj.Properties)
 				{
 					switch (property.Name.Text)
@@ -395,12 +396,41 @@ namespace SoulmaskDataMiner.Miners
 								tabletData.Achievement = divineAchievement;
 							}
 							break;
+						case "AutoGetKeJiList":
+							{
+								UScriptArray list = property.Tag!.GetValue<UScriptArray>()!;
+								foreach (FPropertyTagType item in list.Properties)
+								{
+									UObject? unlockNode = item.GetValue<FStructFallback>()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("KeJiSubNodeClass"))?.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
+									if (unlockNode is null) continue;
+
+									UScriptArray? unlockRecipeList = unlockNode.Properties.FirstOrDefault(p => p.Name.Text.Equals("KeJiPeiFangList"))?.Tag?.GetValue<UScriptArray>();
+									if (unlockRecipeList is null) continue;
+
+									foreach (FPropertyTagType recipe in unlockRecipeList.Properties)
+									{
+										UObject? unlockRecipe = recipe.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
+										if (unlockRecipe is null) continue;
+
+										FPackageIndex? unlockItem = unlockRecipe.Properties.FirstOrDefault(p => p.Name.Text.Equals("ProduceDaoJu"))?.Tag?.GetValue<FPackageIndex>();
+										if (unlockItem is null) continue;
+
+										unlocks.Add(unlockItem.Name);
+									}
+								}
+							}
+							break;
 					}
 				}
 				if (tabletData.Icon is null)
 				{
 					logger.Log(LogLevel.Warning, $"Unable to find all data for tablet POI {className}");
 					continue;
+				}
+
+				if (unlocks.Count > 0)
+				{
+					tabletData.Unlocks = $"[{string.Join(',', unlocks.Select(u => $"\"{u}\""))}]";
 				}
 
 				poiDatabase.Tablets.Add(className, tabletData);
@@ -1805,7 +1835,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo");
+				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -1828,7 +1858,7 @@ namespace SoulmaskDataMiner.Miners
 
 					writer.WriteLine(
 						$"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
-						$"{spawnerSegment},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)}");
+						$"{spawnerSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)}");
 				}
 			}
 		}
@@ -1863,6 +1893,7 @@ namespace SoulmaskDataMiner.Miners
 			//   `lootmap` varchar(255),
 			//   `equipmap` varchar(2047),
 			//   `collectmap` varchar(511),
+			//   `unlocks` varchar(255),
 			//   `icon` varchar(127),
 			//   `ach` varchar(127),
 			//   `achDesc` varchar(255),
@@ -1905,7 +1936,7 @@ namespace SoulmaskDataMiner.Miners
 
 					sqlWriter.WriteRow(
 						$"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
-						$"{spawnerSegment}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}");
+						$"{spawnerSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}");
 				}
 			}
 
@@ -2052,6 +2083,7 @@ namespace SoulmaskDataMiner.Miners
 			public string? LootItem { get; set; }
 			public string? LootMap { get; set; }
 			public string? CollectMap { get; set; }
+			public string? Unlocks { get; set; }
 			public FVector? Location { get; set; }
 			public FVector2D MapLocation { get; set; }
 			public float MapRadius { get; set; }
@@ -2085,6 +2117,7 @@ namespace SoulmaskDataMiner.Miners
 				LootItem = other.LootItem;
 				LootMap = other.LootMap;
 				CollectMap = other.CollectMap;
+				Unlocks = other.Unlocks;
 				Location = other.Location;
 				MapLocation = other.MapLocation;
 				MapRadius = other.MapRadius;

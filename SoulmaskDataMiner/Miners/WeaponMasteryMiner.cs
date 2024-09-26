@@ -51,14 +51,14 @@ namespace SoulmaskDataMiner.Miners
 
 		private bool LoadMasteryData(IProviderManager providerManager, Logger logger, [NotNullWhen(true)] out IReadOnlyDictionary<EWuQiLeiXing, List<MasteryData>>? masteries)
 		{
-			List<FPropertyTagType>? masteryArray = null;
+			UDataTable? masteryTable = null;
 			List<FPropertyTagType>? startMasteryArray = null;
 			foreach (FPropertyTag prop in providerManager.SingletonManager.ResourceManager.Properties)
 			{
 				switch (prop.Name.Text)
 				{
 					case "ZhuanJingArray":
-						masteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
+						masteryTable = prop.Tag?.GetValue<FPackageIndex>()?.Load<UDataTable>();
 						break;
 					case "ZhuanJingAbilitySets":
 						startMasteryArray = prop.Tag!.GetValue<UScriptArray>()!.Properties;
@@ -66,7 +66,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 
-			if (masteryArray is null || startMasteryArray is null)
+			if (masteryTable is null || startMasteryArray is null)
 			{
 				logger.LogError("Unable to locate ZhuanJingArray or ZhuanJingAbilitySets in BP_ZiYuanGuanLiQi");
 				masteries = null;
@@ -87,13 +87,12 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			Dictionary<EWuQiLeiXing, List<MasteryData>> masteryMap = new();
-			foreach (StructProperty masteryProperty in masteryArray)
+			foreach (FStructFallback masteryRow in masteryTable.RowMap.Values)
 			{
 				EWuQiLeiXing weaponType = EWuQiLeiXing.WUQI_LEIXING_NONE;
 				MasteryData data = new();
 
-				List<FPropertyTag> masteryProperties = ((FStructFallback)masteryProperty.Value!.StructType).Properties;
-				foreach (FPropertyTag property in masteryProperties)
+				foreach (FPropertyTag property in masteryRow.Properties)
 				{
 					switch (property.Name.Text)
 					{
