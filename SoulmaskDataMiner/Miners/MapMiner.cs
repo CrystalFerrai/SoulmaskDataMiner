@@ -577,7 +577,6 @@ namespace SoulmaskDataMiner.Miners
 			const string gameFunctionBaseClass = "HJianZhuGameFunction";
 			HashSet<string> gameFunctionClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(gameFunctionBaseClass).Select(c => c.Name));
 
-
 			List<FObjectExport> poiObjectList = new();
 			List<FObjectExport> respawnObjectList = new();
 			List<FObjectExport> tabletObjectList = new();
@@ -1336,7 +1335,7 @@ namespace SoulmaskDataMiner.Miners
 					{
 						string nameText = isOre
 							? (location.Count == 1 ? $"{location.Count} deposit" : $"{location.Count} deposits")
-							: (location.Count == 1 ? $"{location.Count} object" : $"{location.Count} objects");
+							: (location.Count == 1 ? $"Collectible object" : $"{location.Count} objects");
 
 						MapPoi poi = new()
 						{
@@ -1352,6 +1351,11 @@ namespace SoulmaskDataMiner.Miners
 							MapRadius = sMapData.WorldToImage(location.CalculateRadius()),
 							Icon = foliage.Icon
 						};
+
+						if (!isOre)
+						{
+							poi.Location = new FVector(location.CenterX, location.CenterY, location.CenterZ);
+						}
 
 						poiDatabase.Ores.Add(poi);
 					}

@@ -209,8 +209,7 @@ namespace SoulmaskDataMiner
 
 				if (hitLootName is null && finalHitLootName is null)
 				{
-					logger.Log(LogLevel.Warning, $"No loot found for foliage entry {name}");
-					continue;
+					logger.Log(LogLevel.Debug, $"No loot found for foliage entry {name}");
 				}
 
 				string? foliageName = null;

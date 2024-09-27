@@ -216,6 +216,16 @@ namespace SoulmaskDataMiner
 		public float MaxY;
 
 		/// <summary>
+		/// The position of the bottom of a bounding box encompassing all points in the cluster
+		/// </summary>
+		public float MinZ;
+
+		/// <summary>
+		/// The position of the top of a bounding box encompassing all points in the cluster
+		/// </summary>
+		public float MaxZ;
+
+		/// <summary>
 		/// The nubmer of points in the cluster
 		/// </summary>
 		public int Count => mAllPoints.Count;
@@ -231,6 +241,11 @@ namespace SoulmaskDataMiner
 		public float CenterY => (MinY + MaxY) * 0.5f;
 
 		/// <summary>
+		/// The Z compoent of the center point of the bounding box
+		/// </summary>
+		public float CenterZ => (MinZ + MaxZ) * 0.5f;
+
+		/// <summary>
 		/// Creates an instance
 		/// </summary>
 		/// <param name="initialLocation">The first point in the cluster</param>
@@ -242,6 +257,7 @@ namespace SoulmaskDataMiner
 
 			MinX = MaxX = initialLocation.X;
 			MinY = MaxY = initialLocation.Y;
+			MinZ = MaxZ = initialLocation.Z;
 
 			mAllPoints.Add(initialLocation);
 		}
@@ -263,6 +279,9 @@ namespace SoulmaskDataMiner
 
 				if (location.Y < MinY) MinY = location.Y;
 				else if (location.Y > MaxY) MaxY = location.Y;
+
+				if (location.Z < MinZ) MinZ = location.Z;
+				else if (location.Z > MaxZ) MaxZ = location.Z;
 
 				mAllPoints.Add(location);
 
@@ -289,6 +308,9 @@ namespace SoulmaskDataMiner
 
 				if (other.MinY < MinY) MinY = other.MinY;
 				else if (other.MaxY > MaxY) MaxY = other.MaxY;
+
+				if (other.MinZ < MinZ) MinZ = other.MinZ;
+				else if (other.MaxZ > MaxZ) MaxZ = other.MaxZ;
 
 				mAllPoints.AddRange(other.mAllPoints);
 
