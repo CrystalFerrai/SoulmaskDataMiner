@@ -23,6 +23,7 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -1007,10 +1008,15 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				string? occupation = null;
+				string? clanOccupations = null;
 				if (spawnData.Occupations.Any())
 				{
 					occupation = string.Join(", ", spawnData.Occupations.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
+					clanOccupations = $"[{string.Join(',', spawnData.Occupations.Select(o => (int)o.Value))}]";
 				}
+
+				int? clanType = spawnData.ClanType == EClanType.CLAN_TYPE_NONE ? null : (int)spawnData.ClanType;
+				int? clanArea = spawnData.ClanArea >= 0 ? spawnData.ClanArea : null;
 
 				string? equipment = null;
 				if (spawnData.EquipmentClasses is not null || spawnData.WeaponClasses is not null)
@@ -1131,6 +1137,9 @@ namespace SoulmaskDataMiner.Miners
 					Female = female,
 					TribeStatus = tribeStatus,
 					Occupation = occupation,
+					ClanType = clanType,
+					ClanArea = clanArea,
+					ClanOccupations = clanOccupations,
 					Equipment = equipment,
 					SpawnCount = spawnData.SpawnCount,
 					SpawnInterval = spawnInterval.Value,
@@ -1849,11 +1858,11 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo");
+				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
-					string spawnerSegment = ",,,,,,,,,,";
+					string spawnerSegment = ",,,,,,,,,,,,,";
 					string poiSegment = ",,";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
@@ -1861,10 +1870,10 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.SpawnCount},{poi.SpawnInterval},{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)},{CsvStr(poi.Equipment)},{CsvStr(poi.CollectMap)}";
+						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.ClanType},{poi.ClanArea},{poi.ClanOccupations},{poi.SpawnCount},{poi.SpawnInterval},{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)},{CsvStr(poi.Equipment)},{CsvStr(poi.CollectMap)}";
 					}
 
-					string posSegment = "null, null, null";
+					string posSegment = ",,";
 					if (poi.Location.HasValue)
 					{
 						posSegment = $"{poi.Location.Value.X:0},{poi.Location.Value.Y:0},{poi.Location.Value.Z:0}";
@@ -1900,6 +1909,9 @@ namespace SoulmaskDataMiner.Miners
 			//   `f` bool,
 			//   `stat` varchar(63),
 			//   `occ` varchar(127),
+			//   `clantype` int,
+			//   `clanarea` int,
+			//   `clanocc` varchar[31],
 			//   `num` int,
 			//   `intr` float,
 			//   `loot` varchar(127),
@@ -1931,7 +1943,7 @@ namespace SoulmaskDataMiner.Miners
 					// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
 					if (poi.Location == FVector.ZeroVector) continue;
 
-					string spawnerSegment = "null, null, null, null, null, null, null, null, null, null, null";
+					string spawnerSegment = "null, null, null, null, null, null, null, null, null, null, null, null, null, null";
 					string poiSegment = "null, null, null";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 					{
@@ -1939,7 +1951,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {poi.SpawnCount}, {poi.SpawnInterval}, {DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
+						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbVal(poi.ClanArea)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnInterval}, {DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
 					}
 
 					string posSegment = "null, null, null";
@@ -2090,6 +2102,9 @@ namespace SoulmaskDataMiner.Miners
 			public bool Female { get; set; }
 			public string? TribeStatus { get; set; }
 			public string? Occupation { get; set; }
+			public int? ClanType { get; set; }
+			public int? ClanArea { get; set; }
+			public string? ClanOccupations { get; set; }
 			public string? Equipment { get; set; }
 			public int SpawnCount { get; set; }
 			public float SpawnInterval { get; set; }
@@ -2124,6 +2139,9 @@ namespace SoulmaskDataMiner.Miners
 				Female = other.Female;
 				TribeStatus = other.TribeStatus;
 				Occupation = other.Occupation;
+				ClanType = other.ClanType;
+				ClanArea = other.ClanArea;
+				ClanOccupations = other.ClanOccupations;
 				Equipment = other.Equipment;
 				SpawnCount = other.SpawnCount;
 				SpawnInterval = other.SpawnInterval;

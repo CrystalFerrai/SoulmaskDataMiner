@@ -128,6 +128,12 @@ namespace SoulmaskDataMiner
 									}
 								}
 								break;
+							case "ClanArea":
+								if (!scgData.ClanArea.HasValue)
+								{
+									scgData.ClanArea = property.Tag!.GetValue<int>();
+								}
+								break;
 							case "DiWeiAndZhuangBeiDataTable":
 								if (scgData.EquipmentTable is null)
 								{
@@ -176,6 +182,7 @@ namespace SoulmaskDataMiner
 			IReadOnlyDictionary<string, Range<int>>? equipmentList = null;
 			IReadOnlyDictionary<string, Range<int>>? weaponList = null;
 			EClanType clanType = EClanType.CLAN_TYPE_NONE;
+			int clanArea = -1;
 			foreach (ScgData scgData in scgDataList)
 			{
 				foreach (FStructFallback scgInfo in scgData.ScgInfo!)
@@ -262,6 +269,18 @@ namespace SoulmaskDataMiner
 						{
 							logger.Log(LogLevel.Warning, "Spawn data contains multiple clan types. Only the first type will be recorded.");
 						}
+					}
+				}
+
+				if (scgData.ClanArea is not null)
+				{
+					if (clanArea < 0)
+					{
+						clanArea = scgData.ClanArea.Value;
+					}
+					else if (scgData.ClanArea != clanArea)
+					{
+						logger.Log(LogLevel.Warning, "Spawn data contains multiple clan areas. Only the first type will be recorded.");
 					}
 				}
 
@@ -419,7 +438,7 @@ namespace SoulmaskDataMiner
 
 			int totalSpawnCount = isMixedAge ? npcData.Select(wv => wv.Value).Where(n => !n.IsBaby).Sum(n => n.SpawnCount) : spawnCounts.Sum();
 
-			return new(outNames, npcData, tribeStatusList, occupationList, equipmentList, weaponList, clanType, minLevel, maxLevel, totalSpawnCount, isMixedAge);
+			return new(outNames, npcData, tribeStatusList, occupationList, equipmentList, weaponList, clanType, clanArea, minLevel, maxLevel, totalSpawnCount, isMixedAge);
 		}
 
 		public static void CalculateLevels(IEnumerable<WeightedValue<NpcData>> npcData, bool isMixedAge, out int minLevel, out int maxLevel)
@@ -512,6 +531,7 @@ namespace SoulmaskDataMiner
 			public UScriptMap? TribeStatusMap;
 			public UScriptMap? OccupationMap;
 			public EClanType? ClanType;
+			public int? ClanArea;
 			public EquipmentTable? EquipmentTable;
 			public EquipmentTable? WeaponTable;
 
@@ -529,6 +549,7 @@ namespace SoulmaskDataMiner
 					TribeStatusMap is not null &&
 					OccupationMap is not null &&
 					ClanType.HasValue &&
+					ClanArea.HasValue &&
 					EquipmentTable is not null &&
 					WeaponTable is not null;
 			}
@@ -618,19 +639,24 @@ namespace SoulmaskDataMiner
 		public IEnumerable<WeightedValue<NpcData>> NpcData { get; }
 
 		/// <summary>
-		/// Possible tribal status of spawned NPC
+		/// Possible tribal status of spawned human NPC
 		/// </summary>
 		public IEnumerable<WeightedValue<EClanDiWei>> Statuses { get; }
 
 		/// <summary>
-		/// Possible occupation of spawned NPC
+		/// Possible occupation of spawned human NPC
 		/// </summary>
 		public IEnumerable<WeightedValue<EClanZhiYe>> Occupations { get; }
 
 		/// <summary>
-		/// Clan type of spawned NPC
+		/// Clan type of spawned human NPC
 		/// </summary>
 		public EClanType ClanType { get; }
+
+		/// <summary>
+		/// Map region of spawned human NPC
+		/// </summary>
+		public int ClanArea { get; }
 
 		/// <summary>
 		/// The minimum NPC level the spawner will spawn
@@ -676,6 +702,7 @@ namespace SoulmaskDataMiner
 			IReadOnlyDictionary<string, Range<int>>? equipmentClasses,
 			IReadOnlyDictionary<string, Range<int>>? weaponClasses,
 			EClanType clanType,
+			int clanArea,
 			int minLevel,
 			int maxLevel,
 			int spawnCount,
@@ -688,6 +715,7 @@ namespace SoulmaskDataMiner
 			EquipmentClasses = equipmentClasses;
 			WeaponClasses = weaponClasses;
 			ClanType = clanType;
+			ClanArea = clanArea;
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
 			SpawnCount = spawnCount;

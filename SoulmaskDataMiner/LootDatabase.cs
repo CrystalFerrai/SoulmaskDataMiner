@@ -137,6 +137,7 @@ namespace SoulmaskDataMiner
 					foreach (FPropertyTagType contentItem in contentArray.Properties)
 					{
 						int probability = 0;
+						UScriptArray? conditionArray = null;
 						UScriptArray? itemArray = null;
 
 						FStructFallback entryData = contentItem.GetValue<FStructFallback>()!;
@@ -146,6 +147,9 @@ namespace SoulmaskDataMiner
 							{
 								case "SelectedRandomProbability":
 									probability = property.Tag!.GetValue<int>();
+									break;
+								case "ConditionAndCheckData":
+									conditionArray = property.Tag!.GetValue<UScriptArray>();
 									break;
 								case "BaoNeiDaoJuInfos":
 									itemArray = property.Tag!.GetValue<UScriptArray>();
@@ -159,6 +163,76 @@ namespace SoulmaskDataMiner
 						}
 
 						LootEntry entry = new() { Probability = probability };
+
+						if (conditionArray is not null)
+						{
+							foreach (FPropertyTagType conditionObj in conditionArray.Properties)
+							{
+								UScriptArray? innerArray = conditionObj.GetValue<FStructFallback>()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ConditionOrCheck"))?.Tag?.GetValue<UScriptArray>();
+								if (innerArray is null) continue;
+
+								foreach (FPropertyTagType conditionProp in innerArray.Properties)
+								{
+									string conditionName = conditionProp.GetValue<FPackageIndex>()!.Name;
+									switch (conditionName)
+									{
+										case "BP_Condition_Area_IsDaCaoYuan_C":
+											entry.AreaCondition = 8;
+											break;
+										case "BP_Condition_Area_IsHuangYuan_C":
+											entry.AreaCondition = 3;
+											break;
+										case "BP_Condition_Area_IsHuAnSenLin_C":
+											entry.AreaCondition = 9;
+											break;
+										case "BP_Condition_Area_IsHuoShan_C":
+											entry.AreaCondition = 4;
+											break;
+										case "BP_Condition_Area_IsJuMuLin_C":
+											entry.AreaCondition = 7;
+											break;
+										case "BP_Condition_Area_IsQiuLing_C":
+											entry.AreaCondition = 6;
+											break;
+										case "BP_Condition_Area_IsXueShan_C":
+											entry.AreaCondition = 5;
+											break;
+										case "BP_Condition_Area_IsYuLin_C":
+											entry.AreaCondition = 1;
+											break;
+										case "BP_Condition_Area_IsZhaoze_C":
+											entry.AreaCondition = 2;
+											break;
+										case "BP_Condition_GongJiangDrop_C":
+											entry.CraftsmanOnly = true;
+											break;
+										case "BP_Condition_IsShenMi_C":
+											entry.ClanCondition = (int)EClanType.CLAN_TYPE_C;
+											break;
+										case "BP_Condition_IsYeMan_C":
+											entry.ClanCondition = (int)EClanType.CLAN_TYPE_A;
+											break;
+										case "BP_Condition_IsZhiHui_C":
+											entry.ClanCondition = (int)EClanType.CLAN_TYPE_B;
+											break;
+										case "TJ_DL_IsPVP_C":
+											entry.PvpOnly = true;
+											break;
+										case "TJ_DL_PVP_1Day+_C":
+											entry.PvpDayCondition = 1;
+											break;
+										case "TJ_DL_PVP_3Day+_C":
+											entry.PvpDayCondition = 3;
+											break;
+										case "TJ_DL_PVP_7Day+_C":
+											entry.PvpDayCondition = 7;
+											break;
+										default:
+											break;
+									}
+								}
+							}
+						}
 
 						int totalWeight = 0;
 						foreach (FPropertyTagType entryItem in itemArray.Properties)
@@ -349,17 +423,18 @@ namespace SoulmaskDataMiner
 			using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 			using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-			writer.WriteLine("id,entry,item,chance,weight,min,max,quality,asset");
+			writer.WriteLine("id,entry,item,chance,cond,weight,min,max,quality,asset");
 
 			foreach (var pair in LootMap)
 			{
 				for (int e = 0; e < pair.Value.Entries.Count; ++e)
 				{
 					LootEntry entry = pair.Value.Entries[e];
+					string? conditions = entry.GetConditionsJson();
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						writer.WriteLine($"{SqlUtil.CsvStr(pair.Key)},{e},{i},{entry.Probability},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{SqlUtil.CsvStr(item.Asset.Name)}");
+						writer.WriteLine($"{SqlUtil.CsvStr(pair.Key)},{e},{i},{entry.Probability},{SqlUtil.CsvStr(conditions)},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{SqlUtil.CsvStr(item.Asset.Name)}");
 					}
 				}
 			}
@@ -372,6 +447,7 @@ namespace SoulmaskDataMiner
 			//   `entry` int not null,
 			//   `item` int not null,
 			//   `chance` int not null,
+			//   `cond` varchar(255),
 			//   `weight` int not null,
 			//   `min` int not null,
 			//   `max` int not null,
@@ -387,10 +463,11 @@ namespace SoulmaskDataMiner
 				for (int e = 0; e < pair.Value.Entries.Count; ++e)
 				{
 					LootEntry entry = pair.Value.Entries[e];
+					string? conditions = entry.GetConditionsJson();
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						sqlWriter.WriteRow($"{SqlUtil.DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {SqlUtil.DbStr(item.Asset.Name)}");
+						sqlWriter.WriteRow($"{SqlUtil.DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {SqlUtil.DbStr(conditions)}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {SqlUtil.DbStr(item.Asset.Name)}");
 					}
 				}
 			}
@@ -436,10 +513,41 @@ namespace SoulmaskDataMiner
 		public int Probability;
 		public List<LootItem> Items;
 
+		public int? AreaCondition;
+		public int? ClanCondition;
+		public bool CraftsmanOnly;
+		public bool PvpOnly;
+		public int? PvpDayCondition;
+		public bool UnknownCondition;
+
 		public LootEntry()
 		{
 			Probability = 0;
 			Items = new();
+			AreaCondition = null;
+			ClanCondition = null;
+			CraftsmanOnly = false;
+			PvpOnly = false;
+			PvpDayCondition = null;
+			UnknownCondition = false;
+		}
+
+		public string? GetConditionsJson()
+		{
+			if (AreaCondition.HasValue || ClanCondition.HasValue || CraftsmanOnly || PvpOnly || PvpDayCondition.HasValue || UnknownCondition)
+			{
+				StringBuilder builder = new("{");
+				if (AreaCondition.HasValue) builder.Append($"\"area\":{AreaCondition.Value},");
+				if (ClanCondition.HasValue) builder.Append($"\"clan\":{ClanCondition.Value},");
+				if (CraftsmanOnly) builder.Append($"\"craft\":1,");
+				if (PvpOnly) builder.Append($"\"pvp\":1,");
+				if (PvpDayCondition.HasValue) builder.Append($"\"pvpday\":{PvpDayCondition.Value},");
+				if (UnknownCondition) builder.Append($"\"unknown\":1,");
+				--builder.Length; // Remove trailing comma
+				builder.Append("}");
+				return builder.ToString();
+			}
+			return null;
 		}
 
 		public override string ToString()
