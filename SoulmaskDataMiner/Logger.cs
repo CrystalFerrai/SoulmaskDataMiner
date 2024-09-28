@@ -94,7 +94,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public void Debug(string message)
 		{
-			Debug(message);
+			Log(LogLevel.Debug, message);
 		}
 
 		/// <summary>
@@ -102,7 +102,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public void Information(string message)
 		{
-			Information(message);
+			Log(LogLevel.Information, message);
 		}
 
 		/// <summary>
@@ -110,7 +110,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public void Important(string message)
 		{
-			Important(message);
+			Log(LogLevel.Important, message);
 		}
 
 		/// <summary>
@@ -118,7 +118,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public void Warning(string message)
 		{
-			Warning(message);
+			Log(LogLevel.Warning, message);
 		}
 
 		/// <summary>
