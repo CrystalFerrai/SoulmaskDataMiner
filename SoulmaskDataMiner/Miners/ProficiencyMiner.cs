@@ -49,7 +49,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/UI/ShuLianDu/WBP_ShuLianDu.uasset", out GameFile file))
 			{
-				logger.LogError("Unable to locate asset WBP_ShuLianDu.");
+				logger.Error("Unable to locate asset WBP_ShuLianDu.");
 				return null;
 			}
 
@@ -89,13 +89,13 @@ namespace SoulmaskDataMiner.Miners
 
 				if (!proficiency.HasValue || name is null)
 				{
-					logger.Log(LogLevel.Warning, "Could not find necessary data from an instance of WBP_ShuLianDuSingle_C to build proficiency information. Skipping this instance.");
+					logger.Warning("Could not find necessary data from an instance of WBP_ShuLianDuSingle_C to build proficiency information. Skipping this instance.");
 					continue;
 				}
 
 				if (proficiencyMap.ContainsKey(proficiency.Value))
 				{
-					logger.Log(LogLevel.Warning, $"Found an additional instance of WBP_ShuLianDuSingle_C for the {proficiency.Value} proficiency. Skipping this instance.");
+					logger.Warning($"Found an additional instance of WBP_ShuLianDuSingle_C for the {proficiency.Value} proficiency. Skipping this instance.");
 					continue;
 				}
 

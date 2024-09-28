@@ -55,7 +55,7 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		public static void Load(IProviderManager providerManager, Logger logger)
 		{
-			logger.Log(LogLevel.Information, "Loading blueprint heirarchy...");
+			logger.Information("Loading blueprint heirarchy...");
 
 			Stopwatch timer = new Stopwatch();
 			timer.Start();
@@ -77,7 +77,7 @@ namespace SoulmaskDataMiner
 					{
 						if (!classInfo.SuperName!.Equals(export.SuperIndex.Name))
 						{
-							logger.Log(LogLevel.Warning, $"Class {export.ObjectName.Text} found multiple times with different super classes");
+							logger.Warning($"Class {export.ObjectName.Text} found multiple times with different super classes");
 						}
 					}
 					else
@@ -135,7 +135,7 @@ namespace SoulmaskDataMiner
 			}
 
 			timer.Stop();
-			logger.Log(LogLevel.Information, $"Blueprint hierarchy load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency):0.###}s");
+			logger.Information($"Blueprint hierarchy load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency):0.###}s");
 		}
 
 		/// <summary>

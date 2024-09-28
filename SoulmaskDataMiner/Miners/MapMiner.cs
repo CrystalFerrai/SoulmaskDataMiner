@@ -46,21 +46,21 @@ namespace SoulmaskDataMiner.Miners
 
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
-			logger.Log(LogLevel.Information, "Exporting map images...");
+			logger.Information("Exporting map images...");
 			if (!ExportMapImages(providerManager, config, logger))
 			{
 				return false;
 			}
 
-			logger.Log(LogLevel.Information, "<<< Begin processing map >>>");
+			logger.Information("<<< Begin processing map >>>");
 			MapInfo? mapData = ProcessMap(providerManager, logger);
 			if (mapData is null)
 			{
 				return false;
 			}
-			logger.Log(LogLevel.Information, "<<< Finished processing map >>>");
+			logger.Information("<<< Finished processing map >>>");
 
-			logger.Log(LogLevel.Information, "Exporting data...");
+			logger.Information("Exporting data...");
 			WriteIcons(mapData, config, logger);
 			WriteCsv(mapData, config, logger);
 			WriteSql(mapData, sqlWriter, logger);
@@ -80,7 +80,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private MapInfo? ProcessMap(IProviderManager providerManager, Logger logger)
 		{
-			logger.Log(LogLevel.Information, "Loading dependencies...");
+			logger.Information("Loading dependencies...");
 
 			UObject? mapIntel = LoadMapIntel(providerManager, logger);
 			if (mapIntel is null) return null;
@@ -149,7 +149,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_MapQingBaoConfig.uasset", out GameFile file))
 			{
-				logger.LogError("Unable to load asset BP_MapQingBaoConfig.");
+				logger.Error("Unable to load asset BP_MapQingBaoConfig.");
 				return null;
 			}
 
@@ -171,13 +171,13 @@ namespace SoulmaskDataMiner.Miners
 					ETanSuoDianType iconType;
 					if (!GameUtil.TryParseEnum<ETanSuoDianType>(pair.Key.GetValue<FName>(), out iconType))
 					{
-						logger.Log(LogLevel.Warning, $"Unable to parse icon type {pair.Key.GetValue<FName>().Text}");
+						logger.Warning($"Unable to parse icon type {pair.Key.GetValue<FName>().Text}");
 						continue;
 					}
 					UTexture2D? icon = GameUtil.ReadTextureProperty(pair.Value);
 					if (icon is null)
 					{
-						logger.Log(LogLevel.Warning, $"Unable to load icon for type {iconType}");
+						logger.Warning($"Unable to load icon for type {iconType}");
 						continue;
 					}
 
@@ -206,7 +206,7 @@ namespace SoulmaskDataMiner.Miners
 					FStructFallback? poiProperties = pair.Value?.GetValue<FStructFallback>();
 					if (poiProperties is null)
 					{
-						logger.Log(LogLevel.Warning, $"Failed to load data for POI {index}");
+						logger.Warning($"Failed to load data for POI {index}");
 						continue;
 					}
 
@@ -248,7 +248,7 @@ namespace SoulmaskDataMiner.Miners
 
 					if (!poiType.HasValue)
 					{
-						logger.Log(LogLevel.Warning, $"Failed to locate type for POI {index}");
+						logger.Warning($"Failed to locate type for POI {index}");
 						continue;
 					}
 
@@ -306,7 +306,7 @@ namespace SoulmaskDataMiner.Miners
 				UObject? classDefaults = GameUtil.FindBlueprintDefaultsObject(package);
 				if (classDefaults is null)
 				{
-					logger.Log(LogLevel.Warning, $"Could not find data for tablet POI {className}");
+					logger.Warning($"Could not find data for tablet POI {className}");
 					continue;
 				}
 
@@ -318,13 +318,13 @@ namespace SoulmaskDataMiner.Miners
 					UScriptMap? executionMap = property.Tag?.GetValue<UScriptMap>();
 					if (executionMap is null)
 					{
-						logger.Log(LogLevel.Warning, $"Unable to read data for tablet POI {className}");
+						logger.Warning($"Unable to read data for tablet POI {className}");
 						break;
 					}
 
 					if (executionMap.Properties.Count < 1)
 					{
-						logger.Log(LogLevel.Warning, $"Unable to read data for tablet POI {className}");
+						logger.Warning($"Unable to read data for tablet POI {className}");
 						break;
 					}
 
@@ -333,7 +333,7 @@ namespace SoulmaskDataMiner.Miners
 					FStructFallback? executionStruct = executionList?.Properties[0].GetValue<FStructFallback>();
 					if (executionStruct is null)
 					{
-						logger.Log(LogLevel.Warning, $"Unable to read data for tablet POI {className}");
+						logger.Warning($"Unable to read data for tablet POI {className}");
 						break;
 					}
 
@@ -352,7 +352,7 @@ namespace SoulmaskDataMiner.Miners
 				UObject? tabletDataObj = tabletDataClass?.ClassDefaultObject.Load();
 				if (tabletDataObj is null)
 				{
-					logger.Log(LogLevel.Warning, $"Unable to read data for tablet POI {className}");
+					logger.Warning($"Unable to read data for tablet POI {className}");
 					continue;
 				}
 
@@ -360,7 +360,7 @@ namespace SoulmaskDataMiner.Miners
 				int key;
 				if (!int.TryParse(idStr, out key))
 				{
-					logger.Log(LogLevel.Warning, $"Unable to parse tablet id from class name {className}");
+					logger.Warning($"Unable to parse tablet id from class name {className}");
 					key = -1;
 				}
 
@@ -425,7 +425,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 				if (tabletData.Icon is null)
 				{
-					logger.Log(LogLevel.Warning, $"Unable to find all data for tablet POI {className}");
+					logger.Warning($"Unable to find all data for tablet POI {className}");
 					continue;
 				}
 
@@ -455,7 +455,7 @@ namespace SoulmaskDataMiner.Miners
 				UTexture2D? icon = GameUtil.LoadFirstTexture(providerManager.Provider, texturePaths[i], logger);
 				if (icon is null)
 				{
-					logger.LogError("Failed to load spawner icon texture.");
+					logger.Error("Failed to load spawner icon texture.");
 					return false;
 				}
 
@@ -469,7 +469,7 @@ namespace SoulmaskDataMiner.Miners
 			UTexture2D? capybaraIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_shuitun.uasset", logger);
 			if (lamasIcon is null || catsIcon is null || ostrichIcon is null || turkeyIcon is null || capybaraIcon is null)
 			{
-				logger.LogError("Failed to load spawner icon texture.");
+				logger.Error("Failed to load spawner icon texture.");
 				return false;
 			}
 
@@ -506,7 +506,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Hub/Level01_GamePlay.umap", out GameFile file))
 				{
-					logger.LogError("Unable to load asset Level01_GamePlay.");
+					logger.Error("Unable to load asset Level01_GamePlay.");
 					return false;
 				}
 				gameplayPackages[0] = (Package)providerManager.Provider.LoadPackage(file);
@@ -514,7 +514,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Hub/Level01_GamePlay2.umap", out GameFile file))
 				{
-					logger.LogError("Unable to load asset Level01_GamePlay2.");
+					logger.Error("Unable to load asset Level01_GamePlay2.");
 					return false;
 				}
 				gameplayPackages[1] = (Package)providerManager.Provider.LoadPackage(file);
@@ -523,7 +523,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Main.umap", out GameFile file))
 				{
-					logger.LogError("Unable to load asset Level01_Main.");
+					logger.Error("Unable to load asset Level01_Main.");
 					return false;
 				}
 				mainPackage = (Package)providerManager.Provider.LoadPackage(file);
@@ -587,10 +587,10 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> dungeonObjectList = new();
 			List<FObjectExport> gameFunctionObjectList = new();
 
-			logger.Log(LogLevel.Information, "Scanning for objects...");
+			logger.Information("Scanning for objects...");
 			foreach (Package package in gameplayPackages)
 			{
-				logger.Log(LogLevel.Debug, package.Name);
+				logger.Debug(package.Name);
 				foreach (FObjectExport export in package.ExportMap)
 				{
 					if (export.ClassName.Equals(poiClass))
@@ -624,7 +624,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 			{
-				logger.Log(LogLevel.Debug, mainPackage.Name);
+				logger.Debug(mainPackage.Name);
 				foreach (FObjectExport export in mainPackage.ExportMap)
 				{
 					if (export.ClassName.Equals(respawnClass))
@@ -648,7 +648,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessPois(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> poiObjects, Logger logger)
 		{
-			logger.Log(LogLevel.Information, $"Processing {poiObjects.Count} POIs...");
+			logger.Information($"Processing {poiObjects.Count} POIs...");
 			foreach (FObjectExport poiObject in poiObjects)
 			{
 				int? index = null;
@@ -677,14 +677,14 @@ namespace SoulmaskDataMiner.Miners
 
 				if (rootComponent is null)
 				{
-					logger.Log(LogLevel.Warning, $"Failed to locate POI {index}");
+					logger.Warning($"Failed to locate POI {index}");
 					continue;
 				}
 
 				FPropertyTag? locationProperty = rootComponent.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Log(LogLevel.Warning, $"Failed to locate POI {index}");
+					logger.Warning($"Failed to locate POI {index}");
 					continue;
 				}
 				poi.Location = locationProperty.Tag!.GetValue<FVector>();
@@ -694,7 +694,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessRespawnPoints(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> respawnObjects, Logger logger)
 		{
-			logger.Log(LogLevel.Information, $"Processing {respawnObjects.Count} respawn points...");
+			logger.Information($"Processing {respawnObjects.Count} respawn points...");
 
 			foreach (FObjectExport respawnObject in respawnObjects)
 			{
@@ -721,14 +721,14 @@ namespace SoulmaskDataMiner.Miners
 
 				if (name is null || rootComponent is null)
 				{
-					logger.Log(LogLevel.Warning, "Respawn point properties not found");
+					logger.Warning("Respawn point properties not found");
 					continue;
 				}
 
 				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Log(LogLevel.Warning, "Failed to locate respawn point");
+					logger.Warning("Failed to locate respawn point");
 					continue;
 				}
 
@@ -752,12 +752,12 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessTablets(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> tabletObjects, Logger logger)
 		{
-			logger.Log(LogLevel.Information, $"Processing {tabletObjects.Count} tablets...");
+			logger.Information($"Processing {tabletObjects.Count} tablets...");
 			foreach (FObjectExport tabletObject in tabletObjects)
 			{
 				if (!poiDatabase.Tablets.TryGetValue(tabletObject.ClassName, out MapPoi? poi))
 				{
-					logger.Log(LogLevel.Warning, "Tablet object data missing. This should not happen.");
+					logger.Warning("Tablet object data missing. This should not happen.");
 					continue;
 				}
 
@@ -767,7 +767,7 @@ namespace SoulmaskDataMiner.Miners
 				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Log(LogLevel.Warning, "Failed to locate tablet POI");
+					logger.Warning("Failed to locate tablet POI");
 					continue;
 				}
 
@@ -819,7 +819,7 @@ namespace SoulmaskDataMiner.Miners
 
 			Dictionary<string, SpawnData?> spawnDataCache = new();
 
-			logger.Log(LogLevel.Information, $"Processing {spawnerObjects.Count} spawners...");
+			logger.Information($"Processing {spawnerObjects.Count} spawners...");
 			foreach (ObjectWithDefaults spawnerObject in spawnerObjects)
 			{
 				FObjectExport export = spawnerObject.Export;
@@ -845,7 +845,7 @@ namespace SoulmaskDataMiner.Miners
 									}
 									else
 									{
-										logger.Log(LogLevel.Debug, $"[{export.ObjectName}] Spawner has explicitly set data to null.");
+										logger.Debug($"[{export.ObjectName}] Spawner has explicitly set data to null.");
 									}
 								}
 								break;
@@ -873,7 +873,7 @@ namespace SoulmaskDataMiner.Miners
 										}
 										else
 										{
-											logger.Log(LogLevel.Debug, $"[{export.ObjectName}] Spawner has explicitly set data to null.");
+											logger.Debug($"[{export.ObjectName}] Spawner has explicitly set data to null.");
 										}
 									}
 								}
@@ -927,7 +927,7 @@ namespace SoulmaskDataMiner.Miners
 				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Failed to find location for spawn point");
+					logger.Warning($"[{export.ObjectName}] Failed to find location for spawn point");
 					continue;
 				}
 
@@ -1187,7 +1187,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessChests(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> chestObjects, Logger logger)
 		{
-			logger.Log(LogLevel.Information, $"Processing {chestObjects.Count} chests...");
+			logger.Information($"Processing {chestObjects.Count} chests...");
 
 			foreach (ObjectWithDefaults chestObject in chestObjects)
 			{
@@ -1279,14 +1279,14 @@ namespace SoulmaskDataMiner.Miners
 
 				if (lootId is null && lootItem is null || poiName is null || rootComponent is null)
 				{
-					logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Unable to load data for chest");
+					logger.Warning($"[{export.ObjectName}] Unable to load data for chest");
 					continue;
 				}
 
 				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Failed to find location for chest");
+					logger.Warning($"[{export.ObjectName}] Failed to find location for chest");
 					continue;
 				}
 
@@ -1313,7 +1313,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessFoliage(MapPoiDatabase poiDatabase, IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>> foliageData, Logger logger)
 		{
-			logger.Log(LogLevel.Information, $"Processing {foliageData.Count} ore clusters...");
+			logger.Information($"Processing {foliageData.Count} ore clusters...");
 
 			foreach (var map in foliageData)
 			{
@@ -1374,7 +1374,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessDungeons(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> dungeonObjects, Logger logger)
 		{
-			logger.Log(LogLevel.Information, $"Processing {dungeonObjects.Count} dungeons...");
+			logger.Information($"Processing {dungeonObjects.Count} dungeons...");
 
 			foreach (FObjectExport export in dungeonObjects)
 			{
@@ -1382,7 +1382,7 @@ namespace SoulmaskDataMiner.Miners
 				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Log(LogLevel.Warning, $"Failed to locate dungeon entrance {export.ObjectName}");
+					logger.Warning($"Failed to locate dungeon entrance {export.ObjectName}");
 					continue;
 				}
 
@@ -1426,7 +1426,7 @@ namespace SoulmaskDataMiner.Miners
 								NpcCategory category = SpawnMinerUtil.GetNpcCategory(firstNpc);
 								if (category != NpcCategory.Mechanical)
 								{
-									logger.Log(LogLevel.Warning, $"Unhandled NPC type {category}");
+									logger.Warning($"Unhandled NPC type {category}");
 									continue;
 								}
 
@@ -1492,7 +1492,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private void ProcessWorldBosses(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> gameFunctionObjects, Logger logger)
 		{
-			logger.Log(LogLevel.Information, "Processing world bosses...");
+			logger.Information("Processing world bosses...");
 
 			foreach (FObjectExport export in gameFunctionObjects)
 			{
@@ -1539,7 +1539,7 @@ namespace SoulmaskDataMiner.Miners
 
 					if (npcIndex is null)
 					{
-						logger.Log(LogLevel.Warning, $"Boss summon function in class {export.ObjectName} is missing an NPC class.");
+						logger.Warning($"Boss summon function in class {export.ObjectName} is missing an NPC class.");
 						continue;
 					}
 
@@ -1582,13 +1582,13 @@ namespace SoulmaskDataMiner.Miners
 
 					if (npcName is null)
 					{
-						logger.Log(LogLevel.Warning, $"Boss defined by class {npcClass.Name} is missing a name.");
+						logger.Warning($"Boss defined by class {npcClass.Name} is missing a name.");
 						continue;
 					}
 
 					if (growthComponentIndices.Count == 0)
 					{
-						logger.Log(LogLevel.Warning, $"Boss defined by class {npcClass.Name} is missing a growth component.");
+						logger.Warning($"Boss defined by class {npcClass.Name} is missing a growth component.");
 						continue;
 					}
 
@@ -1625,7 +1625,7 @@ namespace SoulmaskDataMiner.Miners
 
 					if (level == 0 || statTable is null)
 					{
-						logger.Log(LogLevel.Warning, $"Boss defined by class {npcClass.Name} is missing growth data.");
+						logger.Warning($"Boss defined by class {npcClass.Name} is missing growth data.");
 						continue;
 					}
 
@@ -1748,7 +1748,7 @@ namespace SoulmaskDataMiner.Miners
 				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Log(LogLevel.Warning, $"Failed to find location for world boss: {bossName}");
+					logger.Warning($"Failed to find location for world boss: {bossName}");
 					continue;
 				}
 				FVector location = locationProperty.Tag!.GetValue<FVector>();

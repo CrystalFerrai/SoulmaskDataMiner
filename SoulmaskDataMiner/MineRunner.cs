@@ -118,7 +118,7 @@ namespace SoulmaskDataMiner
 			bool success = true;
 			foreach (IDataMiner miner in mMiners)
 			{
-				mLogger.Log(LogLevel.Important, $"Running data miner [{miner.Name}]...");
+				mLogger.Important($"Running data miner [{miner.Name}]...");
 
 				sqlWriter.WriteStartSection(miner.Name);
 
@@ -145,7 +145,7 @@ namespace SoulmaskDataMiner
 
 				sqlWriter.WriteEndSection();
 
-				mLogger.Log(LogLevel.Information, $"[{miner.Name}] completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
+				mLogger.Information($"[{miner.Name}] completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
 			}
 
 			if (mRequireLootDatabase)
@@ -240,7 +240,7 @@ namespace SoulmaskDataMiner
 					if ((requireClassDataAttribute?.IsRequired ?? false) && mProviderManager.ClassMetadata is null)
 					{
 						IDataMiner? temp = (IDataMiner?)Activator.CreateInstance(type);
-						mLogger.Log(LogLevel.Warning, $"Skipping miner \"{temp?.Name ?? type.Name}\" because class metadata has not been loaded. Use the --classes parameter to specify a class metadata file to load.");
+						mLogger.Warning($"Skipping miner \"{temp?.Name ?? type.Name}\" because class metadata has not been loaded. Use the --classes parameter to specify a class metadata file to load.");
 
 						if (temp is not null)
 						{
@@ -286,7 +286,7 @@ namespace SoulmaskDataMiner
 
 			if (includeMiners?.Count > 0)
 			{
-				mLogger.Log(LogLevel.Warning, $"The following miners specified in the filter could not be located: {string.Join(',', includeMiners)}");
+				mLogger.Warning($"The following miners specified in the filter could not be located: {string.Join(',', includeMiners)}");
 			}
 			if (mMiners.Count == 0)
 			{
@@ -294,7 +294,7 @@ namespace SoulmaskDataMiner
 			}
 			else
 			{
-				mLogger.Log(LogLevel.Important, $"The following miners will be run: {string.Join(',', mMiners.Select(m => m.Name))}");
+				mLogger.Important($"The following miners will be run: {string.Join(',', mMiners.Select(m => m.Name))}");
 			}
 		}
 	}

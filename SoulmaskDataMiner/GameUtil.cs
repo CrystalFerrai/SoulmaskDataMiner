@@ -235,7 +235,7 @@ namespace SoulmaskDataMiner
 		{
 			if (!provider.TryFindGameFile(assetPath, out GameFile file))
 			{
-				logger.LogError($"Unable to locate asset {assetPath}.");
+				logger.Error($"Unable to locate asset {assetPath}.");
 				return null;
 			}
 

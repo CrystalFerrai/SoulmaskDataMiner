@@ -80,7 +80,7 @@ namespace SoulmaskDataMiner
 						scgObj = defaultScgObj;
 						if (scgObj is null)
 						{
-							logger.Log(LogLevel.Warning, $"[{spawnerNameForLogging}] No data found for spawner class.");
+							logger.Warning($"[{spawnerNameForLogging}] No data found for spawner class.");
 							return false;
 						}
 					}
@@ -267,7 +267,7 @@ namespace SoulmaskDataMiner
 						}
 						else
 						{
-							logger.Log(LogLevel.Warning, "Spawn data contains multiple clan types. Only the first type will be recorded.");
+							logger.Warning("Spawn data contains multiple clan types. Only the first type will be recorded.");
 						}
 					}
 				}
@@ -280,7 +280,7 @@ namespace SoulmaskDataMiner
 					}
 					else if (scgData.ClanArea != clanArea)
 					{
-						logger.Log(LogLevel.Warning, "Spawn data contains multiple clan areas. Only the first type will be recorded.");
+						logger.Warning("Spawn data contains multiple clan areas. Only the first type will be recorded.");
 					}
 				}
 
@@ -292,7 +292,7 @@ namespace SoulmaskDataMiner
 
 			if (sgbLists.Count == 0)
 			{
-				logger.Log(LogLevel.Warning, $"[{spawnerNameForLogging}] Failed to load spawn point data");
+				logger.Warning($"[{spawnerNameForLogging}] Failed to load spawn point data");
 				return null;
 			}
 
@@ -347,7 +347,7 @@ namespace SoulmaskDataMiner
 
 			if (npcData.Count == 0)
 			{
-				logger.Log(LogLevel.Warning, $"[{spawnerNameForLogging}] No NPC classes found for spawn point");
+				logger.Warning($"[{spawnerNameForLogging}] No NPC classes found for spawn point");
 				return null;
 			}
 
@@ -432,7 +432,7 @@ namespace SoulmaskDataMiner
 			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
 			if (outNames.Count == 0)
 			{
-				logger.Log(LogLevel.Warning, $"[{spawnerNameForLogging}] Failed to locate NPC name for spawn point");
+				logger.Warning($"[{spawnerNameForLogging}] Failed to locate NPC name for spawn point");
 				return null;
 			}
 

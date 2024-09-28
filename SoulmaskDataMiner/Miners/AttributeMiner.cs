@@ -57,7 +57,7 @@ namespace SoulmaskDataMiner.Miners
 				MetaClass mclass;
 				if (!providerManager.ClassMetadata!.TryGetValue(className, out mclass))
 				{
-					logger.LogError($"Failed to locate class {className} in class metadata.");
+					logger.Error($"Failed to locate class {className} in class metadata.");
 					attributes = null;
 					return false;
 				}

@@ -53,7 +53,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/DataTable/NaturalGift/DT_GiftZongBiao.uasset", out GameFile file))
 			{
-				logger.LogError("Unable to locate natural gift data table.");
+				logger.Error("Unable to locate natural gift data table.");
 				combinedGifts = null;
 				return false;
 			}
@@ -68,7 +68,7 @@ namespace SoulmaskDataMiner.Miners
 				int id;
 				if (!int.TryParse(row.Key.Text, out id))
 				{
-					logger.Log(LogLevel.Warning, $"Natural gift table row key is not a valid integer: {row.Key.Text}");
+					logger.Warning($"Natural gift table row key is not a valid integer: {row.Key.Text}");
 					continue;
 				}
 
@@ -227,7 +227,7 @@ namespace SoulmaskDataMiner.Miners
 			text = text[(text.LastIndexOf(':') + 1)..];
 			if (!Enum.TryParse<ENaturalGiftSource>(text, out ENaturalGiftSource result))
 			{
-				logger.Log(LogLevel.Warning, $"Unable to parse gift source \"{text}\" for gift {id}");
+				logger.Warning($"Unable to parse gift source \"{text}\" for gift {id}");
 			}
 			return result;
 		}
@@ -356,15 +356,15 @@ namespace SoulmaskDataMiner.Miners
 					switch (gift.Level)
 					{
 						case 1:
-							if (level1.HasValue) logger.Log(LogLevel.Warning, $"Found duplicated gifts: {level1.Value} and {gift.ID}");
+							if (level1.HasValue) logger.Warning($"Found duplicated gifts: {level1.Value} and {gift.ID}");
 							else level1 = gift.ID;
 							break;
 						case 2:
-							if (level2.HasValue) logger.Log(LogLevel.Warning, $"Found duplicated gifts: {level2.Value} and {gift.ID}");
+							if (level2.HasValue) logger.Warning($"Found duplicated gifts: {level2.Value} and {gift.ID}");
 							else level2 = gift.ID;
 							break;
 						case 3:
-							if (level3.HasValue) logger.Log(LogLevel.Warning, $"Found duplicated gifts: {level3.Value} and {gift.ID}");
+							if (level3.HasValue) logger.Warning($"Found duplicated gifts: {level3.Value} and {gift.ID}");
 							else level3 = gift.ID;
 							break;
 					}

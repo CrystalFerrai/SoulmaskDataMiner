@@ -110,7 +110,7 @@ namespace SoulmaskDataMiner
 
 				if (name is null)
 				{
-					logger.Log(LogLevel.Warning, "Unable to read dungeon config");
+					logger.Warning("Unable to read dungeon config");
 					continue;
 				}
 
@@ -166,7 +166,7 @@ namespace SoulmaskDataMiner
 
 				if (name is null)
 				{
-					logger.Log(LogLevel.Warning, $"Dungeon entry game function \"{defaultsObj.Class}\" is missing a parameter");
+					logger.Warning($"Dungeon entry game function \"{defaultsObj.Class}\" is missing a parameter");
 					continue;
 				}
 
@@ -180,7 +180,7 @@ namespace SoulmaskDataMiner
 				UObject? recipeObj = recipeClass?.ClassDefaultObject.Load();
 				if (recipeObj is null)
 				{
-					logger.Log(LogLevel.Warning, $"Dungeon entry recipe class \"{recipeAsset.Name}\" could not be loaded");
+					logger.Warning($"Dungeon entry recipe class \"{recipeAsset.Name}\" could not be loaded");
 					continue;
 				}
 
@@ -245,7 +245,7 @@ namespace SoulmaskDataMiner
 				UScriptArray? moduleArray = moduleDB.Properties.FirstOrDefault(p => p.Name.Text.Equals("Modules"))?.Tag?.GetValue<UScriptArray>();
 				if (moduleArray is null)
 				{
-					logger.Log(LogLevel.Warning, $"Unable to load module list for dungeon {pair.Key}");
+					logger.Warning($"Unable to load module list for dungeon {pair.Key}");
 					continue;
 				}
 
@@ -258,7 +258,7 @@ namespace SoulmaskDataMiner
 					FPropertyTagType? levelProperty = moduleObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("Level"))?.Tag;
 					if (levelProperty is null)
 					{
-						logger.Log(LogLevel.Warning, $"Unable to load a module for dungeon {pair.Key}");
+						logger.Warning($"Unable to load a module for dungeon {pair.Key}");
 						continue;
 					}
 
@@ -297,7 +297,7 @@ namespace SoulmaskDataMiner
 
 							if (dungeonName is null || spawnerName is null || spawnerData is null)
 							{
-								logger.Log(LogLevel.Warning, $"Unable to find data for a spawner in dungeon level {pair.Key}, module {moduleLevelPath.AssetPathName.Text}");
+								logger.Warning($"Unable to find data for a spawner in dungeon level {pair.Key}, module {moduleLevelPath.AssetPathName.Text}");
 								continue;
 							}
 
@@ -402,7 +402,7 @@ namespace SoulmaskDataMiner
 
 					if (lootId is null && lootItem is null || name is null)
 					{
-						logger.Log(LogLevel.Warning, $"[{export.ObjectName}] Unable to load data for chest");
+						logger.Warning($"[{export.ObjectName}] Unable to load data for chest");
 						continue;
 					}
 

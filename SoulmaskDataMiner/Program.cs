@@ -56,11 +56,11 @@ namespace SoulmaskDataMiner
 				success = runner.Run();
 			}
 
-			logger.Log(LogLevel.Important, "Done.");
+			logger.Important("Done.");
 
 			if (!success)
 			{
-				logger.Log(LogLevel.Warning, "\nOne or more miners failed. See above for details.");
+				logger.Warning("\nOne or more miners failed. See above for details.");
 			}
 
 			return OnExit(0);

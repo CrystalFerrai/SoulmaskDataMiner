@@ -67,7 +67,7 @@ namespace SoulmaskDataMiner
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZhiBei/BP_ZhiBeiConfig.uasset", out GameFile? file))
 			{
-				logger.LogError("Unable to find BP_ZhiBeiConfig");
+				logger.Error("Unable to find BP_ZhiBeiConfig");
 				return null;
 			}
 
@@ -76,7 +76,7 @@ namespace SoulmaskDataMiner
 			UScriptMap? foliageMap = obj?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ZhiBeiPropConfigMap"))?.Tag?.GetValue<UScriptMap>();
 			if (foliageMap is null)
 			{
-				logger.LogError("Unable to load foliage data from BP_ZhiBeiConfig");
+				logger.Error("Unable to load foliage data from BP_ZhiBeiConfig");
 				return null;
 			}
 
@@ -87,7 +87,7 @@ namespace SoulmaskDataMiner
 				string name = pair.Key.GetValue<FPackageIndex>()!.Name;
 				if (!BlueprintHeirarchy.Instance.FoliageComponentClasses.Contains(name))
 				{
-					logger.Log(LogLevel.Warning, $"BP_ZhiBeiConfig references {name} which does not appear to be a foliage component type");
+					logger.Warning($"BP_ZhiBeiConfig references {name} which does not appear to be a foliage component type");
 					continue;
 				}
 
@@ -125,7 +125,7 @@ namespace SoulmaskDataMiner
 
 				if (toolMap is null)
 				{
-					logger.Log(LogLevel.Warning, $"Foliage data missing for entry {name}");
+					logger.Warning($"Foliage data missing for entry {name}");
 					continue;
 				}
 
@@ -167,7 +167,7 @@ namespace SoulmaskDataMiner
 
 					if (currentHitLootName is null || currentFinalHitLootName is null || !toolSuggestion.HasValue)
 					{
-						logger.Log(LogLevel.Warning, $"Foliage tool data missing for entry {name}");
+						logger.Warning($"Foliage tool data missing for entry {name}");
 						continue;
 					}
 
@@ -185,7 +185,7 @@ namespace SoulmaskDataMiner
 
 				if (hitLootName is null || finalHitLootName is null)
 				{
-					logger.Log(LogLevel.Warning, $"Foliage data missing for entry {name}");
+					logger.Warning($"Foliage data missing for entry {name}");
 					continue;
 				}
 
@@ -209,7 +209,7 @@ namespace SoulmaskDataMiner
 
 				if (hitLootName is null && finalHitLootName is null)
 				{
-					logger.Log(LogLevel.Debug, $"No loot found for foliage entry {name}");
+					logger.Debug($"No loot found for foliage entry {name}");
 				}
 
 				string? foliageName = null;
@@ -218,7 +218,7 @@ namespace SoulmaskDataMiner
 				{
 					if (!providerManager.LootDatabase.LootMap.TryGetValue(lootId, out LootTable? table))
 					{
-						logger.Log(LogLevel.Warning, $"Foliage entry {name} references loot table entry {hitLootName} which could not be found.");
+						logger.Warning($"Foliage entry {name} references loot table entry {hitLootName} which could not be found.");
 						return;
 					}
 
@@ -243,7 +243,7 @@ namespace SoulmaskDataMiner
 					UBlueprintGeneratedClass? itemObj = topItem.Asset.Load() as UBlueprintGeneratedClass;
 					if (itemObj is null)
 					{
-						logger.Log(LogLevel.Warning, $"Foliage entry {name} references loot table entry {hitLootName} which references item {topItem.Asset.Name} which could not be loaded.");
+						logger.Warning($"Foliage entry {name} references loot table entry {hitLootName} which references item {topItem.Asset.Name} which could not be loaded.");
 						return;
 					}
 
@@ -272,7 +272,7 @@ namespace SoulmaskDataMiner
 
 					if (resultName is null || resultIcon is null)
 					{
-						logger.Log(LogLevel.Warning, $"Foliage entry {name} failed to load properties from {topItem.Asset.Name} which is referenced from table entry {hitLootName}.");
+						logger.Warning($"Foliage entry {name} failed to load properties from {topItem.Asset.Name} which is referenced from table entry {hitLootName}.");
 					}
 
 					foliageName = resultName;
@@ -360,7 +360,7 @@ namespace SoulmaskDataMiner
 				{
 					if (!clusterBuilder.AddLocation(location))
 					{
-						logger.Log(LogLevel.Debug, $"Failed to add a location for {pair.Key} to cluster builder because it is outside of the map bounds. ({location})");
+						logger.Debug($"Failed to add a location for {pair.Key} to cluster builder because it is outside of the map bounds. ({location})");
 					}
 				}
 				clusterBuilder.BuildClusters();

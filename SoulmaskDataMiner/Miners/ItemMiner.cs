@@ -71,14 +71,14 @@ namespace SoulmaskDataMiner.Miners
 			var categories = GetItemCategories(providerManager, logger);
 			if (categories is null)
 			{
-				logger.LogError("Unable to load item categories from resource manager");
+				logger.Error("Unable to load item categories from resource manager");
 				return false;
 			}
 
 			UTexture2D? testIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/Characters/Mannequin/Character/Textures/T_UE4Logo_Mask.uasset", logger);
 			if (testIcon is null)
 			{
-				logger.LogError("Unable to load test icon texture");
+				logger.Error("Unable to load test icon texture");
 				return false;
 			}
 
@@ -122,7 +122,7 @@ namespace SoulmaskDataMiner.Miners
 
 				if (value.Name is null || value.Icon is null)
 				{
-					logger.Log(LogLevel.Warning, "Missing item category data");
+					logger.Warning("Missing item category data");
 					continue;
 				}
 

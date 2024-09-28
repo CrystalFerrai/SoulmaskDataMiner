@@ -90,9 +90,41 @@ namespace SoulmaskDataMiner
 		}
 
 		/// <summary>
+		/// Helper for logging a debug message
+		/// </summary>
+		public void Debug(string message)
+		{
+			Debug(message);
+		}
+
+		/// <summary>
+		/// Helper for logging an information message
+		/// </summary>
+		public void Information(string message)
+		{
+			Information(message);
+		}
+
+		/// <summary>
+		/// Helper for logging an important message
+		/// </summary>
+		public void Important(string message)
+		{
+			Important(message);
+		}
+
+		/// <summary>
+		/// Helper for logging a warning
+		/// </summary>
+		public void Warning(string message)
+		{
+			Warning(message);
+		}
+
+		/// <summary>
 		/// Helper for logging an error
 		/// </summary>
-		public void LogError(string message)
+		public void Error(string message)
 		{
 			Log(LogLevel.Error, message);
 		}

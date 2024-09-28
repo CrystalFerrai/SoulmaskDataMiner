@@ -69,21 +69,21 @@ namespace SoulmaskDataMiner.Miners
 			UScriptArray specifiedManArray;
 			if (!providerManager.SingletonManager.ResourceManager.TryGetPropertyValue<UScriptArray>("SpecifiedTribeManArray", out specifiedManArray))
 			{
-				logger.LogError("Failed to find SpecifiedTribeManArray in resource manager");
+				logger.Error("Failed to find SpecifiedTribeManArray in resource manager");
 				return null;
 			}
 
 			IDictionary<int, NaturalGiftData>? gifts = LoadNaturalGifts(providerManager, logger);
 			if (gifts is null)
 			{
-				logger.LogError("Failed to load natural gift data");
+				logger.Error("Failed to load natural gift data");
 				return null;
 			}
 
 			IReadOnlyDictionary<EProficiency, ProficiencyData>? proficiencyMap = ProficiencyMiner.LoadProficiencyMap(providerManager, logger);
 			if (proficiencyMap is null)
 			{
-				logger.LogError("Failed to load proficiency data");
+				logger.Error("Failed to load proficiency data");
 				return null;
 			}
 
@@ -127,7 +127,7 @@ namespace SoulmaskDataMiner.Miners
 
 				if (spawnData is null)
 				{
-					logger.Log(LogLevel.Warning, "Unable to load data for specified man.");
+					logger.Warning("Unable to load data for specified man.");
 					continue;
 				}
 
@@ -212,7 +212,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/DataTable/NaturalGift/DT_GiftZongBiao.uasset", out GameFile file))
 			{
-				logger.LogError("Unable to locate natural gift data table.");
+				logger.Error("Unable to locate natural gift data table.");
 				return null;
 			}
 
@@ -226,7 +226,7 @@ namespace SoulmaskDataMiner.Miners
 				int id;
 				if (!int.TryParse(row.Key.Text, out id))
 				{
-					logger.Log(LogLevel.Warning, $"Natural gift table row key is not a valid integer: {row.Key.Text}");
+					logger.Warning($"Natural gift table row key is not a valid integer: {row.Key.Text}");
 					continue;
 				}
 

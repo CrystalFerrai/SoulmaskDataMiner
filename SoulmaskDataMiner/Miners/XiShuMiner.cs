@@ -107,7 +107,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_GameXiShu_GuanLiQi.uasset", out GameFile file))
 				{
-					logger.LogError("Unable to locate asset BP_GameXiShu_GuanLiQi.");
+					logger.Error("Unable to locate asset BP_GameXiShu_GuanLiQi.");
 					return false;
 				}
 
@@ -135,14 +135,14 @@ namespace SoulmaskDataMiner.Miners
 			}
 			if (configMap is null)
 			{
-				logger.LogError("Unable to read GameXiShuConfigMap from asset BP_GameXiShu_GuanLiQi");
+				logger.Error("Unable to read GameXiShuConfigMap from asset BP_GameXiShu_GuanLiQi");
 				return false;
 			}
 
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_YiWenText.uasset", out GameFile file))
 				{
-					logger.LogError("Unable to locate asset DT_YiWenText.");
+					logger.Error("Unable to locate asset DT_YiWenText.");
 					return false;
 				}
 
@@ -151,7 +151,7 @@ namespace SoulmaskDataMiner.Miners
 
 				if (textTable is null)
 				{
-					logger.LogError("Unable to read data from asset DT_YiWenText");
+					logger.Error("Unable to read data from asset DT_YiWenText");
 					return false;
 				}
 
@@ -164,7 +164,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_XiShuTipsText.uasset", out GameFile file))
 				{
-					logger.LogError("Unable to locate asset DT_XiShuTipsText.");
+					logger.Error("Unable to locate asset DT_XiShuTipsText.");
 					return false;
 				}
 
@@ -173,7 +173,7 @@ namespace SoulmaskDataMiner.Miners
 
 				if (tipsTable is null)
 				{
-					logger.LogError("Unable to read data from asset DT_XiShuTipsText");
+					logger.Error("Unable to read data from asset DT_XiShuTipsText");
 					return false;
 				}
 

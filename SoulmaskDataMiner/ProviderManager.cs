@@ -166,7 +166,7 @@ namespace SoulmaskDataMiner
 
 			try
 			{
-				logger.Log(LogLevel.Information, "Loading class metadata...");
+				logger.Information("Loading class metadata...");
 
 				Stopwatch timer = new();
 				timer.Start();
@@ -195,7 +195,7 @@ namespace SoulmaskDataMiner
 						string className = @class.Name;
 						if (classes.ContainsKey(className))
 						{
-							logger.Log(LogLevel.Debug, $"Found an additional instance of class \"{className}\" in metadata. Skipping.");
+							logger.Debug($"Found an additional instance of class \"{className}\" in metadata. Skipping.");
 							continue;
 						}
 
@@ -237,13 +237,13 @@ namespace SoulmaskDataMiner
 
 				timer.Stop();
 
-				logger.Log(LogLevel.Information, $"Class metadata loaded in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
+				logger.Information($"Class metadata loaded in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
 
 				return true;
 			}
 			catch (Exception ex)
 			{
-				logger.LogError($"Failed to load class metadata. [{ex.GetType().FullName}] {ex.Message}");
+				logger.Error($"Failed to load class metadata. [{ex.GetType().FullName}] {ex.Message}");
 				return false;
 			}
 		}

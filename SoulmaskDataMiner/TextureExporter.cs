@@ -58,14 +58,14 @@ namespace SoulmaskDataMiner
 			}
 			catch (Exception ex)
 			{
-				logger.LogError($"Failed to create output directory. [{ex.GetType().FullName}] {ex.Message}");
+				logger.Error($"Failed to create output directory. [{ex.GetType().FullName}] {ex.Message}");
 				return false;
 			}
 
 			SKBitmap? bitmap = texture.Decode();
 			if (bitmap == null)
 			{
-				logger.Log(LogLevel.Warning, $"{texture.GetPathName()} - Failed to decode texture.");
+				logger.Warning($"{texture.GetPathName()} - Failed to decode texture.");
 				return false;
 			}
 

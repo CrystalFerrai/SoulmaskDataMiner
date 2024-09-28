@@ -76,7 +76,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_WenShenTable.uasset", out GameFile file))
 			{
-				logger.LogError("Unable to locate asset DT_YiWenText.");
+				logger.Error("Unable to locate asset DT_YiWenText.");
 				return null;
 			}
 
@@ -84,7 +84,7 @@ namespace SoulmaskDataMiner.Miners
 			UDataTable? table = package.ExportMap[0].ExportObject.Value as UDataTable;
 			if (table is null)
 			{
-				logger.LogError("Error loading DT_WenShenTable");
+				logger.Error("Error loading DT_WenShenTable");
 				return null;
 			}
 
@@ -93,7 +93,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (!int.TryParse(pair.Key.Text, out int id))
 				{
-					logger.Log(LogLevel.Warning, $"Failed to parse ID '{pair.Key.Text}'. Skipping this WenShen.");
+					logger.Warning($"Failed to parse ID '{pair.Key.Text}'. Skipping this WenShen.");
 					continue;
 				}
 
@@ -172,13 +172,13 @@ namespace SoulmaskDataMiner.Miners
 				}
 				else
 				{
-					logger.Log(LogLevel.Warning, $"Failed to read required properties. Skipping WenShen '{id}'.");
+					logger.Warning($"Failed to read required properties. Skipping WenShen '{id}'.");
 				}
 			}
 
 			if (wenShenList.Count == 0)
 			{
-				logger.LogError("Failed to load any WenShen instances");
+				logger.Error("Failed to load any WenShen instances");
 				return null;
 			}
 

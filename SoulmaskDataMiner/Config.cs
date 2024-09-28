@@ -83,7 +83,7 @@ namespace SoulmaskDataMiner
 							}
 							else
 							{
-								logger.LogError("Missing parameter for --key argument");
+								logger.Error("Missing parameter for --key argument");
 								result = null;
 								return false;
 							}
@@ -96,7 +96,7 @@ namespace SoulmaskDataMiner
 							}
 							else
 							{
-								logger.LogError("Missing parameter for --key argument");
+								logger.Error("Missing parameter for --key argument");
 								result = null;
 								return false;
 							}
@@ -121,12 +121,12 @@ namespace SoulmaskDataMiner
 
 								if (unknownMiners.Count > 0)
 								{
-									logger.Log(LogLevel.Warning, $"The following specified miners were not found: {string.Join(',', unknownMiners)}");
+									logger.Warning($"The following specified miners were not found: {string.Join(',', unknownMiners)}");
 								}
 
 								if (miners.Length == unknownMiners.Count)
 								{
-									logger.LogError("No specified miners were found.");
+									logger.Error("No specified miners were found.");
 									result = null;
 									return false;
 								}
@@ -136,13 +136,13 @@ namespace SoulmaskDataMiner
 							}
 							else
 							{
-								logger.LogError("Missing parameter for --miners argument");
+								logger.Error("Missing parameter for --miners argument");
 								result = null;
 								return false;
 							}
 							break;
 						default:
-							logger.LogError($"Unrecognized argument '{args[i]}'");
+							logger.Error($"Unrecognized argument '{args[i]}'");
 							result = null;
 							return false;
 					}
@@ -159,7 +159,7 @@ namespace SoulmaskDataMiner
 							instance.OutputDirectory = Path.GetFullPath(args[i]);
 							break;
 						default:
-							logger.LogError("Too many positional arguments.");
+							logger.Error("Too many positional arguments.");
 							result = null;
 							return false;
 					}
@@ -169,21 +169,21 @@ namespace SoulmaskDataMiner
 
 			if (positionalArgIndex < 2)
 			{
-				logger.LogError($"Not enough positional arguments");
+				logger.Error($"Not enough positional arguments");
 				result = null;
 				return false;
 			}
 
 			if (!Directory.Exists(instance.GameContentDirectory))
 			{
-				logger.LogError($"The specified game asset directory \"{instance.GameContentDirectory}\" does not exist or is inaccessible");
+				logger.Error($"The specified game asset directory \"{instance.GameContentDirectory}\" does not exist or is inaccessible");
 				result = null;
 				return false;
 			}
 
 			if (instance.ClassesPath is not null && !File.Exists(instance.ClassesPath))
 			{
-				logger.LogError($"The specified classes path \"{instance.ClassesPath}\" does not exist or is inaccessible");
+				logger.Error($"The specified classes path \"{instance.ClassesPath}\" does not exist or is inaccessible");
 				result = null;
 				return false;
 			}

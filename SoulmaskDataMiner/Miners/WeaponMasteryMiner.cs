@@ -68,7 +68,7 @@ namespace SoulmaskDataMiner.Miners
 
 			if (masteryTable is null || startMasteryArray is null)
 			{
-				logger.LogError("Unable to locate ZhuanJingArray or ZhuanJingAbilitySets in BP_ZiYuanGuanLiQi");
+				logger.Error("Unable to locate ZhuanJingArray or ZhuanJingAbilitySets in BP_ZiYuanGuanLiQi");
 				masteries = null;
 				return false;
 			}
@@ -116,7 +116,7 @@ namespace SoulmaskDataMiner.Miners
 										UObject? ability = abilityClass?.ClassDefaultObject.ResolvedObject?.Object?.Value;
 										if (ability is null)
 										{
-											logger.Log(LogLevel.Warning, "Failed to load ability blueprint for mastery.");
+											logger.Warning("Failed to load ability blueprint for mastery.");
 											break;
 										}
 										ParseAbility(ability, ref data);
@@ -129,7 +129,7 @@ namespace SoulmaskDataMiner.Miners
 
 				if (weaponType == EWuQiLeiXing.WUQI_LEIXING_NONE || data.Name is null)
 				{
-					logger.Log(LogLevel.Warning, "Missing data for mastery. It will be skipped.");
+					logger.Warning("Missing data for mastery. It will be skipped.");
 					continue;
 				}
 
@@ -175,7 +175,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_ZhuanJingSLD.uasset", out GameFile file2))
 			{
-				logger.LogError("Unable to locate asset DT_ZhuanJingSLD.");
+				logger.Error("Unable to locate asset DT_ZhuanJingSLD.");
 				return null;
 			}
 			Package package2 = (Package)providerManager.Provider.LoadPackage(file2);
@@ -183,7 +183,7 @@ namespace SoulmaskDataMiner.Miners
 			UDataTable? abilitySetTable = package2.ExportMap[0].ExportObject.Value as UDataTable;
 			if (abilitySetTable is null)
 			{
-				logger.LogError("Error loading DT_ZhuanJingSLD");
+				logger.Error("Error loading DT_ZhuanJingSLD");
 				return null;
 			}
 
@@ -206,7 +206,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 				if (masteryType == EWuQiLeiXing.WUQI_LEIXING_NONE || acquireLevelMap is null)
 				{
-					logger.Log(LogLevel.Warning, "Failed to load some mastery level acquisition data.");
+					logger.Warning("Failed to load some mastery level acquisition data.");
 					continue;
 				}
 
@@ -224,7 +224,7 @@ namespace SoulmaskDataMiner.Miners
 					Dictionary<FPropertyTagType, FPropertyTagType?>? chanceMap = value.Properties.FirstOrDefault(p => p.Name.Text.Equals("JiNengChi"))?.Tag?.GetValue<UScriptMap>()?.Properties;
 					if (chanceMap is null)
 					{
-						logger.Log(LogLevel.Warning, "Failed to load some mastery level acquisition data.");
+						logger.Warning("Failed to load some mastery level acquisition data.");
 						continue;
 					}
 

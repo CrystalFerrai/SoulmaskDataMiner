@@ -37,7 +37,7 @@ namespace SoulmaskDataMiner
 				{
 					logger.Log(LogLevel.Error, $"{ex.Message} Press Ctrl+C to abort or any other key to try again.");
 					Console.ReadKey(true);
-					logger.Log(LogLevel.Important, "Retrying...");
+					logger.Important("Retrying...");
 				}
 			} while (true);
 		}

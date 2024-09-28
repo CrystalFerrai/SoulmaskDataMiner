@@ -107,14 +107,14 @@ namespace SoulmaskDataMiner
 		{
 			if (!provider.TryFindGameFile(assetPath, out GameFile file))
 			{
-				logger.LogError($"Unable to locate asset {Path.GetFileNameWithoutExtension(assetPath)}.");
+				logger.Error($"Unable to locate asset {Path.GetFileNameWithoutExtension(assetPath)}.");
 				return null;
 			}
 			Package package = (Package)provider.LoadPackage(file);
 			UObject? defaultsObj = GameUtil.FindBlueprintDefaultsObject(package);
 			if (defaultsObj is null)
 			{
-				logger.LogError($"Unable to load asset {Path.GetFileNameWithoutExtension(assetPath)}.");
+				logger.Error($"Unable to load asset {Path.GetFileNameWithoutExtension(assetPath)}.");
 				return null;
 			}
 

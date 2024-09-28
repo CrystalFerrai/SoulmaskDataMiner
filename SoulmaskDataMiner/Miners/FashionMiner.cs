@@ -30,7 +30,7 @@ namespace SoulmaskDataMiner.Miners
 			IEnumerable<CombinedFashionData> fashionData = GetFashionData(providerManager, logger);
 			if (!fashionData.Any())
 			{
-				logger.LogError("No fashion data found.");
+				logger.Error("No fashion data found.");
 				return false;
 			}
 
@@ -74,7 +74,7 @@ namespace SoulmaskDataMiner.Miners
 
 					if (maleId == 0 && femaleId == 0)
 					{
-						logger.Log(LogLevel.Warning, $"Could not parse data for Fashion pair [{fashion.Id},{otherFashion.Id}]");
+						logger.Warning($"Could not parse data for Fashion pair [{fashion.Id},{otherFashion.Id}]");
 						continue;
 					}
 
@@ -112,7 +112,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			if (!providerManager.Provider.TryFindGameFile("WS/Content/Data/DataTables/DT_Fashion.uasset", out GameFile file))
 			{
-				logger.LogError("Unable to locate asset DT_Fashion.");
+				logger.Error("Unable to locate asset DT_Fashion.");
 				return null;
 			}
 
@@ -120,7 +120,7 @@ namespace SoulmaskDataMiner.Miners
 			UDataTable? table = package.ExportMap[0].ExportObject.Value as UDataTable;
 			if (table is null)
 			{
-				logger.LogError("Error loading DT_Fashion");
+				logger.Error("Error loading DT_Fashion");
 				return null;
 			}
 
@@ -129,7 +129,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (!int.TryParse(pair.Key.Text, out int id))
 				{
-					logger.Log(LogLevel.Warning, $"Failed to parse ID '{pair.Key.Text}'. Skipping this Fashion.");
+					logger.Warning($"Failed to parse ID '{pair.Key.Text}'. Skipping this Fashion.");
 					continue;
 				}
 
@@ -161,7 +161,7 @@ namespace SoulmaskDataMiner.Miners
 
 				if (name is null || icon is null || !gender.HasValue)
 				{
-					logger.Log(LogLevel.Warning, $"Failed to read required properties. Skipping Fashion '{id}'.");
+					logger.Warning($"Failed to read required properties. Skipping Fashion '{id}'.");
 					continue;
 				}
 
@@ -179,7 +179,7 @@ namespace SoulmaskDataMiner.Miners
 
 			if (fashionList.Count == 0)
 			{
-				logger.LogError("Failed to load any Fashion instances");
+				logger.Error("Failed to load any Fashion instances");
 				return null;
 			}
 

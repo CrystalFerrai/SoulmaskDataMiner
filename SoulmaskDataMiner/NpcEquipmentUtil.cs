@@ -44,7 +44,7 @@ namespace SoulmaskDataMiner
 				FPropertyTag? rowStructProperty = sourceTable.Properties.FirstOrDefault(p => p.Name.Text.Equals("RowStruct"));
 				if (rowStructProperty is null)
 				{
-					logger.Log(LogLevel.Warning, "Unable to read equipment data table type");
+					logger.Warning("Unable to read equipment data table type");
 					return null;
 				}
 
@@ -52,7 +52,7 @@ namespace SoulmaskDataMiner
 				int tableType = rowStruct.Equals("DiWeiHeZhuangBeiLvTableData") ? 1 : rowStruct.Equals("DiWeiWuQiTableData") ? 2 : 0;
 				if (tableType == 0)
 				{
-					logger.Log(LogLevel.Warning, $"Data table type {rowStruct} cannot be read as an equipment data table");
+					logger.Warning($"Data table type {rowStruct} cannot be read as an equipment data table");
 					return null;
 				}
 
@@ -158,7 +158,7 @@ namespace SoulmaskDataMiner
 
 				if (!clanStatus.HasValue || rowData is null)
 				{
-					logger.Log(LogLevel.Warning, "Equipment table could not be parsed");
+					logger.Warning("Equipment table could not be parsed");
 					return false;
 				}
 
@@ -168,7 +168,7 @@ namespace SoulmaskDataMiner
 					FStructFallback? rowObj = item.GetValue<FStructFallback>();
 					if (rowObj is null)
 					{
-						logger.Log(LogLevel.Warning, "Equipment table row could not be parsed");
+						logger.Warning("Equipment table row could not be parsed");
 						continue;
 					}
 
@@ -211,7 +211,7 @@ namespace SoulmaskDataMiner
 
 				if (!clanStatus.HasValue || rowData is null)
 				{
-					logger.Log(LogLevel.Warning, "Weapon table could not be parsed");
+					logger.Warning("Weapon table could not be parsed");
 					return false;
 				}
 
@@ -221,7 +221,7 @@ namespace SoulmaskDataMiner
 					FStructFallback? rowObj = item.GetValue<FStructFallback>();
 					if (rowObj is null)
 					{
-						logger.Log(LogLevel.Warning, "Weapon table row could not be parsed");
+						logger.Warning("Weapon table row could not be parsed");
 						continue;
 					}
 
@@ -284,7 +284,7 @@ namespace SoulmaskDataMiner
 
 			if (occupationArray is null || itemClassMap is null)
 			{
-				logger.Log(LogLevel.Warning, "Equipment table row could not be parsed");
+				logger.Warning("Equipment table row could not be parsed");
 				return false;
 			}
 
@@ -296,7 +296,7 @@ namespace SoulmaskDataMiner
 				}
 				else
 				{
-					logger.Log(LogLevel.Warning, "Unable to parse occupation value in equipment table row");
+					logger.Warning("Unable to parse occupation value in equipment table row");
 				}
 			}
 
@@ -305,7 +305,7 @@ namespace SoulmaskDataMiner
 				FPackageIndex? value = pair.Value?.GetValue<FPackageIndex>();
 				if (value is null)
 				{
-					logger.Log(LogLevel.Warning, "Unable to parse item class value in equipment table row");
+					logger.Warning("Unable to parse item class value in equipment table row");
 					continue;
 				}
 				if (value.Name.Equals("None"))
@@ -345,7 +345,7 @@ namespace SoulmaskDataMiner
 
 			if (occupationArray is null || essentialWeaponObj is null || weaponDataArray is null)
 			{
-				logger.Log(LogLevel.Warning, "Equipment table row could not be parsed");
+				logger.Warning("Equipment table row could not be parsed");
 				return false;
 			}
 
@@ -357,7 +357,7 @@ namespace SoulmaskDataMiner
 				}
 				else
 				{
-					logger.Log(LogLevel.Warning, "Unable to parse occupation value in equipment table row");
+					logger.Warning("Unable to parse occupation value in equipment table row");
 				}
 			}
 
@@ -396,7 +396,7 @@ namespace SoulmaskDataMiner
 						FPackageIndex? value = innerItem?.GetValue<FPackageIndex>();
 						if (value is null)
 						{
-							logger.Log(LogLevel.Warning, "Unable to parse item class value in weapon table row");
+							logger.Warning("Unable to parse item class value in weapon table row");
 							continue;
 						}
 						if (value.Name.Equals("None"))
@@ -415,7 +415,7 @@ namespace SoulmaskDataMiner
 					FPackageIndex? value = item?.GetValue<FPackageIndex>();
 					if (value is null)
 					{
-						logger.Log(LogLevel.Warning, "Unable to parse item class value in weapon table row");
+						logger.Warning("Unable to parse item class value in weapon table row");
 						continue;
 					}
 					if (value.Name.Equals("None"))
@@ -431,7 +431,7 @@ namespace SoulmaskDataMiner
 				FStructFallback? weaponDataItemObj = weaponDataItem.GetValue<FStructFallback>();
 				if (weaponDataItemObj is null)
 				{
-					logger.Log(LogLevel.Warning, "Unable to parse weapon table row");
+					logger.Warning("Unable to parse weapon table row");
 					continue;
 				}
 
@@ -466,7 +466,7 @@ namespace SoulmaskDataMiner
 						FPackageIndex? value = item?.GetValue<FPackageIndex>();
 						if (value is null)
 						{
-							logger.Log(LogLevel.Warning, "Unable to parse item class value in weapon table row");
+							logger.Warning("Unable to parse item class value in weapon table row");
 							continue;
 						}
 						if (value.Name.Equals("None"))
@@ -484,7 +484,7 @@ namespace SoulmaskDataMiner
 						FPackageIndex? value = item?.GetValue<FPackageIndex>();
 						if (value is null)
 						{
-							logger.Log(LogLevel.Warning, "Unable to parse item class value in weapon table row");
+							logger.Warning("Unable to parse item class value in weapon table row");
 							continue;
 						}
 						if (value.Name.Equals("None"))

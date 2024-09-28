@@ -63,7 +63,7 @@ namespace SoulmaskDataMiner
 			UObject? achiementListObj = LoadDefaultsObject("WS/Content/Blueprints/ZiYuanGuanLi/BP_ChengJiuConfig.uasset", provider, logger);
 			if (achiementListObj is null)
 			{
-				logger.LogError("Error loading game achievement list asset");
+				logger.Error("Error loading game achievement list asset");
 				return null;
 			}
 
@@ -78,7 +78,7 @@ namespace SoulmaskDataMiner
 							UScriptMap? map = property.Tag?.GetValue<FStructFallback>()?.Properties[0].Tag?.GetValue<UScriptMap>();
 							if (map is null)
 							{
-								logger.LogError("Failed to load achievement map");
+								logger.Error("Failed to load achievement map");
 								return null;
 							}
 							instance.LoadAchiementMap(map, logger);
@@ -98,14 +98,14 @@ namespace SoulmaskDataMiner
 			{
 				if (!GameUtil.TryParseEnum(sourcePair.Key, out EChengJiuBigType bigType))
 				{
-					logger.Log(LogLevel.Warning, $"Failed to parse \"{sourcePair.Key.GetValue<FText>()?.Text}\" as {nameof(EChengJiuBigType)}");
+					logger.Warning($"Failed to parse \"{sourcePair.Key.GetValue<FText>()?.Text}\" as {nameof(EChengJiuBigType)}");
 					continue;
 				}
 
 				UScriptMap? sourceSubMap = sourcePair.Value?.GetValue<FStructFallback>()?.Properties[0].Tag?.GetValue<UScriptMap>();
 				if (sourceSubMap is null)
 				{
-					logger.Log(LogLevel.Warning, $"Failed to read data for big achievement type {bigType}");
+					logger.Warning($"Failed to read data for big achievement type {bigType}");
 					continue;
 				}
 
@@ -121,14 +121,14 @@ namespace SoulmaskDataMiner
 				{
 					if (!GameUtil.TryParseEnum(subPair.Key, out EChengJiuType type))
 					{
-						logger.Log(LogLevel.Warning, $"Failed to parse \"{subPair.Key.GetValue<FText>()?.Text}\" as {nameof(EChengJiuType)}");
+						logger.Warning($"Failed to parse \"{subPair.Key.GetValue<FText>()?.Text}\" as {nameof(EChengJiuType)}");
 						continue;
 					}
 
 					UScriptArray? sourceList = subPair.Value?.GetValue<FStructFallback>()?.Properties[0].Tag?.GetValue<UScriptArray>();
 					if (sourceList is null)
 					{
-						logger.Log(LogLevel.Warning, $"Failed to read data for achievement type {type}");
+						logger.Warning($"Failed to read data for achievement type {type}");
 						continue;
 					}
 
@@ -145,7 +145,7 @@ namespace SoulmaskDataMiner
 						FPackageIndex? pi = item.GetValue<FPackageIndex>();
 						if (pi is null)
 						{
-							logger.Log(LogLevel.Warning, "Unable to read achievement data from achievement list");
+							logger.Warning("Unable to read achievement data from achievement list");
 							continue;
 						}
 
@@ -176,7 +176,7 @@ namespace SoulmaskDataMiner
 				{
 					if (collectMap.ContainsKey(item))
 					{
-						logger.Log(LogLevel.Warning, $"More than one achievement contains collect item {item}. This is not currently supported by this program.");
+						logger.Warning($"More than one achievement contains collect item {item}. This is not currently supported by this program.");
 						continue;
 					}
 
@@ -193,7 +193,7 @@ namespace SoulmaskDataMiner
 		{
 			if (!provider.TryFindGameFile(assetPath, out GameFile file))
 			{
-				logger.LogError($"Unable to load asset {Path.GetFileNameWithoutExtension(assetPath)}.");
+				logger.Error($"Unable to load asset {Path.GetFileNameWithoutExtension(assetPath)}.");
 				return null;
 			}
 
@@ -235,7 +235,7 @@ namespace SoulmaskDataMiner
 			UObject? defaultsObj = mPackageIndex.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
 			if (defaultsObj is null)
 			{
-				logger.Log(LogLevel.Warning, "Unable to load data for achievement");
+				logger.Warning("Unable to load data for achievement");
 				return;
 			}
 

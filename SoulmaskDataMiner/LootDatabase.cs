@@ -59,7 +59,7 @@ namespace SoulmaskDataMiner
 		{
 			if (mIsLoaded) return true;
 
-			logger.Log(LogLevel.Information, "Loading loot database..");
+			logger.Information("Loading loot database..");
 
 			Stopwatch timer = new Stopwatch();
 			timer.Start();
@@ -69,7 +69,7 @@ namespace SoulmaskDataMiner
 
 			timer.Stop();
 
-			logger.Log(LogLevel.Information, $"Loot database load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
+			logger.Information($"Loot database load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
 
 			mIsLoaded = true;
 			return true;
@@ -83,7 +83,7 @@ namespace SoulmaskDataMiner
 		/// <param name="logger">For logging messages</param>
 		public void SaveData(ISqlWriter sqlWriter, Config config, Logger logger)
 		{
-			logger.Log(LogLevel.Information, "Saving loot data...");
+			logger.Information("Saving loot data...");
 			WriteCsvLoot(config, logger);
 			WriteSqlLoot(sqlWriter, logger);
 		}
@@ -129,7 +129,7 @@ namespace SoulmaskDataMiner
 
 					if (name is null || contentArray is null)
 					{
-						logger.Log(LogLevel.Warning, $"Could not read chest data from {Path.GetFileNameWithoutExtension(filePair.Key)} row \"{pair.Key.Text}\"");
+						logger.Warning($"Could not read chest data from {Path.GetFileNameWithoutExtension(filePair.Key)} row \"{pair.Key.Text}\"");
 						continue;
 					}
 
@@ -294,7 +294,7 @@ namespace SoulmaskDataMiner
 
 			if (mLootMap.Count == 0)
 			{
-				logger.LogError("Failed to load any loot tables");
+				logger.Error("Failed to load any loot tables");
 				return false;
 			}
 
@@ -305,7 +305,7 @@ namespace SoulmaskDataMiner
 		{
 			if (!provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_ShengWuCollectData.uasset", out GameFile file))
 			{
-				logger.LogError("Unable to load BP_ShengWuCollectData");
+				logger.Error("Unable to load BP_ShengWuCollectData");
 				return false;
 			}
 
@@ -313,7 +313,7 @@ namespace SoulmaskDataMiner
 			UScriptMap? configMap = GameUtil.FindBlueprintDefaultsObject(package)?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ShengWuPropConfigMap"))?.Tag?.GetValue<UScriptMap>();
 			if (configMap == null)
 			{
-				logger.LogError("Unable to load ShengWuPropConfigMap from BP_ShengWuCollectData");
+				logger.Error("Unable to load ShengWuPropConfigMap from BP_ShengWuCollectData");
 				return false;
 			}
 
@@ -346,7 +346,7 @@ namespace SoulmaskDataMiner
 
 				if (collectMap is null || amount == 0 || totalDamage == 0 || damagePerReward == 0)
 				{
-					logger.Log(LogLevel.Warning, $"Unable to locate collection data for {key}");
+					logger.Warning($"Unable to locate collection data for {key}");
 					continue;
 				}
 
@@ -367,7 +367,7 @@ namespace SoulmaskDataMiner
 									}
 									else if (!hit.Equals(item))
 									{
-										logger.Log(LogLevel.Warning, $"Found differing loot data values in {key}");
+										logger.Warning($"Found differing loot data values in {key}");
 									}
 								}
 								break;
@@ -380,7 +380,7 @@ namespace SoulmaskDataMiner
 									}
 									else if (!finalHit.Equals(item))
 									{
-										logger.Log(LogLevel.Warning, $"Found differing loot data values in {key}");
+										logger.Warning($"Found differing loot data values in {key}");
 									}
 								}
 								break;
@@ -393,7 +393,7 @@ namespace SoulmaskDataMiner
 									}
 									else if (!baby.Equals(item))
 									{
-										logger.Log(LogLevel.Warning, $"Found differing loot data values in {key}");
+										logger.Warning($"Found differing loot data values in {key}");
 									}
 								}
 								break;
