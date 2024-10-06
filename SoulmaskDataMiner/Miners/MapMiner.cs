@@ -1629,7 +1629,8 @@ namespace SoulmaskDataMiner.Miners
 						continue;
 					}
 
-					int maxHealth = (int)statTable.RowMap.FirstOrDefault(r => r.Key.Text.Equals("HSuperCommonSet.MaxHealth")).Value.Properties.FirstOrDefault(p => p.Name.Text.Equals("BaseValue"))!.Tag!.GetValue<float>();
+					int maxHealthBase = (int)statTable.RowMap.FirstOrDefault(r => r.Key.Text.Equals("HSuperCommonSet.MaxHealth")).Value.Properties.FirstOrDefault(p => p.Name.Text.Equals("BaseValue"))!.Tag!.GetValue<float>();
+					int maxHealth = maxHealthBase + (int)((level - 1) * (maxHealthBase * 0.2f));
 
 					UBlueprintGeneratedClass recipeClass = pair.Key.GetValue<FPackageIndex>()!.Load<UBlueprintGeneratedClass>()!;
 					UObject recipeObj = recipeClass.ClassDefaultObject.Load()!;
