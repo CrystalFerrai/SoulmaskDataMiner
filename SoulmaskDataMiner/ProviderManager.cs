@@ -34,6 +34,8 @@ namespace SoulmaskDataMiner
 
 		private Dictionary<string, MetaClass>? mClassMetadata;
 
+		private GameTextTable? mGameTextTable;
+
 		private GameSingletonManager? mResourceManager;
 
 		private Achievements? mAchievements;
@@ -44,13 +46,25 @@ namespace SoulmaskDataMiner
 
 		public IReadOnlyDictionary<string, MetaClass>? ClassMetadata => mClassMetadata;
 
+		public GameTextTable GameTextTable
+		{
+			get
+			{
+				if (mGameTextTable is null)
+				{
+					throw new InvalidOperationException("Game text table not found. Has the provider manager been initialized?");
+				}
+				return mGameTextTable;
+			}
+		}
+
 		public GameSingletonManager SingletonManager
 		{
 			get
 			{
 				if (mResourceManager is null)
 				{
-					throw new InvalidOperationException("Resource manager not found. Has the provider manager been initialized?");
+					throw new InvalidOperationException("Singleton manager not found. Has the provider manager been initialized?");
 				}
 				return mResourceManager;
 			}
@@ -93,6 +107,7 @@ namespace SoulmaskDataMiner
 			{
 				return false;
 			}
+			mGameTextTable = GameTextTable.Load(mProvider, logger);
 			mResourceManager = GameSingletonManager.Load(mProvider, logger);
 			mAchievements = Achievements.Load(mProvider, logger);
 

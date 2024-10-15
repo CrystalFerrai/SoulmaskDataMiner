@@ -38,9 +38,14 @@ namespace SoulmaskDataMiner
 		IReadOnlyDictionary<string, MetaClass>? ClassMetadata { get; }
 
 		/// <summary>
-		/// The game's resource manager asset
+		/// Provides access to game singletons
 		/// </summary>
 		GameSingletonManager SingletonManager { get; }
+
+		/// <summary>
+		/// A table containing some general text entries from the game (DT_YiWenText)
+		/// </summary>
+		GameTextTable GameTextTable { get; }
 
 		/// <summary>
 		/// Game achievement data

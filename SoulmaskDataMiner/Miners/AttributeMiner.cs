@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using Newtonsoft.Json;
+using CUE4Parse.FileProvider.Objects;
+using CUE4Parse.UE4.Assets;
+using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Exports.Texture;
+using CUE4Parse.UE4.Assets.Objects;
+using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using System.Text.Json;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -29,19 +33,24 @@ namespace SoulmaskDataMiner.Miners
 
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
-			IEnumerable<string>? attributes;
-			if (!FindAttributeData(providerManager, logger, out attributes))
+			IEnumerable<AttributeData>? attributes;
+			if (!FindAttributeClasses(providerManager, logger, out attributes))
+			{
+				return false;
+			}
+			if (!FindAttributeData(attributes, providerManager, logger))
 			{
 				return false;
 			}
 
 			WriteCsv(attributes, config, logger);
 			WriteSql(attributes, sqlWriter, logger);
+			WriteTextures(attributes, config, logger);
 
 			return true;
 		}
 
-		private bool FindAttributeData(IProviderManager providerManager, Logger logger, [NotNullWhen(true)] out IEnumerable<string>? attributes)
+		private bool FindAttributeClasses(IProviderManager providerManager, Logger logger, [NotNullWhen(true)] out IEnumerable<AttributeData>? attributes)
 		{
 			string[] classNames = new string[]
 			{
@@ -50,7 +59,7 @@ namespace SoulmaskDataMiner.Miners
 				"UHBuWeiShangHaiAttriSet"
 			};
 
-			List<string> attrList = new();
+			List<AttributeData> attrList = new();
 
 			foreach (string className in classNames)
 			{
@@ -66,7 +75,7 @@ namespace SoulmaskDataMiner.Miners
 				{
 					if (!property.Type.Equals("FGameplayAttributeData")) continue;
 
-					attrList.Add(property.Name);
+					attrList.Add(new(property.Name));
 				}
 			}
 
@@ -74,36 +83,162 @@ namespace SoulmaskDataMiner.Miners
 			return true;
 		}
 
-		private void WriteCsv(IEnumerable<string> attributes, Config config, Logger logger)
+		private bool FindAttributeData(IEnumerable<AttributeData> attributes, IProviderManager providerManager, Logger logger)
+		{
+			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/UI/ShiTu/WBP_ShiTu.uasset", out GameFile file))
+			{
+				logger.Error("Unable to locate asset WBP_ShiTu.");
+				return false;
+			}
+
+			Package package = (Package)providerManager.Provider.LoadPackage(file);
+
+			foreach (AttributeData attr in attributes)
+			{
+				if (providerManager.GameTextTable.TryGetValue(attr.ClassName, out string? name))
+				{
+					attr.DisplayName = name;
+				}
+			}
+
+			Dictionary<EAttrType, AttributeData> attrMap = new();
+			foreach (AttributeData attr in attributes)
+			{
+				if (Enum.TryParse(attr.ClassName, true, out EAttrType result))
+				{
+					attrMap.Add(result, attr);
+				}
+			}
+
+			foreach (FObjectExport export in package.ExportMap)
+			{
+				if (!export.ClassName.Equals("WBP_ShiTuXiangXiShuXingZiUI_C")) continue;
+
+				UObject obj = export.ExportObject.Value;
+
+				EAttrType? curAttr = null, maxAttr = null;
+				string? displayName = null;
+				UTexture2D? icon = null;
+
+				foreach (FPropertyTag property in obj.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "ShuXingTuPian":
+							icon = GameUtil.ReadTextureProperty(property);
+							break;
+						case "ShuXingMing":
+							displayName = GameUtil.ReadTextProperty(property);
+							break;
+						case "ShuXingLeiXing":
+							{
+								if (GameUtil.TryParseEnum(property, out EAttrType result))
+								{
+									curAttr = result;
+								}
+							}
+							break;
+						case "ZuiDaShuXingLeiXing":
+							{
+								if (GameUtil.TryParseEnum(property, out EAttrType result))
+								{
+									maxAttr = result;
+								}
+							}
+							break;
+					}
+				}
+
+				if (!curAttr.HasValue && !maxAttr.HasValue)
+				{
+					logger.Warning($"UI element {obj.Name} does not specify an attribute type.");
+					continue;
+				}
+
+				void updateAttrData(EAttrType attr)
+				{
+					if (attrMap.TryGetValue(attr, out AttributeData? data))
+					{
+						// If name was found in name table, don't override it with UI text.
+						if (data.DisplayName is null)
+						{
+							data.DisplayName = displayName;
+						}
+						data.Icon = icon;
+					}
+					else
+					{
+						logger.Warning($"UI element {obj.Name} refers to attribute {attr} which was not found.");
+					}
+				}
+
+				if (curAttr.HasValue)
+				{
+					updateAttrData(curAttr.Value);
+				}
+				if (maxAttr.HasValue)
+				{
+					updateAttrData(maxAttr.Value);
+				}
+			}
+
+			return true;
+		}
+
+		private void WriteCsv(IEnumerable<AttributeData> attributes, Config config, Logger logger)
 		{
 			string outPath = Path.Combine(config.OutputDirectory, Name, $"{Name}.csv");
 			using FileStream stream = IOUtil.CreateFile(outPath, logger);
 			using StreamWriter writer = new(stream, Encoding.UTF8);
 
-			writer.WriteLine("name,desc");
+			writer.WriteLine("class,desc");
 
-			foreach (string attribute in attributes)
+			foreach (AttributeData attribute in attributes)
 			{
-				writer.WriteLine($"{CsvStr(attribute)},");
+				writer.WriteLine($"{CsvStr(attribute.ClassName)},");
 			}
 		}
 
-		private void WriteSql(IEnumerable<string> attributes, ISqlWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<AttributeData> attributes, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `attr` (
 			//   `idx` int not null,
-			//   `name` varchar(127) not null,
+			//   `class` varchar(63) not null,
+			//   `name` varchar(63),
+			//   `icon` varchar(63),
 			//   primary key (`idx`)
 			// )
 
 			sqlWriter.WriteStartTable("attr");
 			int i = 0;
-			foreach (string attribute in attributes)
+			foreach (AttributeData attribute in attributes)
 			{
-				sqlWriter.WriteRow($"{i++}, {DbStr(attribute)}");
+				sqlWriter.WriteRow($"{i++}, {DbStr(attribute.ClassName)}, {DbStr(attribute.DisplayName)}, {DbStr(attribute.Icon?.Name)}");
 			}
 			sqlWriter.WriteEndTable();
+		}
+
+		private void WriteTextures(IEnumerable<AttributeData> attributes, Config config, Logger logger)
+		{
+			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
+			foreach (AttributeData attr in attributes)
+			{
+				if (attr.Icon is null) continue;
+				TextureExporter.ExportTexture(attr.Icon, false, logger, outDir);
+			}
+		}
+
+		private class AttributeData
+		{
+			public string ClassName { get; }
+			public string? DisplayName { get; set; }
+			public UTexture2D? Icon { get; set; }
+
+			public AttributeData(string className)
+			{
+				ClassName = className;
+			}
 		}
 	}
 }

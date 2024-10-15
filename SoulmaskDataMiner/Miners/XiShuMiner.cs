@@ -76,14 +76,16 @@ namespace SoulmaskDataMiner.Miners
 					XishuData xishuData = XishuData.Parse(((FStructFallback)value.Value!.StructType).Properties);
 					xishuData.Index = i;
 
-					FName xishuName;
-					if (assetsData.TextNameMap.TryGetValue(xishuData.Name, out xishuName))
+					string? xishuName;
+					if (providerManager.GameTextTable.TryGetValue(xishuData.Name, out xishuName))
 					{
-						xishuData.Description = GameUtil.ReadTextProperty(assetsData.TextTable.RowMap[xishuName].Properties[0])!;
+						xishuData.Description = xishuName;
 					}
-					if (assetsData.TipsNameMap.TryGetValue(xishuData.Name, out xishuName))
+
+					FName xishuTip;
+					if (assetsData.TipsNameMap.TryGetValue(xishuData.Name, out xishuTip))
 					{
-						xishuData.Tip = GameUtil.ReadTextProperty(assetsData.TipsTable.RowMap[xishuName].Properties[0]);
+						xishuData.Tip = GameUtil.ReadTextProperty(assetsData.TipsTable.RowMap[xishuTip].Properties[0]);
 					}
 
 					list.Add(xishuData);
@@ -99,9 +101,7 @@ namespace SoulmaskDataMiner.Miners
 			assetsData = default;
 
 			Dictionary<FPropertyTagType, FPropertyTagType?>? configMap = null;
-			UDataTable? textTable = null;
 			UDataTable? tipsTable = null;
-			Dictionary<string, FName> textNameMap = new(StringComparer.OrdinalIgnoreCase);
 			Dictionary<string, FName> tipsNameMap = new(StringComparer.OrdinalIgnoreCase);
 
 			{
@@ -140,28 +140,6 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			{
-				if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_YiWenText.uasset", out GameFile file))
-				{
-					logger.Error("Unable to locate asset DT_YiWenText.");
-					return false;
-				}
-
-				Package package = (Package)providerManager.Provider.LoadPackage(file);
-				textTable = package.ExportMap[0].ExportObject.Value as UDataTable;
-
-				if (textTable is null)
-				{
-					logger.Error("Unable to read data from asset DT_YiWenText");
-					return false;
-				}
-
-				foreach (FName name in textTable.RowMap.Keys)
-				{
-					textNameMap.Add(name.Text, name);
-				}
-			}
-
-			{
 				if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_XiShuTipsText.uasset", out GameFile file))
 				{
 					logger.Error("Unable to locate asset DT_XiShuTipsText.");
@@ -186,9 +164,7 @@ namespace SoulmaskDataMiner.Miners
 			assetsData = new()
 			{
 				ConfigMap = configMap,
-				TextTable = textTable,
 				TipsTable = tipsTable,
-				TextNameMap = textNameMap,
 				TipsNameMap = tipsNameMap
 			};
 			return true;
@@ -273,9 +249,7 @@ namespace SoulmaskDataMiner.Miners
 		private struct AssetsData
 		{
 			public Dictionary<FPropertyTagType, FPropertyTagType?> ConfigMap;
-			public UDataTable TextTable;
 			public UDataTable TipsTable;
-			public Dictionary<string, FName> TextNameMap;
 			public Dictionary<string, FName> TipsNameMap;
 		}
 
