@@ -201,6 +201,7 @@ namespace SoulmaskDataMiner
 											entry.AreaCondition = 1;
 											break;
 										case "BP_Condition_Area_IsZhaoze_C":
+										case "BP_Condition_Area_IsZhaoZe_C":
 											entry.AreaCondition = 2;
 											break;
 										case "BP_Condition_GongJiangDrop_C":
