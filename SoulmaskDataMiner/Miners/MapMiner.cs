@@ -1709,7 +1709,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 
 					string summonRecipe = "{}";
-					if (recipeItems.Count > 0 || maskEnergyCost > 0)
+					if (recipeItems.Count > 0 || maskEnergyCost > 0 || requiredLevel > 0)
 					{
 						StringBuilder builder = new("{");
 
@@ -1721,6 +1721,7 @@ namespace SoulmaskDataMiner.Miners
 						builder.Length -= 1; // Remove trailing comma
 						builder.Append("]");
 
+						builder.Append($",\"level\":{requiredLevel}");
 						builder.Append($",\"mask\":{maskEnergyCost}");
 
 						builder.Append("}");
