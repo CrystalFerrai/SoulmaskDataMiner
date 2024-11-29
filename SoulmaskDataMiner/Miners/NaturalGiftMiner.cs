@@ -236,7 +236,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			return id < 200000
 				|| id >= 300000 && id < 510000
-				|| id >= 600000 && id < 900000 && id != 600051 && id != 600054 && id != 600056;
+				|| id >= 600000 && id < 900000 && id != 600051 && id != 600054 && id != 600056 && id != 600058;
 		}
 
 		private static string TranslateGiftSource(ENaturalGiftSource source)

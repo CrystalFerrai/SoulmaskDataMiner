@@ -303,6 +303,18 @@ namespace SoulmaskDataMiner
 	};
 
 	/// <summary>
+	/// Indicates how to apply a stat mod
+	/// </summary>
+	internal enum EGameplayModOp
+	{
+		Additive,
+		Multiplicitive,
+		Division,
+		Override,
+		Max
+	};
+
+	/// <summary>
 	/// Gameplay settings category
 	/// </summary>
 	internal enum EGameXiShuType
@@ -450,7 +462,8 @@ namespace SoulmaskDataMiner
 		ETSD_TYPE_DIXIACHENG,
 		ETSD_TYPE_CHUANSONGMEN,
 		ETSD_TYPE_KUANGCHUANG_SMALL,
-		ETSD_TYPE_SHEN_MIAO
+		ETSD_TYPE_SHEN_MIAO,
+		ETSD_TYPE_ARENA
 	}
 
 	/// <summary>

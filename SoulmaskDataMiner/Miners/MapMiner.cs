@@ -2318,6 +2318,7 @@ namespace SoulmaskDataMiner.Miners
 				ETanSuoDianType.ETSD_TYPE_CHUANSONGMEN => "Mysterious Portal",
 				ETanSuoDianType.ETSD_TYPE_KUANGCHUANG_SMALL => "Small Mine",
 				ETanSuoDianType.ETSD_TYPE_SHEN_MIAO => "Mysterious Ruins",
+				ETanSuoDianType.ETSD_TYPE_ARENA => "Arena",
 				_ => "Unknown"
 			};
 		}
@@ -2342,6 +2343,7 @@ namespace SoulmaskDataMiner.Miners
 				ETanSuoDianType.ETSD_TYPE_CHUANSONGMEN => "Mysterious Portal",
 				ETanSuoDianType.ETSD_TYPE_KUANGCHUANG_SMALL => "Mine (Small)",
 				ETanSuoDianType.ETSD_TYPE_SHEN_MIAO => "Ruins (Mysterious)",
+				ETanSuoDianType.ETSD_TYPE_ARENA => "Arena",
 				_ => "Unknown"
 			};
 		}
