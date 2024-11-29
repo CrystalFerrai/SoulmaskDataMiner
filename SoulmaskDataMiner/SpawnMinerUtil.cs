@@ -304,7 +304,8 @@ namespace SoulmaskDataMiner
 				{
 					float weight = 0.0f;
 					UBlueprintGeneratedClass? @class = null;
-					bool isBaby = false;
+					bool canGrow = false;
+					bool directCapture = false;
 					int levelMin = -1, levelMax = -1;
 					string? loot = null;
 
@@ -320,7 +321,10 @@ namespace SoulmaskDataMiner
 								@class = property.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
 								break;
 							case "ShiFouFaYu":
-								isBaby = property.Tag!.GetValue<bool>();
+								canGrow = property.Tag!.GetValue<bool>();
+								break;
+							case "CanDirectBuZhuo":
+								directCapture = property.Tag!.GetValue<bool>();
 								break;
 							case "SCGZuiXiaoDengJi":
 								levelMin = property.Tag!.GetValue<int>();
@@ -341,7 +345,7 @@ namespace SoulmaskDataMiner
 
 					ScgData scgData = scgDataList[sgbToScgIndexMap[i]];
 
-					npcData.Add(new(new(@class, isBaby, levelMin, levelMax, spawnCounts[i], loot) { Name = scgData.HumanName! }, weight));
+					npcData.Add(new(new(@class, canGrow || directCapture, levelMin, levelMax, spawnCounts[i], loot) { Name = scgData.HumanName! }, weight));
 				}
 			}
 
@@ -491,25 +495,65 @@ namespace SoulmaskDataMiner
 				return NpcCategory.Ostrich;
 			}
 
-			if (bph.IsDerivedFrom(fistNpcClass, "HCharacterDongWu"))
+			if (bph.IsDerivedFrom(fistNpcClass, "HCharacterDongWu") || bph.IsDerivedFrom(fistNpcClass, "HCharacterKurma"))
 			{
 				if (npcData.IsBaby)
 				{
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_BaoZi_C") || bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_XueBao_C"))
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_DaYangTuo_C"))
 					{
-						return NpcCategory.Cats;
+						return NpcCategory.Llama;
 					}
-					else if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YangTuo_C") || bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_DaYangTuo_C"))
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YangTuo_C"))
 					{
-						return NpcCategory.Lamas;
+						return NpcCategory.Alpaca;
 					}
-					else if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_HuoJi_C"))
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_XueBao_C"))
+					{
+						return NpcCategory.Jaguar;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_BaoZi_C"))
+					{
+						return NpcCategory.Leopard;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_TuoNiao_Egg"))
+					{
+						return NpcCategory.Ostrich;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_HuoJi_C"))
 					{
 						return NpcCategory.Turkey;
 					}
-					else if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_ShuiTun_C"))
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_ShuiTun_C"))
 					{
 						return NpcCategory.Capybara;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YeZhu_C"))
+					{
+						return NpcCategory.Boar;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Kurma_DaXiang_C"))
+					{
+						return NpcCategory.Elephant;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_QiuYuXi_C"))
+					{
+						return NpcCategory.Lizard;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YeNiu_C"))
+					{
+						return NpcCategory.Bison;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_JiaoDiao_Egg_C"))
+					{
+						return NpcCategory.Eagle;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_XiangGui_Egg_C"))
+					{
+						return NpcCategory.Tortoise;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Kurma_TuoLu_C"))
+					{
+						return NpcCategory.Moose;
 					}
 				}
 				return NpcCategory.Animal;
@@ -724,74 +768,6 @@ namespace SoulmaskDataMiner
 	}
 
 	/// <summary>
-	/// Represents a value and an associated weight
-	/// </summary>
-	/// <typeparam name="T">The type of the value</typeparam>
-	internal class WeightedValue<T> where T : notnull
-	{
-		/// <summary>
-		/// The value
-		/// </summary>
-		public T Value { get; }
-
-		/// <summary>
-		/// The weight of the value proportional to other weighted values
-		/// </summary>
-		public double Weight { get; private set; }
-
-		public WeightedValue(T value, double weight)
-		{
-			Value = value;
-			Weight = weight;
-		}
-
-		public override string ToString()
-		{
-			return $"{Value}: {Weight}";
-		}
-
-		/// <summary>
-		/// Combines weights with matching values and calculates relative weight values.
-		/// </summary>
-		/// <param name="collection">The collection to reduce</param>
-		/// <returns>
-		/// A new collection where each value occurs only once, and the weight is a percentage of
-		/// the total weight of all values.
-		/// </returns>
-		/// <remarks>
-		/// Values will only be combined if their GetHashCode and Equals functions both indicate
-		/// that they are the same value. This will work by defualt for primitive types. Complex
-		/// types will need to implement these functions to ensure desired results.
-		/// </remarks>
-		public static IEnumerable<WeightedValue<T>> Reduce(IEnumerable<WeightedValue<T>> collection)
-		{
-			Dictionary<T, WeightedValue<T>> map = new();
-			double totalWeight = 0.0;
-			foreach (WeightedValue<T> item in collection)
-			{
-				if (item.Weight == 0.0) continue;
-
-				totalWeight += item.Weight;
-
-				WeightedValue<T>? current;
-				if (!map.TryGetValue(item.Value, out current))
-				{
-					current = new(item.Value, 0.0);
-					map.Add(item.Value, current);
-				}
-				current.Weight += item.Weight;
-			}
-
-			foreach (WeightedValue<T> current in map.Values)
-			{
-				current.Weight = current.Weight / totalWeight;
-			}
-
-			return map.Values;
-		}
-	}
-
-	/// <summary>
 	/// Broad categorization of NPC type
 	/// </summary>
 	internal enum NpcCategory
@@ -800,11 +776,20 @@ namespace SoulmaskDataMiner
 		Animal,
 		Mechanical,
 		Human,
-		Lamas,
-		Cats,
+		Llama,
+		Alpaca,
+		Jaguar,
+		Leopard,
 		Ostrich,
 		Turkey,
 		Capybara,
+		Boar,
+		Elephant,
+		Lizard,
+		Bison,
+		Eagle,
+		Tortoise,
+		Moose,
 		Count
 	}
 }
