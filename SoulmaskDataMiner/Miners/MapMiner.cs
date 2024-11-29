@@ -468,23 +468,88 @@ namespace SoulmaskDataMiner.Miners
 				poiDatabase.SpawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = ((NpcCategory)i).ToString(), Icon = icon };
 			}
 
-			UTexture2D? lamasIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_yangtuo.uasset", logger);
-			UTexture2D? catsIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_baozi.uasset", logger);
-			UTexture2D? ostrichIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_tuoniao.uasset", logger);
-			UTexture2D? turkeyIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_huoji.uasset", logger);
-			UTexture2D? capybaraIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/dongwutubiao/ditubiaoji_shuitun.uasset", logger);
-			if (lamasIcon is null || catsIcon is null || ostrichIcon is null || turkeyIcon is null || capybaraIcon is null)
+			UScriptMap? animalConfigMap = providerManager.SingletonManager.GameSingleton.Properties.FirstOrDefault(p => p.Name.Text.Equals("DongWuConfigMap"))?.Tag?.GetValue<UScriptMap>();
+			if (animalConfigMap is null)
+			{
+				logger.Error("Failed to load animal config map from game singleton");
+				return false;
+			}
+
+			Dictionary<string, FPropertyTag> animalIconMap = new();
+			foreach (var pair in animalConfigMap.Properties)
+			{
+				string? className = pair.Key.GetValue<FPackageIndex>()?.Name;
+				FPropertyTag? iconProperty = pair.Value?.GetValue<FStructFallback>()?.Properties[0];
+				if (className is null || iconProperty is null) continue;
+
+				animalIconMap.Add(className, iconProperty);
+			}
+
+			UTexture2D? loadTexture(string className)
+			{
+				if (animalIconMap.TryGetValue(className, out FPropertyTag? iconProperty))
+				{
+					string? iconPath = iconProperty.Tag.GetValue<FPackageIndex>()?.ResolvedObject?.GetPathName();
+					if (iconPath is null) return null;
+
+					// Swap to the map marker version of the texture
+					iconPath = iconPath.Replace("xunyang", "ditubiaoji");
+					iconPath = iconPath.Substring(0, iconPath.LastIndexOf('.'));
+					iconPath += ".uasset";
+
+					return GameUtil.LoadFirstTexture(providerManager.Provider, iconPath, logger);
+				}
+				return null;
+			}
+
+			UTexture2D? llamaIcon = loadTexture("BP_DongWu_DaYangTuo_C");
+			UTexture2D? alpacaIcon = loadTexture("BP_DongWu_YangTuo_C");
+			UTexture2D? jaguarIcon = loadTexture("BP_DongWu_XueBao_C");
+			UTexture2D? leopardIcon = loadTexture("BP_DongWu_BaoZi_C");
+			UTexture2D? ostrichIcon = loadTexture("BP_DongWu_TuoNiao_C");
+			UTexture2D? turkeyIcon = loadTexture("BP_DongWu_HuoJi_C");
+			UTexture2D? capybaraIcon = loadTexture("BP_DongWu_ShuiTun_C");
+			UTexture2D? boarIcon = loadTexture("BP_DongWu_YeZhu_C");
+			UTexture2D? elephantIcon = loadTexture("BP_DongWu_DaXiang_C");
+			UTexture2D? lizardIcon = loadTexture("BP_DongWu_QiuYuXi_C");
+			UTexture2D? bisonIcon = loadTexture("BP_DongWu_YeNiu_C");
+			UTexture2D? eagleIcon = loadTexture("BP_DongWu_JiaoDiao_C");
+			UTexture2D? tortoiseIcon = loadTexture("BP_DongWu_XiangGui_C");
+			UTexture2D? mooseIcon = loadTexture("BP_DongWu_TuoLu_C");
+			if (llamaIcon is null ||
+				alpacaIcon is null ||
+				jaguarIcon is null ||
+				leopardIcon is null ||
+				ostrichIcon is null ||
+				turkeyIcon is null ||
+				capybaraIcon is null ||
+				boarIcon is null ||
+				elephantIcon is null ||
+				lizardIcon is null ||
+				bisonIcon is null ||
+				eagleIcon is null ||
+				tortoiseIcon is null ||
+				mooseIcon is null)
 			{
 				logger.Error("Failed to load spawner icon texture.");
 				return false;
 			}
 
 			const string babyAnimalSpawnName = "Baby Animal Spawn";
-			poiDatabase.SpawnLayerMap[NpcCategory.Lamas] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lamasIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Cats] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = catsIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Llama] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = llamaIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Alpaca] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = alpacaIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Jaguar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = jaguarIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Leopard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = leopardIcon };
 			poiDatabase.SpawnLayerMap[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
 			poiDatabase.SpawnLayerMap[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
 			poiDatabase.SpawnLayerMap[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Boar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = boarIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Elephant] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = elephantIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Lizard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lizardIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Bison] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = bisonIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Eagle] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = eagleIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Tortoise] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = tortoiseIcon };
+			poiDatabase.SpawnLayerMap[NpcCategory.Moose] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = mooseIcon };
 
 			return true;
 		}
@@ -983,11 +1048,20 @@ namespace SoulmaskDataMiner.Miners
 							group = SpawnLayerGroup.Human;
 							type = spawnData.ClanType.ToEn();
 							break;
-						case NpcCategory.Lamas:
-						case NpcCategory.Cats:
+						case NpcCategory.Llama:
+						case NpcCategory.Alpaca:
+						case NpcCategory.Jaguar:
+						case NpcCategory.Leopard:
 						case NpcCategory.Ostrich:
 						case NpcCategory.Turkey:
 						case NpcCategory.Capybara:
+						case NpcCategory.Boar:
+						case NpcCategory.Elephant:
+						case NpcCategory.Lizard:
+						case NpcCategory.Bison:
+						case NpcCategory.Eagle:
+						case NpcCategory.Tortoise:
+						case NpcCategory.Moose:
 							group = SpawnLayerGroup.BabyAnimal;
 							type = poiName;
 							break;
