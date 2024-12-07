@@ -171,15 +171,25 @@ namespace SoulmaskDataMiner
 						continue;
 					}
 
+					bool missingHitLoot = hitLootName is null || sFoliageBlackList.Contains(hitLootName) || hitLootName.Equals("None");
+					if (missingHitLoot && toolSuggestion.Value != EFoliageCollectSuggestToolType.EFCSTT_NotSuggestUse)
+					{
+						hitLootName = currentHitLootName;
+					}
+
+					bool missingFinalHitLoot = finalHitLootName is null || sFoliageBlackList.Contains(finalHitLootName) || finalHitLootName.Equals("None");
+					if (missingFinalHitLoot && toolSuggestion.Value != EFoliageCollectSuggestToolType.EFCSTT_NotSuggestUse)
+					{
+						finalHitLootName = currentFinalHitLootName;
+					}
+
 					if (toolSuggestion.Value == EFoliageCollectSuggestToolType.EFCSTT_SuggestLowest)
 					{
 						suggestedToolClass = toolPair.Key.GetValue<FPackageIndex>()!.Name;
 					}
-
-					if ((hitLootName is null || finalHitLootName is null) && toolSuggestion.Value != EFoliageCollectSuggestToolType.EFCSTT_NotSuggestUse)
+					else if (toolSuggestion.Value == EFoliageCollectSuggestToolType.EFCSTT_SuggestUse && missingHitLoot && missingFinalHitLoot)
 					{
-						hitLootName = currentHitLootName;
-						finalHitLootName = currentFinalHitLootName;
+						suggestedToolClass = toolPair.Key.GetValue<FPackageIndex>()!.Name;
 					}
 				}
 
