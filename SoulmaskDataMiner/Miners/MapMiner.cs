@@ -489,7 +489,7 @@ namespace SoulmaskDataMiner.Miners
 			{
 				if (animalIconMap.TryGetValue(className, out FPropertyTag? iconProperty))
 				{
-					string? iconPath = iconProperty.Tag.GetValue<FPackageIndex>()?.ResolvedObject?.GetPathName();
+					string? iconPath = iconProperty?.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.GetPathName();
 					if (iconPath is null) return null;
 
 					// Swap to the map marker version of the texture
@@ -2149,11 +2149,47 @@ namespace SoulmaskDataMiner.Miners
 			if (spawner.NpcData.Skip(1).Any(d => (d.Value.SpawnerLoot ?? d.Value.CharacterLoot) != firstLootId))
 			{
 				// Multiple loot tables referenced
+
+				// If there are multiple NPCs with the same name, append a suffix so that the resulting JSON is valid
+				Dictionary<string, EXingBieType> classGenderMap = new();
+				HashSet<string> separateGenderNames = new();
+				Dictionary<string, int> sameNames = new();
+				foreach (NpcData npc in spawner.NpcData.Select(d => d.Value))
+				{
+					if (classGenderMap.TryGetValue(npc.Name, out EXingBieType sex))
+					{
+						if (sex != npc.Sex)
+						{
+							separateGenderNames.Add(npc.Name);
+						}
+						else
+						{
+							sameNames.TryAdd(npc.Name, 1);
+						}
+					}
+					else
+					{
+						classGenderMap.Add(npc.Name, npc.Sex);
+					}
+				}
+
 				StringBuilder lootMapBuilder = new("{");
 				foreach (NpcData npc in spawner.NpcData.Select(d => d.Value))
 				{
 					string? loot = npc.SpawnerLoot ?? npc.CharacterLoot;
-					lootMapBuilder.Append($"\"{npc.Name}\": \"{loot}\",");
+					if (separateGenderNames.Contains(npc.Name))
+					{
+						lootMapBuilder.Append($"\"{npc.Name} ({(npc.Sex == EXingBieType.CHARACTER_XINGBIE_NV ? "F" : "M")})\": \"{loot}\",");
+					}
+					else if (sameNames.TryGetValue(npc.Name, out int count))
+					{
+						lootMapBuilder.Append($"\"{npc.Name} ({count})\": \"{loot}\",");
+						sameNames[npc.Name] = count + 1;
+					}
+					else
+					{
+						lootMapBuilder.Append($"\"{npc.Name}\": \"{loot}\",");
+					}
 				}
 				lootMapBuilder.Length -= 1; // Remove trailing comma
 				lootMapBuilder.Append("}");
