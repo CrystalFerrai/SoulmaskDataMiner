@@ -90,7 +90,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 
-			// Any remaining fashions are single-gender
+			// Any remaining fashions are single-gender or genderless
 			foreach (FashionData fashion in iconFashionMap.Values)
 			{
 				int maleId = 0, femaleId = 0;
@@ -101,6 +101,12 @@ namespace SoulmaskDataMiner.Miners
 				}
 				else if (fashion.Gender == EXingBieType.CHARACTER_XINGBIE_NV)
 				{
+					femaleId = fashion.Id;
+				}
+				else
+				{
+					// No gender
+					maleId = fashion.Id;
 					femaleId = fashion.Id;
 				}
 
