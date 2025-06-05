@@ -21,6 +21,9 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace SoulmaskDataMiner
 {
+	/// <summary>
+	/// Provides access to data from the common game text asset DT_YiWenText
+	/// </summary>
 	internal class GameTextTable : IReadOnlyDictionary<string, string>
 	{
 		private readonly IReadOnlyDictionary<string, string> mData;

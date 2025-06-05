@@ -374,6 +374,8 @@ namespace SoulmaskDataMiner
 		/// </summary>
 		EGXST_WARTIME,
 
+		EGXST_SPECIALEVENT,
+
 		EGXST_MAX
 	};
 

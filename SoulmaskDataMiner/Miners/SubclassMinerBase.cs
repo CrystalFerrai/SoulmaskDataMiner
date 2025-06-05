@@ -58,7 +58,11 @@ namespace SoulmaskDataMiner.Miners
 				{
 					if (classInfo.Export?.ExportObject.Value is UClass classObj)
 					{
-						ObjectInfo obj = new() { ClassName = classInfo.Name };
+						ObjectInfo obj = new()
+						{
+							ClassName = classInfo.Name,
+							SuperName = className
+						};
 						FindObjectProperties(classObj, ref obj);
 						infos.Add(obj);
 					}
@@ -114,6 +118,7 @@ namespace SoulmaskDataMiner.Miners
 		protected struct ObjectInfo : IComparable<ObjectInfo>
 		{
 			public string ClassName;
+			public string? SuperName;
 			public string? Name;
 			public string? Description;
 			public UTexture2D? Icon;
