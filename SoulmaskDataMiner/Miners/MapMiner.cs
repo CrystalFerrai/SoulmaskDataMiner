@@ -23,9 +23,8 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using System;
+using Serilog.Core;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection.Metadata.Ecma335;
 using System.Text;
 
 namespace SoulmaskDataMiner.Miners
@@ -127,7 +126,8 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 				out IReadOnlyList<FObjectExport>? dungeonObjects,
 				out IReadOnlyList<FObjectExport>? gamefunctionObjects,
-				out IReadOnlyList<FObjectExport>? minePlatformObjects))
+				out IReadOnlyList<FObjectExport>? minePlatformObjects,
+				out IReadOnlyList<FObjectExport>? mineralVeinObjects))
 			{
 				return null;
 			}
@@ -145,6 +145,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessDungeons(poiDatabase, dungeonObjects, logger);
 			ProcessWorldBosses(poiDatabase, gamefunctionObjects, logger);
 			ProcessMinePlatforms(poiDatabase, minePlatformObjects, logger);
+			ProcessMineralVeins(poiDatabase, mineralVeinObjects, providerManager, logger);
 
 			FindPoiTextures(poiDatabase, mapIcons, logger);
 
@@ -563,7 +564,8 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? dungeonObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? gamefunctionObjects,
-			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? minePlatformObjects)
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? minePlatformObjects,
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? mineralVeinObjects)
 		{
 			poiObjects = null;
 			respawnObjects = null;
@@ -574,6 +576,7 @@ namespace SoulmaskDataMiner.Miners
 			dungeonObjects = null;
 			gamefunctionObjects = null;
 			minePlatformObjects = null;
+			mineralVeinObjects = null;
 
 			Package[] gameplayPackages = new Package[2];
 			{
@@ -654,6 +657,9 @@ namespace SoulmaskDataMiner.Miners
 			const string minePlatformBaseClass = "HJianZhuKaiCaiPingTai";
 			HashSet<string> minePlatformClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(minePlatformBaseClass).Select(c => c.Name));
 
+			const string mineralVeinBaseClass = "HJianZhuKuangMai";
+			HashSet<string> mineralVeinClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(mineralVeinBaseClass).Select(c => c.Name));
+
 			List<FObjectExport> poiObjectList = new();
 			List<FObjectExport> respawnObjectList = new();
 			List<FObjectExport> tabletObjectList = new();
@@ -663,6 +669,7 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> dungeonObjectList = new();
 			List<FObjectExport> gameFunctionObjectList = new();
 			List<FObjectExport> minePlatformObjectList = new();
+			List<FObjectExport> mineralVeinObjectList = new();
 
 			logger.Information("Scanning for objects...");
 			foreach (Package package in gameplayPackages)
@@ -698,6 +705,10 @@ namespace SoulmaskDataMiner.Miners
 					{
 						gameFunctionObjectList.Add(export);
 					}
+					else if (mineralVeinClasses.Contains(export.ClassName))
+					{
+						mineralVeinObjectList.Add(export);
+					}
 				}
 			}
 			{
@@ -724,6 +735,7 @@ namespace SoulmaskDataMiner.Miners
 			dungeonObjects = dungeonObjectList;
 			gamefunctionObjects = gameFunctionObjectList;
 			minePlatformObjects = minePlatformObjectList;
+			mineralVeinObjects = mineralVeinObjectList;
 
 			return true;
 		}
@@ -1882,6 +1894,16 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
+		private struct BossData
+		{
+			public string Name;
+			public int Level;
+			public int MaxHealth;
+			public string SummonRecipe;
+			public string Loot;
+			public UTexture2D? Icon;
+		}
+
 		private void ProcessMinePlatforms(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> minePlatformObjects, Logger logger)
 		{
 			logger.Information($"Processing {minePlatformObjects.Count} mining platforms...");
@@ -1955,14 +1977,202 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private struct BossData
+		private void ProcessMineralVeins(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> mineralVeinObjects, IProviderManager providerManager, Logger logger)
 		{
-			public string Name;
-			public int Level;
-			public int MaxHealth;
-			public string SummonRecipe;
-			public string Loot;
-			public UTexture2D? Icon;
+			logger.Information($"Processing {mineralVeinObjects.Count} mineral veins...");
+
+			Dictionary<EKuangMaiType, UTexture2D?> mineralIconMap = new();
+
+			foreach (FObjectExport mineralVeinObject in mineralVeinObjects)
+			{
+				string? lootId = null;
+				float interval = 0.0f;
+				EKuangMaiType mineralType = EKuangMaiType.KMT_None;
+				float lowerBound = -1.0f;
+				float upperBound = -1.0f;
+				USceneComponent? rootComponent = null;
+
+				float? getStructValue(FStructFallback? strct, string propertyName)
+				{
+					FPropertyTag? property = strct?.Properties.FirstOrDefault(p => p.Name.Text.Equals(propertyName));
+					FStructFallback? innerStruct = property?.Tag?.GetValue<FStructFallback>();
+					FPropertyTag? valueProperty = innerStruct?.Properties.FirstOrDefault(p => p.Name.Text.Equals("Value"));
+					if (valueProperty?.Tag is not null)
+					{
+						return valueProperty.Tag.GetValue<float>();
+					}
+					return null;
+				}
+
+				void searchObj(UObject obj)
+				{
+					foreach (FPropertyTag property in obj.Properties)
+					{
+						switch (property.Name.Text)
+						{
+							case "ChanChuDaoJuBaoName":
+								if (lootId is null) lootId = property.Tag?.GetValue<FName>().Text;
+								break;
+							case "ChanChuJianGeTime":
+								if (interval == 0.0f) interval = property.Tag!.GetValue<float>();
+								break;
+							case "RootComponent":
+								if (rootComponent is null) rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+								break;
+							case "KuangMaiType":
+								if (mineralType == EKuangMaiType.KMT_None)
+								{
+									if (GameUtil.TryParseEnum(property, out EKuangMaiType type))
+									{
+										mineralType = type;
+									}
+								}
+								break;
+							case "HanLiangData":
+								{
+									FStructFallback? dataStruct = property.Tag?.GetValue<FStructFallback>();
+									FPropertyTag? rangeProperty = dataStruct?.Properties.FirstOrDefault(p => p.Name.Text.Equals("HanLiangRange"));
+									FStructFallback? rangeStruct = rangeProperty?.Tag?.GetValue<FStructFallback>();
+									if (lowerBound == -1.0f)
+									{
+										float? value = getStructValue(rangeStruct, "LowerBound");
+										if (value.HasValue)
+										{
+											lowerBound = value.Value;
+										}
+									}
+									if (upperBound == -1.0f)
+									{
+										float? value = getStructValue(rangeStruct, "UpperBound");
+										if (value.HasValue)
+										{
+											upperBound = value.Value;
+										}
+									}
+								}
+								break;
+						}
+					}
+				}
+
+				UObject worldObj = mineralVeinObject.ExportObject.Value;
+				searchObj(worldObj);
+
+				BlueprintHeirarchy.SearchInheritance((UClass)worldObj.Class!, (current) =>
+				{
+					UObject? curObj = current.ClassDefaultObject.Load();
+					if (curObj is null) return false;
+
+					searchObj(curObj);
+
+					return lootId is not null && interval != 0.0f && rootComponent is not null;
+				});
+
+				if (lootId is null || interval == 0.0f || mineralType == EKuangMaiType.KMT_None || lowerBound == -1.0f || upperBound == -1.0f || rootComponent is null)
+				{
+					logger.Warning("Mineral vein properties not found");
+					continue;
+				}
+
+				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				if (locationProperty is null)
+				{
+					logger.Warning("Failed to locate mineral vein");
+					continue;
+				}
+
+				FVector location = locationProperty.Tag!.GetValue<FVector>();
+
+				if (!poiDatabase.Loot.LootMap.TryGetValue(lootId, out LootTable? lootTable))
+				{
+					logger.Warning($"Failed to locate mineral vein content type '{lootId}'");
+					continue;
+				}
+
+				string name = $"{mineralType.ToEn()} Vein";
+
+				UTexture2D? icon;
+				if (!mineralIconMap.TryGetValue(mineralType, out icon))
+				{
+					switch (mineralType)
+					{
+						case EKuangMaiType.KMT_TongKuang:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_CopperOre.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_XiKuang:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_TinOre.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_LiuKuang:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_SulfurOre.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_LinKuang:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_PhosphateOre.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_YanKuang:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_Stone.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_MeiKuang:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_CoalOre.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_TieKuang:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_IronOre.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_XiaoShi:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_Nitre.uasset", providerManager, logger);
+							break;
+						case EKuangMaiType.KMT_ShuiJing:
+							icon = LoadItemIcon("WS/Content/Blueprints/DaoJu/DaojuCaiLiao/Kuangshi/Daoju_Item_Crystal.uasset", providerManager, logger);
+							break;
+					}
+
+					mineralIconMap.Add(mineralType, icon);
+				}
+				if (icon is null)
+				{
+					logger.Warning($"Unable to find icon for mineral vein content type {lootId}");
+					continue;
+				}
+
+				MapPoi poi = new()
+				{
+					GroupIndex = SpawnLayerGroup.MineralVein,
+					Type = name,
+					Title = name,
+					Name = $"Quality: {lowerBound}-{upperBound}",
+					Description = $"Interval: {interval} seconds",
+					LootId = lootId,
+					Location = location,
+					MapLocation = WorldToMap(location),
+					Icon = icon
+				};
+
+				poiDatabase.MineralVeins.Add(poi);
+			}
+		}
+
+		private UTexture2D? LoadItemIcon(string assetPath, IProviderManager providerManager, Logger logger)
+		{
+			if (!providerManager.Provider.TryFindGameFile(assetPath, out GameFile? file))
+			{
+				logger.Warning($"Unable to find {assetPath}");
+				return null;
+			}
+			Package package = (Package)providerManager.Provider.LoadPackage(file);
+
+			UObject? itemObject = GameUtil.FindBlueprintDefaultsObject(package);
+			if (itemObject is null)
+			{
+				logger.Warning($"Unable to load {assetPath}");
+				return null;
+			}
+
+			FPropertyTag? iconProperty = itemObject.Properties.FirstOrDefault(p => p.Name.Text.Equals("Icon"));
+			if (iconProperty is null)
+			{
+				logger.Warning($"Unable to find Icon property in {assetPath}");
+				return null;
+			}
+			return GameUtil.ReadTextureProperty(iconProperty);
 		}
 
 		private void FindPoiTextures(MapPoiDatabase poiDatabase, IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons, Logger logger)
@@ -2240,6 +2450,8 @@ namespace SoulmaskDataMiner.Miners
 
 			public IList<MapPoi> MinePlatforms { get; }
 
+			public IList<MapPoi> MineralVeins { get; }
+
 			// These are references to main POIs, not their own unique instances
 			public IList<MapPoi> Dungeons { get; }
 
@@ -2268,6 +2480,7 @@ namespace SoulmaskDataMiner.Miners
 				Ores = new List<MapPoi>();
 				WorldBosses = new List<MapPoi>();
 				MinePlatforms = new List<MapPoi>();
+				MineralVeins = new List<MapPoi>();
 				Dungeons = new List<MapPoi>();
 				RespawnIcon = null!;
 				LootIcon = null!;
@@ -2288,7 +2501,8 @@ namespace SoulmaskDataMiner.Miners
 					.Concat(Lootables)
 					.Concat(Ores)
 					.Concat(WorldBosses)
-					.Concat(MinePlatforms))
+					.Concat(MinePlatforms)
+					.Concat(MineralVeins))
 				{
 					if (!result.TryGetValue(poi.Icon.Name, out List<MapPoi>? list))
 					{
@@ -2405,7 +2619,8 @@ namespace SoulmaskDataMiner.Miners
 			Npc,
 			Chest,
 			Pickup,
-			Ore
+			Ore,
+			MineralVein
 		}
 
 		private static string GetTitle(ETanSuoDianType type)
@@ -2471,6 +2686,7 @@ namespace SoulmaskDataMiner.Miners
 				SpawnLayerGroup.Pickup => "Collectible Objects",
 				SpawnLayerGroup.Chest => "Lootable Objects",
 				SpawnLayerGroup.Ore => "Ore Deposits",
+				SpawnLayerGroup.MineralVein => "Mineral Veins",
 				_ => ""
 			};
 		}

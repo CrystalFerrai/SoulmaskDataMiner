@@ -410,6 +410,24 @@ namespace SoulmaskDataMiner
 	};
 
 	/// <summary>
+	/// Mineral vein type
+	/// </summary>
+	enum EKuangMaiType
+	{
+		KMT_None,
+		KMT_TongKuang,
+		KMT_XiKuang,
+		KMT_LiuKuang,
+		KMT_LinKuang,
+		KMT_YanKuang,
+		KMT_MeiKuang,
+		KMT_TieKuang,
+		KMT_XiaoShi,
+		KMT_ShuiJing,
+		KMT_MAX,
+	};
+
+	/// <summary>
 	/// Proficiency type
 	/// </summary>
 	internal enum EProficiency
@@ -563,6 +581,26 @@ namespace SoulmaskDataMiner
 				EClanType.CLAN_TYPE_E => "Unknown",
 				EClanType.CLAN_TYPE_F => "Unknown",
 				EClanType.CLAN_TYPE_INVADER => "Invader",
+				_ => Default(value)
+			};
+		}
+
+		/// <summary>
+		/// Return an English representation of the value
+		/// </summary>
+		public static string ToEn(this EKuangMaiType value)
+		{
+			return value switch
+			{
+				EKuangMaiType.KMT_TongKuang => "Copper",
+				EKuangMaiType.KMT_XiKuang => "Tin",
+				EKuangMaiType.KMT_LiuKuang => "Sulfur",
+				EKuangMaiType.KMT_LinKuang => "Phosphate",
+				EKuangMaiType.KMT_YanKuang => "Stone",
+				EKuangMaiType.KMT_MeiKuang => "Coal",
+				EKuangMaiType.KMT_TieKuang => "Iron",
+				EKuangMaiType.KMT_XiaoShi => "Nitrate",
+				EKuangMaiType.KMT_ShuiJing => "Crystal",
 				_ => Default(value)
 			};
 		}
