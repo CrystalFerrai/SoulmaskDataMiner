@@ -125,6 +125,7 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? barracksObjects,
 				out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 				out IReadOnlyList<FObjectExport>? dungeonObjects,
+				out IReadOnlyList<FObjectExport>? arenaObjects,
 				out IReadOnlyList<FObjectExport>? gamefunctionObjects,
 				out IReadOnlyList<FObjectExport>? minePlatformObjects,
 				out IReadOnlyList<FObjectExport>? mineralVeinObjects))
@@ -136,6 +137,9 @@ namespace SoulmaskDataMiner.Miners
 			IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? foliageData = foliageUtil.LoadFoliage(providerManager, logger);
 			if (foliageData is null) return null;
 
+			IReadOnlyDictionary<int, ArenaRewardData>? arenaRewardMap = ArenaUtil.LoadRewardData(providerManager, logger);
+			if (arenaRewardMap is null) return null;
+
 			ProcessPois(poiDatabase, poiObjects, logger);
 			ProcessTablets(poiDatabase, tabletObjects, logger);
 			ProcessRespawnPoints(poiDatabase, respawnObjects, logger);
@@ -144,6 +148,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessFoliage(poiDatabase, foliageData, logger);
 			ProcessDungeons(poiDatabase, dungeonObjects, logger);
 			ProcessWorldBosses(poiDatabase, gamefunctionObjects, logger);
+			ProcessArenas(poiDatabase, arenaObjects, arenaRewardMap, logger);
 			ProcessMinePlatforms(poiDatabase, minePlatformObjects, logger);
 			ProcessMineralVeins(poiDatabase, mineralVeinObjects, providerManager, logger);
 
@@ -281,6 +286,10 @@ namespace SoulmaskDataMiner.Miners
 					if (poiType == ETanSuoDianType.ETSD_TYPE_DIXIACHENG)
 					{
 						poiDatabase.DungeonPois.Add(poi);
+					}
+					else if (poiType == ETanSuoDianType.ETSD_TYPE_ARENA)
+					{
+						poiDatabase.ArenaPois.Add(poi);
 					}
 				}
 
@@ -563,6 +572,7 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? barracksObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? dungeonObjects,
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? arenaObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? gamefunctionObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? minePlatformObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? mineralVeinObjects)
@@ -574,6 +584,7 @@ namespace SoulmaskDataMiner.Miners
 			barracksObjects = null;
 			chestObjects = null;
 			dungeonObjects = null;
+			arenaObjects = null;
 			gamefunctionObjects = null;
 			minePlatformObjects = null;
 			mineralVeinObjects = null;
@@ -651,6 +662,9 @@ namespace SoulmaskDataMiner.Miners
 				chestClasses.Add(bpClass.Name, defaultObj);
 			}
 
+			const string arenaBaseClass = "HJianZhuJingJiChang";
+			HashSet<string> arenaClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(arenaBaseClass).Select(c => c.Name));
+
 			const string gameFunctionBaseClass = "HJianZhuGameFunction";
 			HashSet<string> gameFunctionClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(gameFunctionBaseClass).Select(c => c.Name));
 
@@ -667,6 +681,7 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> barracksObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
 			List<FObjectExport> dungeonObjectList = new();
+			List<FObjectExport> arenaObjectList = new();
 			List<FObjectExport> gameFunctionObjectList = new();
 			List<FObjectExport> minePlatformObjectList = new();
 			List<FObjectExport> mineralVeinObjectList = new();
@@ -719,6 +734,10 @@ namespace SoulmaskDataMiner.Miners
 					{
 						respawnObjectList.Add(export);
 					}
+					else if (arenaClasses.Contains(export.ClassName))
+					{
+						arenaObjectList.Add(export);
+					}
 					else if (minePlatformClasses.Contains(export.ClassName))
 					{
 						minePlatformObjectList.Add(export);
@@ -733,6 +752,7 @@ namespace SoulmaskDataMiner.Miners
 			barracksObjects = barracksObjectList;
 			chestObjects = chestObjectList;
 			dungeonObjects = dungeonObjectList;
+			arenaObjects = arenaObjectList;
 			gamefunctionObjects = gameFunctionObjectList;
 			minePlatformObjects = minePlatformObjectList;
 			mineralVeinObjects = mineralVeinObjectList;
@@ -1121,35 +1141,7 @@ namespace SoulmaskDataMiner.Miners
 				int? clanType = spawnData.ClanType == EClanType.CLAN_TYPE_NONE ? null : (int)spawnData.ClanType;
 				int? clanArea = spawnData.ClanArea >= 0 ? spawnData.ClanArea : null;
 
-				string? equipment = null;
-				if (spawnData.EquipmentClasses is not null || spawnData.WeaponClasses is not null)
-				{
-					StringBuilder equipBuilder = new("{");
-
-					if (spawnData.EquipmentClasses is not null)
-					{
-						foreach (var pair in spawnData.EquipmentClasses)
-						{
-							equipBuilder.Append($"\"{pair.Key}\":\"{pair.Value}\",");
-						}
-					}
-
-					if (spawnData.WeaponClasses is not null)
-					{
-						foreach (var pair in spawnData.WeaponClasses)
-						{
-							equipBuilder.Append($"\"{pair.Key}\":\"{pair.Value}\",");
-						}
-					}
-
-					if (equipBuilder.Length > 1)
-					{
-						equipBuilder.Length -= 1; // Remove trailing comma
-					}
-					equipBuilder.Append("}");
-
-					equipment = equipBuilder.ToString();
-				}
+				string? equipment = SerializeEquipment(spawnData);
 
 				string? lootId = null;
 				string? lootMap = null;
@@ -1225,7 +1217,7 @@ namespace SoulmaskDataMiner.Miners
 				else
 				{
 					lootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot;
-					lootMap = LootMapToString(spawnData, lootId);
+					lootMap = SerializeLootMap(spawnData, lootId);
 					if (lootMap is not null) lootId = null;
 				}
 
@@ -1494,8 +1486,8 @@ namespace SoulmaskDataMiner.Miners
 
 				foreach (MapPoi dungeonPoi in poiDatabase.DungeonPois)
 				{
-					FVector v = location - dungeonPoi.Location!.Value;
-					if (v.SizeSquared() < 400000000.0f) // 200 meters
+					FVector distance = location - dungeonPoi.Location!.Value;
+					if (distance.SizeSquared() < 400000000.0f) // 200 meters
 					{
 						StringBuilder builder = new("{");
 
@@ -1894,6 +1886,226 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
+		private void ProcessArenas(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> arenaObjects, IReadOnlyDictionary<int, ArenaRewardData> rewardMap, Logger logger)
+		{
+			logger.Information($"Processing {arenaObjects.Count} arenas...");
+
+			foreach (FObjectExport export in arenaObjects)
+			{
+				UObject obj = export.ExportObject.Value;
+
+				USceneComponent? rootComponent = obj.Properties.FirstOrDefault(p => p.Name.Text.Equals("RootComponent"))?.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				if (locationProperty is null)
+				{
+					logger.Warning($"Failed to locate arena {export.ObjectName}");
+					continue;
+				}
+				FVector location = locationProperty.Tag!.GetValue<FVector>();
+
+				List<ArenaSpawnerInfo>? spawnerInfos = null;
+				List<ArenaWinCountInfo>? winCountInfos = null;
+
+				void processArenaObject(UObject obj)
+				{
+					foreach (FPropertyTag property in obj.Properties)
+					{
+						switch (property.Name.Text)
+						{
+							case "ShuaGuaiQiList":
+								{
+									if (spawnerInfos is not null) break;
+									spawnerInfos = new();
+
+									UScriptArray? spawnerArray = property.Tag?.GetValue<UScriptArray>();
+									if (spawnerArray is null)
+									{
+										logger.Warning($"Failed to parse spawner array in arena {obj.Name}");
+										break;
+									}
+
+									foreach (FPropertyTagType spawnerProperty in spawnerArray.Properties)
+									{
+										FStructFallback? spawnerStruct = spawnerProperty.GetValue<FStructFallback>();
+										if (spawnerStruct is null)
+										{
+											logger.Warning($"Failed to parse spawner array item in arena {obj.Name}");
+											continue;
+										}
+
+										string? npcName = null;
+										SpawnData? spawnData = null;
+										int? rewardId = null;
+
+										foreach (FPropertyTag spawnerItemProperty in spawnerStruct.Properties)
+										{
+											switch (spawnerItemProperty.Name.Text)
+											{
+												case "SGQClass":
+													spawnData = SpawnMinerUtil.LoadSpawnData(spawnerItemProperty, logger, "Arena Spawner");
+													break;
+												case "NpcNameTxt":
+													npcName = GameUtil.ReadTextProperty(spawnerItemProperty);
+													break;
+												case "RewardID":
+													rewardId = spawnerItemProperty.Tag?.GetValue<int>();
+													break;
+											}
+										}
+
+										if (npcName is null || spawnData is null || !rewardId.HasValue)
+										{
+											logger.Warning($"Failed to locate data for spawner array item in arena {obj.Name}");
+											continue;
+										}
+
+										spawnerInfos.Add(new() { NpcName = npcName, SpawnData = spawnData, RewardId = rewardId.Value });
+									}
+								}
+								break;
+							case "WinCountRewardConfigList":
+								{
+									if (winCountInfos is not null) break;
+									winCountInfos = new();
+
+									UScriptArray? winCountArray = property.Tag?.GetValue<UScriptArray>();
+									if (winCountArray is null)
+									{
+										logger.Warning($"Failed to parse win count array in arena {obj.Name}");
+										break;
+									}
+
+									foreach (FPropertyTagType winCountProperty in winCountArray.Properties)
+									{
+										FStructFallback? winCountStruct = winCountProperty.GetValue<FStructFallback>();
+										if (winCountStruct is null)
+										{
+											logger.Warning($"Failed to parse win count array item in arena {obj.Name}");
+											continue;
+										}
+
+										int? winCount = null;
+										int? rewardId = null;
+
+										foreach (FPropertyTag winCountItemProperty in winCountStruct.Properties)
+										{
+											switch (winCountItemProperty.Name.Text)
+											{
+												case "WinCount":
+													winCount = winCountItemProperty.Tag?.GetValue<int>();
+													break;
+												case "RewardID":
+													rewardId = winCountItemProperty.Tag?.GetValue<int>();
+													break;
+											}
+										}
+
+										if (!winCount.HasValue || !rewardId.HasValue)
+										{
+											logger.Warning($"Failed to locate data for win count array item in arena {obj.Name}");
+											continue;
+										}
+
+										winCountInfos.Add(new() { WinCount = winCount.Value, RewardId = rewardId.Value });
+									}
+								}
+								break;
+						}
+					}
+				}
+
+				processArenaObject(obj);
+				if ((spawnerInfos is null || winCountInfos is null) && obj.Class is UBlueprintGeneratedClass objClass)
+				{
+					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+					{
+						UObject? currentObj = current.ClassDefaultObject.Load();
+						if (currentObj is null) return true;
+
+						processArenaObject(currentObj);
+						return spawnerInfos is not null && winCountInfos is not null;
+					});
+				}
+
+				if (spawnerInfos is null || winCountInfos is null)
+				{
+					logger.Warning($"Missing info for arena {export.ObjectName}");
+					continue;
+				}
+
+				foreach (MapPoi arenaPoi in poiDatabase.ArenaPois)
+				{
+					FVector distance = location - arenaPoi.Location!.Value;
+					if (distance.SizeSquared() < 400000000.0f) // 200 meters
+					{
+						StringBuilder builder = new("{");
+
+						builder.Append("\"bosses\":[");
+						foreach (ArenaSpawnerInfo spawnerInfo in spawnerInfos)
+						{
+							NpcData firstNpc = spawnerInfo.SpawnData.NpcData.First().Value;
+
+							string? lootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot;
+							string? equipmap = SerializeEquipment(spawnerInfo.SpawnData);
+
+							ArenaRewardData? rewardData;
+							if (!rewardMap.TryGetValue(spawnerInfo.RewardId, out rewardData))
+							{
+								logger.Debug($"Cannot find reward id '{spawnerInfo.RewardId}' from {obj.Name}");
+								rewardData = null;
+							}
+
+							builder.Append("{");
+							builder.Append($"\"name\":\"{spawnerInfo.NpcName}\"");
+							builder.Append($",\"minlevel\":\"{spawnerInfo.SpawnData.MinLevel}\"");
+							builder.Append($",\"maxlevel\":\"{spawnerInfo.SpawnData.MaxLevel}\"");
+							if (rewardData is not null)
+							{
+								builder.Append($",\"reward\":\"{rewardData.LootId}\"");
+							}
+							if (lootId is not null && !lootId.Equals("None"))
+							{
+								builder.Append($",\"loot\":\"{lootId}\"");
+							}
+							if (equipmap is not null)
+							{
+								builder.Append($",\"equipmap\":{equipmap}");
+							}
+							builder.Append("},");
+						}
+						builder.Length -= 1; // Remove trailing comma
+						builder.Append("]");
+
+						builder.Append(",\"wins\":[");
+						foreach (ArenaWinCountInfo winCountInfo in winCountInfos)
+						{
+							ArenaRewardData? rewardData;
+							if (!rewardMap.TryGetValue(winCountInfo.RewardId, out rewardData))
+							{
+								logger.Debug($"Cannot find reward id '{winCountInfo.RewardId}' from {obj.Name}");
+								rewardData = null;
+							}
+
+							builder.Append("{");
+							builder.Append($"\"count\":\"{winCountInfo.WinCount}\"");
+							if (rewardData is not null)
+							{
+								builder.Append($",\"reward\":\"{rewardData.LootId}\"");
+							}
+							builder.Append("},");
+						}
+						builder.Length -= 1; // Remove trailing comma
+						builder.Append("]");
+
+						builder.Append("}");
+
+						arenaPoi.ArenaInfo = builder.ToString();
+						break;
+					}
+				}
+			}
+		}
+
 		private struct BossData
 		{
 			public string Name;
@@ -1902,6 +2114,19 @@ namespace SoulmaskDataMiner.Miners
 			public string SummonRecipe;
 			public string Loot;
 			public UTexture2D? Icon;
+		}
+
+		private struct ArenaSpawnerInfo
+		{
+			public string NpcName;
+			public SpawnData SpawnData;
+			public int RewardId;
+		}
+
+		private struct ArenaWinCountInfo
+		{
+			public int WinCount;
+			public int RewardId;
 		}
 
 		private void ProcessMinePlatforms(MapPoiDatabase poiDatabase, IReadOnlyList<FObjectExport> minePlatformObjects, Logger logger)
@@ -2190,6 +2415,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
+
 		private void WriteIcons(MapInfo mapData, Config config, Logger logger)
 		{
 			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
@@ -2234,7 +2460,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo");
+				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -2259,7 +2485,7 @@ namespace SoulmaskDataMiner.Miners
 
 					writer.WriteLine(
 						$"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
-						$"{spawnerSegment},{lootSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)}");
+						$"{spawnerSegment},{lootSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)},{CsvStr(poi.ArenaInfo)}");
 				}
 			}
 		}
@@ -2305,6 +2531,7 @@ namespace SoulmaskDataMiner.Miners
 			//   `inDun` bool,
 			//   `dunInfo` varchar(1535),
 			//   `bossInfo` varchar(1535)
+			//   `arenaInfo` varchar(4095)
 			// )
 
 			string valOrNull(float value)
@@ -2342,7 +2569,7 @@ namespace SoulmaskDataMiner.Miners
 
 					sqlWriter.WriteRow(
 						$"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
-						$"{spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}");
+						$"{spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
 				}
 			}
 
@@ -2354,7 +2581,7 @@ namespace SoulmaskDataMiner.Miners
 			return sMapData.WorldToImage(world);
 		}
 
-		private string? LootMapToString(SpawnData spawner, string? firstLootId)
+		private string? SerializeLootMap(SpawnData spawner, string? firstLootId)
 		{
 			if (spawner.NpcData.Skip(1).Any(d => (d.Value.SpawnerLoot ?? d.Value.CharacterLoot) != firstLootId))
 			{
@@ -2409,6 +2636,40 @@ namespace SoulmaskDataMiner.Miners
 			return null;
 		}
 
+		private string? SerializeEquipment(SpawnData spawnData)
+		{
+			if (spawnData.EquipmentClasses is null && spawnData.WeaponClasses is null)
+			{
+				return null;
+			}
+
+			StringBuilder equipBuilder = new("{");
+
+			if (spawnData.EquipmentClasses is not null)
+			{
+				foreach (var pair in spawnData.EquipmentClasses)
+				{
+					equipBuilder.Append($"\"{pair.Key}\":\"{pair.Value}\",");
+				}
+			}
+
+			if (spawnData.WeaponClasses is not null)
+			{
+				foreach (var pair in spawnData.WeaponClasses)
+				{
+					equipBuilder.Append($"\"{pair.Key}\":\"{pair.Value}\",");
+				}
+			}
+
+			if (equipBuilder.Length > 1)
+			{
+				equipBuilder.Length -= 1; // Remove trailing comma
+			}
+			equipBuilder.Append("}");
+
+			return equipBuilder.ToString();
+		}
+
 		private class MapInfo
 		{
 			public IReadOnlyDictionary<string, List<MapPoi>> POIs { get; }
@@ -2431,6 +2692,8 @@ namespace SoulmaskDataMiner.Miners
 			public IDictionary<ETanSuoDianType, List<MapPoi>> TypeLookup { get; }
 
 			public IList<MapPoi> DungeonPois { get; }
+
+			public IList<MapPoi> ArenaPois { get; }
 
 			public IDictionary<string, MapPoi> Tablets { get; }
 
@@ -2471,6 +2734,7 @@ namespace SoulmaskDataMiner.Miners
 				IndexLookup = new Dictionary<int, MapPoi>();
 				TypeLookup = new Dictionary<ETanSuoDianType, List<MapPoi>>();
 				DungeonPois = new List<MapPoi>();
+				ArenaPois = new List<MapPoi>();
 				Tablets = new Dictionary<string, MapPoi>();
 				RespawnPoints = new List<MapPoi>();
 				SpawnLayerMap = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
@@ -2548,6 +2812,7 @@ namespace SoulmaskDataMiner.Miners
 			public bool InDungeon { get; set; }
 			public string? DungeonInfo { get; set; }
 			public string? BossInfo { get; set; }
+			public string? ArenaInfo { get; set; }
 
 			public MapPoi()
 			{
@@ -2585,6 +2850,7 @@ namespace SoulmaskDataMiner.Miners
 				InDungeon = other.InDungeon;
 				DungeonInfo = other.DungeonInfo;
 				BossInfo = other.BossInfo;
+				ArenaInfo = other.ArenaInfo;
 			}
 
 			public object Clone()
