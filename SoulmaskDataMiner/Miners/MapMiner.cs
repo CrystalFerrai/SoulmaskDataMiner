@@ -23,7 +23,6 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using Serilog.Core;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -2363,7 +2362,7 @@ namespace SoulmaskDataMiner.Miners
 					GroupIndex = SpawnLayerGroup.MineralVein,
 					Type = name,
 					Title = name,
-					Name = $"Quality: {lowerBound}-{upperBound}",
+					Name = $"Grade: {lowerBound}-{upperBound}",
 					Description = $"Interval: {interval} seconds",
 					LootId = lootId,
 					Location = location,
