@@ -1446,7 +1446,7 @@ namespace SoulmaskDataMiner.Miners
 							Type = foliage.Name,
 							Title = foliage.Name,
 							Name = nameText,
-							Description = toolClass,
+							Description = isOre ? toolClass : null,
 							SpawnCount = location.Count,
 							SpawnInterval = spawnInterval,
 							CollectMap = collectMap,
