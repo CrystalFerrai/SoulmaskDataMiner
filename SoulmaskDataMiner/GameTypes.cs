@@ -596,7 +596,7 @@ namespace SoulmaskDataMiner
 				EKuangMaiType.KMT_XiKuang => "Tin",
 				EKuangMaiType.KMT_LiuKuang => "Sulfur",
 				EKuangMaiType.KMT_LinKuang => "Phosphate",
-				EKuangMaiType.KMT_YanKuang => "Stone",
+				EKuangMaiType.KMT_YanKuang => "Salt",
 				EKuangMaiType.KMT_MeiKuang => "Coal",
 				EKuangMaiType.KMT_TieKuang => "Iron",
 				EKuangMaiType.KMT_XiaoShi => "Nitrate",
