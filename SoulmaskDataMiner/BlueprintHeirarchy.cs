@@ -66,7 +66,17 @@ namespace SoulmaskDataMiner
 			{
 				if (!pair.Value.Extension.Equals("uasset", StringComparison.OrdinalIgnoreCase)) continue;
 
-				Package? package = providerManager.Provider.LoadPackage(pair.Value) as Package;
+				Package? package;
+				try
+				{
+					package = providerManager.Provider.LoadPackage(pair.Value) as Package;
+				}
+				catch
+				{
+					// If an asset gets corrupted, we end up here. This may occur due to a corrupt file patch from Steam, for example.
+					logger.Warning($"Failed to load asset. It may be corrupted. Path: {pair.Value.Path}");
+					continue;
+				}
 				if (package is null) continue;
 
 				foreach (FObjectExport export in package.ExportMap)
