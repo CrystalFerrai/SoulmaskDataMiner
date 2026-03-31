@@ -46,8 +46,10 @@ namespace SoulmaskDataMiner
 				return OnExit(1);
 			}
 
-			ZlibHelper.Initialize(ZlibHelper.DLL_NAME);
-			OodleHelper.Initialize(OodleHelper.OODLE_NAME_CURRENT);
+			string assemblyDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!;
+
+			ZlibHelper.Initialize(Path.Combine(assemblyDir, ZlibHelper.DLL_NAME));
+			OodleHelper.Initialize(Path.Combine(assemblyDir, OodleHelper.OODLE_NAME_CURRENT));
 
 			bool success;
 			using (MineRunner runner = new(config, logger))
