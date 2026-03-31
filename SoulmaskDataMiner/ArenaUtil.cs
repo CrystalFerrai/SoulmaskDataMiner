@@ -26,12 +26,19 @@ namespace SoulmaskDataMiner
 	/// </summary>
 	internal static class ArenaUtil
 	{
+		private static IReadOnlyDictionary<int, ArenaRewardData>? sCachedRewardData;
+
 		/// <summary>
 		/// Loads the arena reward data table
 		/// </summary>
 		public static IReadOnlyDictionary<int, ArenaRewardData>? LoadRewardData(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/DataTable/DT_JJC_Reward.uasset", out GameFile file))
+			if (sCachedRewardData is not null)
+			{
+				return sCachedRewardData;
+			}
+
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/DataTable/DT_JJC_Reward.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to load asset DT_JJC_Reward.");
 				return null;
@@ -119,6 +126,8 @@ namespace SoulmaskDataMiner
 					logger.Warning($"DT_JJC_Reward row name '{pair.Key.Text}' found more than once");
 				}
 			}
+
+			sCachedRewardData = outData;
 			return outData;
 		}
 	}

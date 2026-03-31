@@ -52,20 +52,28 @@ namespace SoulmaskDataMiner.Miners
 							"HDaoJu_SheJiWuQi",
 							"HDaoJu_TouZhi_WuQi",
 							"HDaoJuShuiTong",
+						"HDaoJuJiQiQiu",
 					"HDaoJu_ZiDan",
 					"HDaoJuXiaoHao",
 						"HDaoJuChuCaoJi",
 						"HDaoJuFeiLiao",
+						"HDaoJuForget",
 						"HDaoJuFunction",
+						"HDaoJuHunMi",
 						"HDaoJuMianJu",
+						"HDaoJuMoney",
 						"HDaoJuShaChongJi",
 						"HDaoJuShiWu",
+						"HDaoJuYellowCrystal",
+						"HDaoJuYellowCrystalBattery",
 					"HDaoJuDianChi",
 					"HDaoJuHongJingShi",
 					"HDaoJuJianZhu",
 					"HDaoJuJianZhuPingTai",
 					"HDaoJuShuiPing",
-					"HDaoJuZhaoMingMoKuai"
+					"HDaoJuZhaoMingMoKuai",
+					"HDaoJuUSBFlashDrive",
+					"HDaoJuSpawnMonster"
 			};
 
 			var categories = GetItemCategories(providerManager, logger);

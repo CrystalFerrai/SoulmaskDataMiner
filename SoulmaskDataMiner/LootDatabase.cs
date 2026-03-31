@@ -304,7 +304,7 @@ namespace SoulmaskDataMiner
 
 		private bool LoadCollectionData(IFileProvider provider, Logger logger)
 		{
-			if (!provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_ShengWuCollectData.uasset", out GameFile file))
+			if (!provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_ShengWuCollectData.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to load BP_ShengWuCollectData");
 				return false;

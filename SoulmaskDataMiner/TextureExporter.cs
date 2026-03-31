@@ -62,7 +62,7 @@ namespace SoulmaskDataMiner
 				return false;
 			}
 
-			SKBitmap? bitmap = texture.Decode();
+			SKBitmap? bitmap = texture.Decode()?.ToSkBitmap();
 			if (bitmap == null)
 			{
 				logger.Warning($"{texture.GetPathName()} - Failed to decode texture.");

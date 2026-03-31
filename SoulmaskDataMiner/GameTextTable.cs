@@ -43,7 +43,7 @@ namespace SoulmaskDataMiner
 
 		public static GameTextTable? Load(IFileProvider provider, Logger logger)
 		{
-			if (!provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_YiWenText.uasset", out GameFile file))
+			if (!provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_YiWenText.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to locate asset DT_YiWenText.");
 				return null;

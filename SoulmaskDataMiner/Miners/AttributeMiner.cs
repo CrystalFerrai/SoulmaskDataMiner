@@ -85,7 +85,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private bool FindAttributeData(IEnumerable<AttributeData> attributes, IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/UI/ShiTu/WBP_ShiTu.uasset", out GameFile file))
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/UI/ShiTu/WBP_ShiTu.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to locate asset WBP_ShiTu.");
 				return false;

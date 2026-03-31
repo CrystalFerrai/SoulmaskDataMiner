@@ -137,8 +137,6 @@ namespace SoulmaskDataMiner
 		CurMaxJingShen,
 		CurMaxFuZhong,
 		CurMaxTiLi,
-		XingFen,
-		MaxXingFen,
 		FallSleepProtection,
 		ParalysisProtection,
 		BleedingProtection,
@@ -183,7 +181,7 @@ namespace SoulmaskDataMiner
 		ECHBIGTYPE_SUB_CHENGJIU,
 		ECHBIGTYPE_ZHIZAO,
 		ECHBIGTYPE_JIESUO_MIANJIA,
-		ECHBIGTYPE_MAX,
+		ECHBIGTYPE_MAX
 	};
 
 	/// <summary>
@@ -273,7 +271,8 @@ namespace SoulmaskDataMiner
 		EDJCL_YaoWu,
 		EDJCL_BanChenPin,
 		EDJCL_LiaoLi,
-		EDJCL_Max,
+		EDJCL_Mask,
+		EDJCL_Max
 	}
 
 
@@ -406,7 +405,9 @@ namespace SoulmaskDataMiner
 		EJZGFT_AREA_CHUANSONGMEN_ACTIVE,
 		EJZGFT_AREA_CHUANSONGMEN_CHUANSONG,
 		EJZGFT_JIESUO_MIANJUXIUFUNODE,
-		EJZGFT_MAX,
+		EJZFT_SINGLEPOINT_TRANS,
+		EJZFT_UNLOCKEGYPTGRAVITYNODE,
+		EJianZhuGameFunctionType_MAX
 	};
 
 	/// <summary>
@@ -424,7 +425,7 @@ namespace SoulmaskDataMiner
 		KMT_TieKuang,
 		KMT_XiaoShi,
 		KMT_ShuiJing,
-		KMT_MAX,
+		KMT_MAX
 	};
 
 	/// <summary>
@@ -462,6 +463,7 @@ namespace SoulmaskDataMiner
 		DaJian,
 		PouJie,
 		DunPai,
+		Bian,
 		Max
 	}
 
@@ -483,7 +485,13 @@ namespace SoulmaskDataMiner
 		ETSD_TYPE_CHUANSONGMEN,
 		ETSD_TYPE_KUANGCHUANG_SMALL,
 		ETSD_TYPE_SHEN_MIAO,
-		ETSD_TYPE_ARENA
+		ETSD_TYPE_ARENA,
+		ETSD_TYPE_CAVE,
+		ETSD_TYPE_UNDERGROUNDPALACE,
+		ETSD_TYPE_WORLDBOSS,
+		ETSD_TYPE_MYSTERYISLAND,
+		ETSD_TYPE_SHIPCAMP,
+		ETSD_TYPE_MAX
 	}
 
 	/// <summary>
@@ -502,6 +510,7 @@ namespace SoulmaskDataMiner
 		WUQI_LEIXING_JIAN,
 		WUQI_LEIXING_TOUZHIWU,
 		WUQI_LEIXING_GONGCHENGCHUI,
+		WUQI_LEIXING_BIAN,
 		WUQI_LEIXING_MAX
 	}
 

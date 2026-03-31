@@ -105,7 +105,7 @@ namespace SoulmaskDataMiner
 
 		protected static T? Load<T>(IFileProvider provider, string assetPath, Logger logger) where T : GameSingletonBase
 		{
-			if (!provider.TryFindGameFile(assetPath, out GameFile file))
+			if (!provider.TryGetGameFile(assetPath, out GameFile? file))
 			{
 				logger.Error($"Unable to locate asset {Path.GetFileNameWithoutExtension(assetPath)}.");
 				return null;

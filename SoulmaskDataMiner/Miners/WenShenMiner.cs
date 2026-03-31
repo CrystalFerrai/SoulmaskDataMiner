@@ -74,7 +74,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private IEnumerable<WenShenData>? GetWenShenList(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_WenShenTable.uasset", out GameFile file))
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_WenShenTable.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to locate asset DT_YiWenText.");
 				return null;

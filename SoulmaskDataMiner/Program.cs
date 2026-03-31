@@ -47,7 +47,7 @@ namespace SoulmaskDataMiner
 			}
 
 			ZlibHelper.Initialize(ZlibHelper.DLL_NAME);
-			OodleHelper.Initialize(OodleHelper.OODLE_DLL_NAME);
+			OodleHelper.Initialize(OodleHelper.OODLE_NAME_CURRENT);
 
 			bool success;
 			using (MineRunner runner = new(config, logger))

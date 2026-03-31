@@ -97,7 +97,7 @@ namespace SoulmaskDataMiner
 		public ProviderManager(Config config)
 		{
 			mConfig = config;
-			mProvider = new DefaultFileProvider(Path.Combine(config.GameContentDirectory, "Paks"), SearchOption.TopDirectoryOnly);
+			mProvider = new DefaultFileProvider(Path.Combine(config.GameContentDirectory, "Paks"), SearchOption.TopDirectoryOnly, null, null);
 		}
 
 		public bool Initialize(Logger logger)
@@ -172,7 +172,9 @@ namespace SoulmaskDataMiner
 				provider.SubmitKey(vfsReader.EncryptionKeyGuid, key);
 			}
 
-			provider.LoadLocalization(ELanguage.English);
+			mProvider.PostMount();
+
+			mProvider.ChangeCulture(mProvider.GetLanguageCode(ELanguage.English));
 		}
 
 		private bool LoadClassMetaData(Logger logger)

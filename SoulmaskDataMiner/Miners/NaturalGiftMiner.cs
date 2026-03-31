@@ -51,7 +51,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private bool TryFindGifts(IProviderManager providerManager, Config config, Logger logger, [NotNullWhen(true)] out IReadOnlyDictionary<ENaturalGiftSource, List<CombinedGiftData>>? combinedGifts)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/DataTable/NaturalGift/DT_GiftZongBiao.uasset", out GameFile file))
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/DataTable/NaturalGift/DT_GiftZongBiao.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to locate natural gift data table.");
 				combinedGifts = null;

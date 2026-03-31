@@ -233,7 +233,7 @@ namespace SoulmaskDataMiner
 		/// <returns>The loaded texture, or null if no texture could be oaded</returns>
 		public static UTexture2D? LoadFirstTexture(IFileProvider provider, string assetPath, Logger logger)
 		{
-			if (!provider.TryFindGameFile(assetPath, out GameFile file))
+			if (!provider.TryGetGameFile(assetPath, out GameFile? file))
 			{
 				logger.Error($"Unable to locate asset {assetPath}.");
 				return null;

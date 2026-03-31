@@ -18,6 +18,7 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Miners;
 using System.Diagnostics.CodeAnalysis;
 
 namespace SoulmaskDataMiner
@@ -27,15 +28,17 @@ namespace SoulmaskDataMiner
 	/// </summary>
 	internal class DungeonUtil
 	{
-		private readonly string mLevelName;
+		private static Dictionary<string, DungeonEntrance>? sEntranceMap;
+
+		private readonly UObject mWorldSettings;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="levelName">The name of the level to load dungeon data for</param>
-		public DungeonUtil(string levelName = "Level01_Main")
+		/// <param name="worldSettings">The world settings for the level to load dungeon data for</param>
+		public DungeonUtil(UObject worldSettings)
 		{
-			mLevelName = levelName;
+			mWorldSettings = worldSettings;
 		}
 
 		/// <summary>
@@ -47,6 +50,8 @@ namespace SoulmaskDataMiner
 			IReadOnlyDictionary<string, DungeonConfig>? configMap = LoadDungeonConfig(providerManager, logger);
 			if (configMap is null) return null;
 
+
+
 			FindEntrances(providerManager, configMap, logger);
 			FindLevelObjects(providerManager, configMap, logger);
 			FindThemeObjects(providerManager, configMap, logger);
@@ -56,18 +61,15 @@ namespace SoulmaskDataMiner
 
 		private IReadOnlyDictionary<string, DungeonConfig>? LoadDungeonConfig(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.SingletonManager.GameSingleton.TryGetPropertyValue("AllDiXiaChengConfigMap", out FStructFallback obj))
-			{
-				return null;
-			}
+			UBlueprintGeneratedClass? configClass = mWorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("ConfigDataClass"))?.Tag?.GetValue<FPackageIndex>()?.Load() as UBlueprintGeneratedClass;
+			UObject? configData = configClass?.ClassDefaultObject.Load();
+			if (configData is null) return null;
 
-			UScriptMap? dungeonDataMap = obj.Properties[0].Tag?.GetValue<UScriptMap>();
-			if (dungeonDataMap is null) return null;
-
-			UScriptArray? dungeonArray = dungeonDataMap.Properties.FirstOrDefault(p => p.Key.GetValue<string>()!.Equals(mLevelName)).Value?.GetValue<FStructFallback>()?.Properties[0].Tag?.GetValue<UScriptArray>();
-			if (dungeonArray is null) return null;
+			UScriptArray? dungeonArray = configData.Properties.FirstOrDefault(p => p.Name.Text.Equals("DiXiaChengConfigList"))?.Tag?.GetValue<UScriptArray>();
+			if (dungeonArray is null || dungeonArray.Properties.Count == 0) return null;
 
 			Dictionary<string, DungeonConfig> result = new();
+
 			foreach (FPropertyTagType item in dungeonArray.Properties)
 			{
 				string? name = null;
@@ -122,118 +124,17 @@ namespace SoulmaskDataMiner
 
 		private void FindEntrances(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
 		{
-			foreach (var filePair in providerManager.Provider.Files)
+			IReadOnlyDictionary<string, DungeonEntrance> entranceMap = BuildEntranceMap(providerManager, logger);
+			foreach (var pair in configMap)
 			{
-				if (!filePair.Key.StartsWith("WS/Content/Blueprints/JianZhu/GameFunction/")) continue;
-				if (!filePair.Key.EndsWith(".uasset")) continue;
-				if (!filePair.Key.Contains("DiXiaCheng")) continue;
-
-				Package package = (Package)providerManager.Provider.LoadPackage(filePair.Value);
-				UObject? defaultsObj = GameUtil.FindBlueprintDefaultsObject(package);
-				if (defaultsObj is null) continue;
-
-				UScriptMap? functionMap = defaultsObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("GameFunctionExecutionMap"))?.Tag?.GetValue<UScriptMap>();
-				if (functionMap is null || functionMap.Properties.Count == 0) continue;
-
-				var funcData = functionMap.Properties.First();
-				UScriptArray? execList = funcData.Value?.GetValue<FStructFallback>()?.Properties[0].Tag?.GetValue<UScriptArray>();
-				if (execList is null || execList.Properties.Count == 0) continue;
-
-				EJianZhuGameFunctionType funcType = EJianZhuGameFunctionType.EJZGFT_NOT_DEFINE;
-				string? name = null;
-
-				FStructFallback execFunc = execList.Properties.First().GetValue<FStructFallback>()!;
-				foreach (FPropertyTag property in execFunc.Properties)
+				if (entranceMap.TryGetValue(pair.Key, out DungeonEntrance entrance))
 				{
-					switch (property.Name.Text)
-					{
-						case "FunctionType":
-							if (GameUtil.TryParseEnum(property, out EJianZhuGameFunctionType value))
-							{
-								funcType = value;
-							}
-							break;
-						case "ExecutePara1":
-							name = property.Tag?.GetValue<string>();
-							break;
-					}
+					configMap[pair.Key].Entrance = entrance;
 				}
-
-				if (funcType != EJianZhuGameFunctionType.EJZGFT_ENTRY_DIXIACHENG)
+				else
 				{
-					continue;
+					logger.Warning($"Unable to find an entrance for dungeon {pair.Key}");
 				}
-
-				if (name is null)
-				{
-					logger.Warning($"Dungeon entry game function \"{defaultsObj.Class}\" is missing a parameter");
-					continue;
-				}
-
-				if (!configMap.TryGetValue(name, out DungeonConfig? dungeonConfig))
-				{
-					continue;
-				}
-
-				FPackageIndex recipeAsset = funcData.Key.GetValue<FPackageIndex>()!;
-				UBlueprintGeneratedClass? recipeClass = recipeAsset.Load<UBlueprintGeneratedClass>();
-				UObject? recipeObj = recipeClass?.ClassDefaultObject.Load();
-				if (recipeObj is null)
-				{
-					logger.Warning($"Dungeon entry recipe class \"{recipeAsset.Name}\" could not be loaded");
-					continue;
-				}
-
-				DungeonEntrance entrance = new() { AssetName = defaultsObj.Class!.Name, ItemCost = new() };
-				UScriptArray? recipeItemArray = null;
-				foreach (FPropertyTag property in recipeObj.Properties)
-				{
-					switch (property.Name.Text)
-					{
-						case "PeiFangDengJi":
-							entrance.Level = property.Tag!.GetValue<int>();
-							break;
-						case "DemandDaoJu":
-							recipeItemArray = property.Tag?.GetValue<UScriptArray>();
-							break;
-						case "DemandMianJuNengLiang":
-							entrance.MaskEnergyCost = property.Tag!.GetValue<int>();
-							break;
-					}
-				}
-
-				if (recipeItemArray is not null)
-				{
-					foreach (FPropertyTagType item in recipeItemArray.Properties)
-					{
-						UScriptArray? itemsArray = null;
-						int count = 0;
-
-						FStructFallback itemObj = item.GetValue<FStructFallback>()!;
-						foreach (FPropertyTag property in itemObj.Properties)
-						{
-							switch (property.Name.Text)
-							{
-								case "DemandDaoJu":
-									itemsArray = property.Tag?.GetValue<UScriptArray>();
-									break;
-								case "DemandCount":
-									count = property.Tag!.GetValue<int>();
-									break;
-							}
-						}
-
-						if (itemsArray is null || itemsArray.Properties.Count == 0) continue;
-						if (count == 0) continue;
-						
-						foreach (FPropertyTagType componentItem in itemsArray.Properties)
-						{
-							entrance.ItemCost.Add(new() { ItemClass = componentItem.GetValue<FPackageIndex>()!.Name, Count = count });
-						}
-					}
-				}
-
-				dungeonConfig.Entrance = entrance;
 			}
 		}
 
@@ -388,7 +289,7 @@ namespace SoulmaskDataMiner
 					}
 
 					searchProperties(obj);
-					if ((lootItem is null && lootId is null || name is null) && obj.Class is UBlueprintGeneratedClass objClass)
+					if ((lootItem is null && lootId is null || name is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
 					{
 						BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 						{
@@ -426,6 +327,119 @@ namespace SoulmaskDataMiner
 				dungeonConfig.Entrance.MaskEnergyCost,
 				dungeonConfig.Spawners.Values.ToArray(),
 				dungeonConfig.Chests.Values.ToArray());
+		}
+
+		private IReadOnlyDictionary<string, DungeonEntrance> BuildEntranceMap(IProviderManager providerManager, Logger logger)
+		{
+			if (sEntranceMap is not null) return sEntranceMap;
+
+			sEntranceMap = new();
+
+			foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Instance.GetDerivedClasses("HJianZhuGameFunction"))
+			{
+				UBlueprintGeneratedClass? bpClass = (UBlueprintGeneratedClass?)classInfo.Export?.ExportObject.Value;
+				UObject? defaultsObj = bpClass?.ClassDefaultObject.Load();
+				if (defaultsObj is null) continue;
+
+				UScriptMap? functionMap = defaultsObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("GameFunctionExecutionMap"))?.Tag?.GetValue<UScriptMap>();
+				if (functionMap is null || functionMap.Properties.Count == 0) continue;
+
+				var funcData = functionMap.Properties.First();
+				UScriptArray? execList = funcData.Value?.GetValue<FStructFallback>()?.Properties[0].Tag?.GetValue<UScriptArray>();
+				if (execList is null || execList.Properties.Count == 0) continue;
+
+				EJianZhuGameFunctionType funcType = EJianZhuGameFunctionType.EJZGFT_NOT_DEFINE;
+				string? name = null;
+
+				FStructFallback execFunc = execList.Properties.First().GetValue<FStructFallback>()!;
+				foreach (FPropertyTag property in execFunc.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "FunctionType":
+							if (GameUtil.TryParseEnum(property, out EJianZhuGameFunctionType value))
+							{
+								funcType = value;
+							}
+							break;
+						case "ExecutePara1":
+							name = property.Tag?.GetValue<string>();
+							break;
+					}
+				}
+
+				if (funcType != EJianZhuGameFunctionType.EJZGFT_ENTRY_DIXIACHENG)
+				{
+					continue;
+				}
+
+				if (name is null)
+				{
+					continue;
+				}
+
+				FPackageIndex recipeAsset = funcData.Key.GetValue<FPackageIndex>()!;
+				UBlueprintGeneratedClass? recipeClass = recipeAsset.Load<UBlueprintGeneratedClass>();
+				UObject? recipeObj = recipeClass?.ClassDefaultObject.Load();
+				if (recipeObj is null)
+				{
+					logger.Warning($"Dungeon entry recipe class \"{recipeAsset.Name}\" could not be loaded");
+					continue;
+				}
+
+				DungeonEntrance entrance = new() { AssetName = defaultsObj.Class!.Name.Text, ItemCost = new() };
+				UScriptArray? recipeItemArray = null;
+				foreach (FPropertyTag property in recipeObj.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "PeiFangDengJi":
+							entrance.Level = property.Tag!.GetValue<int>();
+							break;
+						case "DemandDaoJu":
+							recipeItemArray = property.Tag?.GetValue<UScriptArray>();
+							break;
+						case "DemandMianJuNengLiang":
+							entrance.MaskEnergyCost = property.Tag!.GetValue<int>();
+							break;
+					}
+				}
+
+				if (recipeItemArray is not null)
+				{
+					foreach (FPropertyTagType item in recipeItemArray.Properties)
+					{
+						UScriptArray? itemsArray = null;
+						int count = 0;
+
+						FStructFallback itemObj = item.GetValue<FStructFallback>()!;
+						foreach (FPropertyTag property in itemObj.Properties)
+						{
+							switch (property.Name.Text)
+							{
+								case "DemandDaoJu":
+									itemsArray = property.Tag?.GetValue<UScriptArray>();
+									break;
+								case "DemandCount":
+									count = property.Tag!.GetValue<int>();
+									break;
+							}
+						}
+
+						if (itemsArray is null || itemsArray.Properties.Count == 0) continue;
+						if (count == 0) continue;
+
+						foreach (FPropertyTagType componentItem in itemsArray.Properties)
+						{
+							entrance.ItemCost.Add(new() { ItemClass = componentItem.GetValue<FPackageIndex>()!.Name, Count = count });
+						}
+					}
+				}
+
+				sEntranceMap.Add(name, entrance);
+			}
+
+			return sEntranceMap;
 		}
 
 		private class DungeonConfig

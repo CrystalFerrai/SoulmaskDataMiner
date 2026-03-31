@@ -116,7 +116,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private IEnumerable<FashionData>? GetFashionList(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Data/DataTables/DT_Fashion.uasset", out GameFile file))
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Data/DataTables/DT_Fashion.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to locate asset DT_Fashion.");
 				return null;

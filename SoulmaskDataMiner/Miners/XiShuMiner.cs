@@ -105,7 +105,7 @@ namespace SoulmaskDataMiner.Miners
 			Dictionary<string, FName> tipsNameMap = new(StringComparer.OrdinalIgnoreCase);
 
 			{
-				if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_GameXiShu_GuanLiQi.uasset", out GameFile file))
+				if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_GameXiShu_GuanLiQi.uasset", out GameFile? file))
 				{
 					logger.Error("Unable to locate asset BP_GameXiShu_GuanLiQi.");
 					return false;
@@ -140,7 +140,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			{
-				if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_XiShuTipsText.uasset", out GameFile file))
+				if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_XiShuTipsText.uasset", out GameFile? file))
 				{
 					logger.Error("Unable to locate asset DT_XiShuTipsText.");
 					return false;

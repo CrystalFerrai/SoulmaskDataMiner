@@ -173,7 +173,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private IReadOnlyDictionary<EWuQiLeiXing, Dictionary<int, Dictionary<int, float>>>? GetMasteryAcquireMap(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_ZhuanJingSLD.uasset", out GameFile file2))
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/DT_ZhuanJingSLD.uasset", out GameFile? file2))
 			{
 				logger.Error("Unable to locate asset DT_ZhuanJingSLD.");
 				return null;

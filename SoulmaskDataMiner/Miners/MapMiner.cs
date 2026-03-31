@@ -13,16 +13,20 @@
 // limitations under the License.
 
 using CUE4Parse.FileProvider.Objects;
+using CUE4Parse.GameTypes.PUBG.Assets.Exports;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Component;
 using CUE4Parse.UE4.Assets.Exports.Engine;
+using CUE4Parse.UE4.Assets.Exports.Material;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using CUE4Parse_Conversion.UEFormat.Structs;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -45,78 +49,190 @@ namespace SoulmaskDataMiner.Miners
 
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
-			logger.Information("Exporting map images...");
-			if (!ExportMapImages(providerManager, config, logger))
+			Package levelsTablePackage = (Package)providerManager.Provider.LoadPackage("WS/Content/Blueprints/DataTable/DT_GameplayLevel.uasset");
+			UDataTable levelsTable = (UDataTable)levelsTablePackage.ExportMap[0].ExportObject.Value;
+
+			MapPoiStaticData? mapPoiStaticData = BuildPoiStaticData(providerManager, logger);
+			if (mapPoiStaticData is null)
 			{
+				// BuildPoiStaticData prints its own error messages, so we don't need one here
 				return false;
 			}
 
-			logger.Information("<<< Begin processing map >>>");
-			MapInfo? mapData = ProcessMap(providerManager, logger);
-			if (mapData is null)
+			bool success = true;
+			List<MapInfo> allMapData = new();
+			foreach (var pair in levelsTable.RowMap)
 			{
-				return false;
+				string mapName = pair.Key.Text;
+				string? mainLevelPath = pair.Value.Properties.FirstOrDefault(p => p.Name.Text.Equals("LevelPath_3_7DE224FB4A21A1EB5C1CAA8FE6D675FF"))?.Tag?.GetValue<string>();
+				if (mainLevelPath is null)
+				{
+					logger.Warning($"Failed to find main level path for map {mapName}. Skipping.");
+					continue;
+				}
+
+				logger.Important($"Map: {mapName}");
+				if (RunMap(mapName, mainLevelPath, mapPoiStaticData, providerManager, config, logger, out MapInfo? mapData))
+				{
+					allMapData.Add(mapData);
+				}
+				else
+				{
+					success = false;
+				}
 			}
-			logger.Information("<<< Finished processing map >>>");
 
-			logger.Information("Exporting data...");
-			WriteIcons(mapData, config, logger);
-			WriteCsv(mapData, config, logger);
-			WriteSql(mapData, sqlWriter, logger);
-
-			return true;
-		}
-
-		private bool ExportMapImages(IProviderManager providerManager, Config config, Logger logger)
-		{
-			string outDir = Path.Combine(config.OutputDirectory, Name);
-
-			bool success = TextureExporter.ExportFirstTexture(providerManager.Provider, "WS/Content/UI/Map/Level01_Map.uasset", false, logger, outDir);
-			success &= TextureExporter.ExportFirstTexture(providerManager.Provider, "WS/Content/UI/Map/T_MapMask.uasset", false, logger, outDir);
+			WriteSql(allMapData, sqlWriter, logger);
 
 			return success;
 		}
 
-		private MapInfo? ProcessMap(IProviderManager providerManager, Logger logger)
+		private bool RunMap(string mapName, string mainLevelPath, MapPoiStaticData mapPoiStaticData, IProviderManager providerManager, Config config, Logger logger, [NotNullWhen(true)] out MapInfo? mapData)
+		{
+			mapData = null;
+
+			MapLevelData? mapLevelData = MapLevelData.Load(mapName, mainLevelPath, providerManager, logger);
+			if (mapLevelData is null)
+			{
+				logger.Error($"Failed to load level data for map {mapName}");
+				return false;
+			}
+
+			bool success = true;
+
+			logger.Information("Exporting map images...");
+			if (!ExportMapImages(mapLevelData, providerManager, config, logger))
+			{
+				logger.Error("Failed to export all map images.");
+				success = false;
+			}
+
+			logger.Information("<<< Begin processing map >>>");
+			mapData = ProcessMap(mapLevelData, mapPoiStaticData, providerManager, logger);
+			logger.Information("<<< Finished processing map >>>");
+			if (mapData is null)
+			{
+				// ProcessMap prints its own error messages, so we don't need one here
+				return false;
+			}
+
+			logger.Information("Exporting data...");
+			WriteIcons(mapData, config, logger);
+			WriteCsv(mapData, config, logger);
+
+			return success;
+		}
+
+		private bool ExportMapImages(MapLevelData mapLevelData, IProviderManager providerManager, Config config, Logger logger)
+		{
+			string outDir = Path.Combine(config.OutputDirectory, Name, mapLevelData.MapName);
+
+			bool success = true;
+
+			UTexture2D? mapTexture = mapLevelData.WorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("Map2DTexture"))?.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Load() as UTexture2D;
+			if (mapTexture is not null)
+			{
+				success &= TextureExporter.ExportTexture(mapTexture, false, logger, outDir);
+			}
+			else
+			{
+				success = false;
+			}
+
+			UMaterial? mapMaskMaterial = mapLevelData.WorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("SlateBrushMapMiWu"))?.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Load() as UMaterial;
+			if (mapMaskMaterial is not null)
+			{
+				foreach (UTexture2D texture in mapMaskMaterial.ReferencedTextures)
+				{
+					if (texture.Name.Equals(mapTexture?.Name)) continue;
+
+					success &= TextureExporter.ExportTexture(texture, false, logger, outDir);
+				}
+			}
+
+			return success;
+		}
+
+		private MapPoiStaticData? BuildPoiStaticData(IProviderManager providerManager, Logger logger)
+		{
+			UObject? mapIntel = LoadMapIntel(providerManager, logger);
+			if (mapIntel is null)
+			{
+				logger.Error("Failed to load map intel.");
+				return null;
+			}
+
+			IReadOnlyDictionary<ETanSuoDianType, UTexture2D>? mapIcons = GetMapIcons(mapIntel, logger);
+			if (mapIcons is null)
+			{
+				logger.Error("Failed to load map icons.");
+				return null;
+			}
+
+			UTexture2D lootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
+			if (lootIcon is null)
+			{
+				logger.Error("Failed to load loot icon.");
+				return null;
+			}
+
+			UTexture2D respawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
+			if (respawnIcon is null)
+			{
+				logger.Error("Failed to load respawn icon.");
+				return null;
+			}
+
+			UTexture2D bossIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/hud/dusuicon.uasset", logger)!;
+			if (bossIcon is null)
+			{
+				logger.Error("Failed to load boss icon.");
+				return null;
+			}
+
+			UTexture2D minePlatformIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/MianJuJiNeng/xinban/kuangmaitance3.uasset", logger)!;
+			if (minePlatformIcon is null)
+			{
+				logger.Error("Failed to load mine platform icon.");
+				return null;
+			}
+
+			IReadOnlyDictionary<NpcCategory, SpawnLayerInfo>? spawnLayers = LoadSpawnLayers(providerManager, logger);
+			if (spawnLayers is null)
+			{
+				// LoadSpawnLayers prints its own error messages, so we don't need one here
+				return null;
+			}
+
+			return new(providerManager.LootDatabase, mapIntel, mapIcons, spawnLayers, respawnIcon, lootIcon, bossIcon, minePlatformIcon);
+		}
+
+		private MapInfo? ProcessMap(MapLevelData mapLevelData, MapPoiStaticData poiStaticData, IProviderManager providerManager, Logger logger)
 		{
 			logger.Information("Loading dependencies...");
 
-			UObject? mapIntel = LoadMapIntel(providerManager, logger);
-			if (mapIntel is null) return null;
+			MapPoiDatabase? poiDatabase = GetPois(providerManager, poiStaticData, providerManager.Achievements, logger);
+			if (poiDatabase is null)
+			{
+				logger.Error("Failed to load map POIs.");
+				return null;
+			}
 
-			IReadOnlyDictionary<ETanSuoDianType, UTexture2D>? mapIcons = GetMapIcons(mapIntel, logger);
-			if (mapIcons is null) return null;
-
-			MapPoiDatabase? poiDatabase = GetPois(providerManager, mapIntel, providerManager.Achievements, logger);
-			if (poiDatabase is null) return null;
-
-			poiDatabase.LootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
-			if (poiDatabase.LootIcon is null) return null;
-
-			poiDatabase.RespawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
-			if (poiDatabase.RespawnIcon is null) return null;
-
-			poiDatabase.BossIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/hud/dusuicon.uasset", logger)!;
-			if (poiDatabase.BossIcon is null) return null;
-
-			poiDatabase.MinePlatformIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/MianJuJiNeng/xinban/kuangmaitance3.uasset", logger)!;
-			if (poiDatabase.MinePlatformIcon is null) return null;
-
-			DungeonUtil dungeonUtil = new();
+			DungeonUtil dungeonUtil = new(mapLevelData.WorldSettings);
 			poiDatabase.DungeonMap = dungeonUtil.LoadDungeonData(providerManager, logger)!;
-			if (poiDatabase.DungeonMap is null) return null;
+			if (poiDatabase.DungeonMap is null)
+			{
+				logger.Error("Failed to load dungeons.");
+				return null;
+			}
 
 			if (!FindTabletData(providerManager, poiDatabase, providerManager.Achievements, logger))
 			{
+				logger.Error("Failed to load tablets.");
 				return null;
 			}
 
-			if (!LoadSpawnLayers(providerManager, poiDatabase, logger))
-			{
-				return null;
-			}
-
-			if (!FindMapObjects(providerManager, logger, poiDatabase,
+			if (!FindMapObjects(providerManager, logger, mapLevelData, poiDatabase,
 				out IReadOnlyList<FObjectExport>? poiObjects,
 				out IReadOnlyList<FObjectExport>? tabletObjects,
 				out IReadOnlyList<FObjectExport>? respawnObjects,
@@ -129,15 +245,24 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? minePlatformObjects,
 				out IReadOnlyList<FObjectExport>? mineralVeinObjects))
 			{
+				logger.Error("Failed to find map objects.");
 				return null;
 			}
 
 			FoliageUtil foliageUtil = new(sMapData);
-			IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? foliageData = foliageUtil.LoadFoliage(providerManager, logger);
-			if (foliageData is null) return null;
+			IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? foliageData = foliageUtil.LoadFoliage(providerManager, mapLevelData.MapMainDirectory, logger);
+			if (foliageData is null)
+			{
+				logger.Error("Failed to load foliage.");
+				return null;
+			}
 
 			IReadOnlyDictionary<int, ArenaRewardData>? arenaRewardMap = ArenaUtil.LoadRewardData(providerManager, logger);
-			if (arenaRewardMap is null) return null;
+			if (arenaRewardMap is null)
+			{
+				logger.Error("Failed to load arena reward data.");
+				return null;
+			}
 
 			ProcessPois(poiDatabase, poiObjects, logger);
 			ProcessTablets(poiDatabase, tabletObjects, logger);
@@ -151,14 +276,14 @@ namespace SoulmaskDataMiner.Miners
 			ProcessMinePlatforms(poiDatabase, minePlatformObjects, logger);
 			ProcessMineralVeins(poiDatabase, mineralVeinObjects, providerManager, logger);
 
-			FindPoiTextures(poiDatabase, mapIcons, logger);
+			FindPoiTextures(poiDatabase, logger);
 
-			return new(poiDatabase.GetAllPois(), poiDatabase.AdditionalIconsToExport.ToArray());
+			return new(mapLevelData.MapName, poiDatabase.GetAllPois(), poiDatabase.AdditionalIconsToExport.ToArray());
 		}
 
 		private UObject? LoadMapIntel(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_MapQingBaoConfig.uasset", out GameFile file))
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_MapQingBaoConfig.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to load asset BP_MapQingBaoConfig.");
 				return null;
@@ -201,101 +326,100 @@ namespace SoulmaskDataMiner.Miners
 			return null;
 		}
 
-		private MapPoiDatabase? GetPois(IProviderManager providerManager, UObject mapIntel, Achievements achievements, Logger logger)
+		private MapPoiDatabase? GetPois(IProviderManager providerManager, MapPoiStaticData mapPoiStaticData, Achievements achievements, Logger logger)
 		{
-			foreach (FPropertyTag property in mapIntel.Properties)
+			FPropertyTag? poiMapProperty = mapPoiStaticData.MapIntel.Properties.FirstOrDefault(p => p.Name.Text.Equals("AllTanSuoDianInfoMap"));
+			if (poiMapProperty is null)
 			{
-				if (!property.Name.Text.Equals("AllTanSuoDianInfoMap")) continue;
+				return null;
+			}
 
-				MapPoiDatabase poiDatabase = new(providerManager.LootDatabase);
+			MapPoiDatabase poiDatabase = new(mapPoiStaticData);
 
-				UScriptMap poiMap = property.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
-				foreach (var pair in poiMap.Properties)
+			UScriptMap poiMap = poiMapProperty.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
+			foreach (var pair in poiMap.Properties)
+			{
+				int index = pair.Key.GetValue<int>();
+
+				FStructFallback? poiProperties = pair.Value?.GetValue<FStructFallback>();
+				if (poiProperties is null)
 				{
-					int index = pair.Key.GetValue<int>();
+					logger.Warning($"Failed to load data for POI {index}");
+					continue;
+				}
 
-					FStructFallback? poiProperties = pair.Value?.GetValue<FStructFallback>();
-					if (poiProperties is null)
+				ETanSuoDianType? poiType = null;
+				MapPoi poi = new()
+				{
+					Key = index,
+					GroupIndex = SpawnLayerGroup.PointOfInterest
+				};
+				foreach (FPropertyTag poiProperty in poiProperties.Properties)
+				{
+					switch (poiProperty.Name.Text)
 					{
-						logger.Warning($"Failed to load data for POI {index}");
-						continue;
-					}
-
-					ETanSuoDianType? poiType = null;
-					MapPoi poi = new()
-					{
-						Key = index,
-						GroupIndex = SpawnLayerGroup.PointOfInterest
-					};
-					foreach (FPropertyTag poiProperty in poiProperties.Properties)
-					{
-						switch (poiProperty.Name.Text)
-						{
-							case "TSDType":
-								if (GameUtil.TryParseEnum(poiProperty, out ETanSuoDianType value))
-								{
-									poiType = value;
-								}
-								break;
-							case "TSDName":
-								poi.Title = GameUtil.ReadTextProperty(poiProperty);
-								break;
-							case "TSDBossName":
-								poi.Name = GameUtil.ReadTextProperty(poiProperty);
-								break;
-							case "TSDDesc":
-								poi.Description = GameUtil.ReadTextProperty(poiProperty);
-								break;
-							case "TSDDesc1":
-								poi.Extra = GameUtil.ReadTextProperty(poiProperty);
-								break;
-								// The game displays either Desc1 or Desc2 depending on a game setting regarding barracks respawns.
-								// I am choosing to use the Desc1 version in my data, but leaving this here as a note in case
-								// something changes in the future.
-								//case "TSDDesc2":
-								//	break;
-						}
-					}
-
-					if (!poiType.HasValue)
-					{
-						logger.Warning($"Failed to locate type for POI {index}");
-						continue;
-					}
-
-					poi.Type = GetType(poiType.Value);
-					if (poi.Title is null)
-					{
-						poi.Title = GetTitle(poiType.Value);
-					}
-
-					if (achievements.CollectMap.TryGetValue(index, out AchievementData? achievement))
-					{
-						poi.Achievement = achievement;
-					}
-
-					poiDatabase.IndexLookup.Add(index, poi);
-					if (!poiDatabase.TypeLookup.TryGetValue(poiType.Value, out List<MapPoi>? list))
-					{
-						list = new();
-						poiDatabase.TypeLookup.Add(poiType.Value, list);
-					}
-					list.Add(poi);
-
-					if (poiType == ETanSuoDianType.ETSD_TYPE_DIXIACHENG)
-					{
-						poiDatabase.DungeonPois.Add(poi);
-					}
-					else if (poiType == ETanSuoDianType.ETSD_TYPE_ARENA)
-					{
-						poiDatabase.ArenaPois.Add(poi);
+						case "TSDType":
+							if (GameUtil.TryParseEnum(poiProperty, out ETanSuoDianType value))
+							{
+								poiType = value;
+							}
+							break;
+						case "TSDName":
+							poi.Title = GameUtil.ReadTextProperty(poiProperty);
+							break;
+						case "TSDBossName":
+							poi.Name = GameUtil.ReadTextProperty(poiProperty);
+							break;
+						case "TSDDesc":
+							poi.Description = GameUtil.ReadTextProperty(poiProperty);
+							break;
+						case "TSDDesc1":
+							poi.Extra = GameUtil.ReadTextProperty(poiProperty);
+							break;
+							// The game displays either Desc1 or Desc2 depending on a game setting regarding barracks respawns.
+							// I am choosing to use the Desc1 version in my data, but leaving this here as a note in case
+							// something changes in the future.
+							//case "TSDDesc2":
+							//	break;
 					}
 				}
 
-				return poiDatabase;
+				if (!poiType.HasValue)
+				{
+					logger.Warning($"Failed to locate type for POI {index}");
+					continue;
+				}
+
+				poi.Type = GetType(poiType.Value);
+				if (poi.Title is null)
+				{
+					poi.Title = GetTitle(poiType.Value);
+				}
+
+				if (achievements.CollectMap.TryGetValue(index, out AchievementData? achievement))
+				{
+					poi.Achievement = achievement;
+				}
+
+				poiDatabase.IndexLookup.Add(index, poi);
+				if (!poiDatabase.TypeLookup.TryGetValue(poiType.Value, out List<MapPoi>? list))
+				{
+					list = new();
+					poiDatabase.TypeLookup.Add(poiType.Value, list);
+				}
+				list.Add(poi);
+
+				if (poiType == ETanSuoDianType.ETSD_TYPE_DIXIACHENG)
+				{
+					poiDatabase.DungeonPois.Add(poi);
+				}
+				else if (poiType == ETanSuoDianType.ETSD_TYPE_ARENA)
+				{
+					poiDatabase.ArenaPois.Add(poi);
+				}
 			}
 
-			return null;
+			return poiDatabase;
 		}
 
 		private bool FindTabletData(IProviderManager providerManager, MapPoiDatabase poiDatabase, Achievements achievements, Logger logger)
@@ -420,12 +544,12 @@ namespace SoulmaskDataMiner.Miners
 									UObject? unlockNode = item.GetValue<FStructFallback>()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("KeJiSubNodeClass"))?.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
 									if (unlockNode is null) continue;
 
-									UScriptArray? unlockRecipeList = unlockNode.Properties.FirstOrDefault(p => p.Name.Text.Equals("KeJiPeiFangList"))?.Tag?.GetValue<UScriptArray>();
+									UScriptArray? unlockRecipeList = unlockNode.Properties.FirstOrDefault(p => p.Name.Text.Equals("KeJiPeiFangSoftList"))?.Tag?.GetValue<UScriptArray>();
 									if (unlockRecipeList is null) continue;
 
 									foreach (FPropertyTagType recipe in unlockRecipeList.Properties)
 									{
-										UObject? unlockRecipe = recipe.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
+										UObject? unlockRecipe = recipe.GetValue<FSoftObjectPath>().Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
 										if (unlockRecipe is null) continue;
 
 										FPackageIndex? unlockItem = unlockRecipe.Properties.FirstOrDefault(p => p.Name.Text.Equals("ProduceDaoJu"))?.Tag?.GetValue<FPackageIndex>();
@@ -455,15 +579,17 @@ namespace SoulmaskDataMiner.Miners
 			return poiDatabase.Tablets.Any();
 		}
 
-		private bool LoadSpawnLayers(IProviderManager providerManager, MapPoiDatabase poiDatabase, Logger logger)
+		private IReadOnlyDictionary<NpcCategory, SpawnLayerInfo>? LoadSpawnLayers(IProviderManager providerManager, Logger logger)
 		{
 			string[] texturePaths = new string[]
 			{
-					"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji1.uasset",
-					"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji.uasset",
-					"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji2.uasset",
-					"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji3.uasset"
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji1.uasset",
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji.uasset",
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji2.uasset",
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji3.uasset"
 			};
+
+			Dictionary<NpcCategory, SpawnLayerInfo> result = new();
 
 			for (int i = 0; i < texturePaths.Length; ++i)
 			{
@@ -471,23 +597,24 @@ namespace SoulmaskDataMiner.Miners
 				if (icon is null)
 				{
 					logger.Error("Failed to load spawner icon texture.");
-					return false;
+					return null;
 				}
 
-				poiDatabase.SpawnLayerMap[(NpcCategory)i] = new SpawnLayerInfo() { Name = ((NpcCategory)i).ToString(), Icon = icon };
+				result[(NpcCategory)i] = new SpawnLayerInfo() { Name = ((NpcCategory)i).ToString(), Icon = icon };
 			}
 
-			UScriptMap? animalConfigMap = providerManager.SingletonManager.GameSingleton.Properties.FirstOrDefault(p => p.Name.Text.Equals("DongWuConfigMap"))?.Tag?.GetValue<UScriptMap>();
+			UScriptMap? animalConfigMap = providerManager.SingletonManager.GameSingleton.Properties.FirstOrDefault(p => p.Name.Text.Equals("DongWuConfigExMap"))?.Tag?.GetValue<UScriptMap>();
 			if (animalConfigMap is null)
 			{
 				logger.Error("Failed to load animal config map from game singleton");
-				return false;
+				return null;
 			}
 
 			Dictionary<string, FPropertyTag> animalIconMap = new();
 			foreach (var pair in animalConfigMap.Properties)
 			{
-				string? className = pair.Key.GetValue<FPackageIndex>()?.Name;
+				string className = pair.Key.GetValue<FSoftObjectPath>().AssetPathName.Text;
+				className = className.Substring(className.LastIndexOf('.') + 1);
 				FPropertyTag? iconProperty = pair.Value?.GetValue<FStructFallback>()?.Properties[0];
 				if (className is null || iconProperty is null) continue;
 
@@ -541,29 +668,29 @@ namespace SoulmaskDataMiner.Miners
 				mooseIcon is null)
 			{
 				logger.Error("Failed to load spawner icon texture.");
-				return false;
+				return null;
 			}
 
 			const string babyAnimalSpawnName = "Baby Animal Spawn";
-			poiDatabase.SpawnLayerMap[NpcCategory.Llama] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = llamaIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Alpaca] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = alpacaIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Jaguar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = jaguarIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Leopard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = leopardIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Boar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = boarIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Elephant] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = elephantIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Lizard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lizardIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Bison] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = bisonIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Eagle] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = eagleIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Tortoise] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = tortoiseIcon };
-			poiDatabase.SpawnLayerMap[NpcCategory.Moose] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = mooseIcon };
+			result[NpcCategory.Llama] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = llamaIcon };
+			result[NpcCategory.Alpaca] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = alpacaIcon };
+			result[NpcCategory.Jaguar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = jaguarIcon };
+			result[NpcCategory.Leopard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = leopardIcon };
+			result[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
+			result[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
+			result[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
+			result[NpcCategory.Boar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = boarIcon };
+			result[NpcCategory.Elephant] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = elephantIcon };
+			result[NpcCategory.Lizard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lizardIcon };
+			result[NpcCategory.Bison] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = bisonIcon };
+			result[NpcCategory.Eagle] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = eagleIcon };
+			result[NpcCategory.Tortoise] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = tortoiseIcon };
+			result[NpcCategory.Moose] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = mooseIcon };
 
-			return true;
+			return result;
 		}
 
-		private bool FindMapObjects(IProviderManager providerManager, Logger logger, MapPoiDatabase poiDatabase,
+		private bool FindMapObjects(IProviderManager providerManager, Logger logger, MapLevelData mapLevelData, MapPoiDatabase poiDatabase,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? poiObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? tabletObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? respawnObjects,
@@ -587,33 +714,6 @@ namespace SoulmaskDataMiner.Miners
 			gamefunctionObjects = null;
 			minePlatformObjects = null;
 			mineralVeinObjects = null;
-
-			Package[] gameplayPackages = new Package[2];
-			{
-				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Hub/Level01_GamePlay.umap", out GameFile file))
-				{
-					logger.Error("Unable to load asset Level01_GamePlay.");
-					return false;
-				}
-				gameplayPackages[0] = (Package)providerManager.Provider.LoadPackage(file);
-			}
-			{
-				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Hub/Level01_GamePlay2.umap", out GameFile file))
-				{
-					logger.Error("Unable to load asset Level01_GamePlay2.");
-					return false;
-				}
-				gameplayPackages[1] = (Package)providerManager.Provider.LoadPackage(file);
-			}
-			Package mainPackage;
-			{
-				if (!providerManager.Provider.TryFindGameFile("WS/Content/Maps/Level01/Level01_Main.umap", out GameFile file))
-				{
-					logger.Error("Unable to load asset Level01_Main.");
-					return false;
-				}
-				mainPackage = (Package)providerManager.Provider.LoadPackage(file);
-			}
 
 			const string poiClass = "HVolumeChuFaQi";
 
@@ -685,6 +785,8 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> minePlatformObjectList = new();
 			List<FObjectExport> mineralVeinObjectList = new();
 
+			Package[] gameplayPackages = [ mapLevelData.GameplayLevel1, mapLevelData.GameplayLevel2 ];
+
 			logger.Information("Scanning for objects...");
 			foreach (Package package in gameplayPackages)
 			{
@@ -726,8 +828,8 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 			{
-				logger.Debug(mainPackage.Name);
-				foreach (FObjectExport export in mainPackage.ExportMap)
+				logger.Debug(mapLevelData.MainLevel.Name);
+				foreach (FObjectExport export in mapLevelData.MainLevel.ExportMap)
 				{
 					if (export.ClassName.Equals(respawnClass))
 					{
@@ -856,7 +958,7 @@ namespace SoulmaskDataMiner.Miners
 					Description = radius > 0.0f ? $"Radius: {radius}" : null,
 					Location = location,
 					MapLocation = WorldToMap(location),
-					Icon = poiDatabase.RespawnIcon
+					Icon = poiDatabase.StaticData.RespawnIcon
 				};
 
 				poiDatabase.RespawnPoints.Add(poi);
@@ -1002,7 +1104,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				searchProperties(obj);
-				if ((scgClasses.Count == 0 || rootComponent is null || !spawnInterval.HasValue) && obj.Class is UBlueprintGeneratedClass objClass)
+				if ((scgClasses.Count == 0 || rootComponent is null || !spawnInterval.HasValue) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
 				{
 					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 					{
@@ -1056,7 +1158,7 @@ namespace SoulmaskDataMiner.Miners
 
 				void applyLayerTypeAndSex(bool onlyBabies)
 				{
-					layerInfo = poiDatabase.SpawnLayerMap[layerType];
+					layerInfo = poiDatabase.StaticData.SpawnLayerMap[layerType];
 					group = SpawnLayerGroup.Npc;
 					type = layerInfo.Name;
 					male = false;
@@ -1163,7 +1265,7 @@ namespace SoulmaskDataMiner.Miners
 
 						BlueprintHeirarchy.SearchInheritance(npc.CharacterClass, (current) =>
 						{
-							if (poiDatabase.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
+							if (poiDatabase.StaticData.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
 							{
 								collectionMap.Add(npc.CharacterClass.Name, collectionData);
 								return true;
@@ -1359,7 +1461,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				searchProperties(obj);
-				if ((respawnTime < 0 || lootId is null || poiName is null || openTip is null || rootComponent is null) && obj.Class is UBlueprintGeneratedClass objClass)
+				if ((respawnTime < 0 || lootId is null || poiName is null || openTip is null || rootComponent is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
 				{
 					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 					{
@@ -1393,7 +1495,7 @@ namespace SoulmaskDataMiner.Miners
 					Title = poiName,
 					Name = "Lootable Object",
 					Extra = openTip,
-					Icon = poiDatabase.LootIcon,
+					Icon = poiDatabase.StaticData.LootIcon,
 					Location = location,
 					MapLocation = WorldToMap(location),
 					LootId = lootId,
@@ -1485,7 +1587,9 @@ namespace SoulmaskDataMiner.Miners
 
 				foreach (MapPoi dungeonPoi in poiDatabase.DungeonPois)
 				{
-					FVector distance = location - dungeonPoi.Location!.Value;
+					if (!dungeonPoi.Location.HasValue) continue;
+
+					FVector distance = location - dungeonPoi.Location.Value;
 					if (distance.SizeSquared() < 400000000.0f) // 200 meters
 					{
 						StringBuilder builder = new("{");
@@ -1811,7 +1915,7 @@ namespace SoulmaskDataMiner.Miners
 						CollectionData? collectionData = null;
 						BlueprintHeirarchy.SearchInheritance(npcClass, (current) =>
 						{
-							if (poiDatabase.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData value))
+							if (poiDatabase.StaticData.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData value))
 							{
 								collectionData = value;
 								return true;
@@ -1878,7 +1982,7 @@ namespace SoulmaskDataMiner.Miners
 					BossInfo = bossData,
 					Location = location,
 					MapLocation = WorldToMap(location),
-					Icon = poiDatabase.BossIcon
+					Icon = poiDatabase.StaticData.BossIcon
 				};
 
 				poiDatabase.WorldBosses.Add(poi);
@@ -2014,7 +2118,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				processArenaObject(obj);
-				if ((spawnerInfos is null || winCountInfos is null) && obj.Class is UBlueprintGeneratedClass objClass)
+				if ((spawnerInfos is null || winCountInfos is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
 				{
 					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 					{
@@ -2034,7 +2138,9 @@ namespace SoulmaskDataMiner.Miners
 
 				foreach (MapPoi arenaPoi in poiDatabase.ArenaPois)
 				{
-					FVector distance = location - arenaPoi.Location!.Value;
+					if (!arenaPoi.Location.HasValue) continue;
+
+					FVector distance = location - arenaPoi.Location.Value;
 					if (distance.SizeSquared() < 400000000.0f) // 200 meters
 					{
 						StringBuilder builder = new("{");
@@ -2160,7 +2266,7 @@ namespace SoulmaskDataMiner.Miners
 				UObject worldObj = minePlatformObject.ExportObject.Value;
 				searchObj(worldObj);
 
-				BlueprintHeirarchy.SearchInheritance((UClass)worldObj.Class!, (current) =>
+				BlueprintHeirarchy.SearchInheritance((UClass)worldObj.Class!.Load()!, (current) =>
 				{
 					UObject? curObj = current.ClassDefaultObject.Load();
 					if (curObj is null) return false;
@@ -2194,7 +2300,7 @@ namespace SoulmaskDataMiner.Miners
 					LootId = lootId,
 					Location = location,
 					MapLocation = WorldToMap(location),
-					Icon = poiDatabase.MinePlatformIcon
+					Icon = poiDatabase.StaticData.MinePlatformIcon
 				};
 
 				poiDatabase.MinePlatforms.Add(poi);
@@ -2282,7 +2388,7 @@ namespace SoulmaskDataMiner.Miners
 				UObject worldObj = mineralVeinObject.ExportObject.Value;
 				searchObj(worldObj);
 
-				BlueprintHeirarchy.SearchInheritance((UClass)worldObj.Class!, (current) =>
+				BlueprintHeirarchy.SearchInheritance((UClass)worldObj.Class!.Load()!, (current) =>
 				{
 					UObject? curObj = current.ClassDefaultObject.Load();
 					if (curObj is null) return false;
@@ -2307,7 +2413,7 @@ namespace SoulmaskDataMiner.Miners
 
 				FVector location = locationProperty.Tag!.GetValue<FVector>();
 
-				if (!poiDatabase.Loot.LootMap.TryGetValue(lootId, out LootTable? lootTable))
+				if (!poiDatabase.StaticData.Loot.LootMap.TryGetValue(lootId, out LootTable? lootTable))
 				{
 					logger.Warning($"Failed to locate mineral vein content type '{lootId}'");
 					continue;
@@ -2376,7 +2482,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private UTexture2D? LoadItemIcon(string assetPath, IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile(assetPath, out GameFile? file))
+			if (!providerManager.Provider.TryGetGameFile(assetPath, out GameFile? file))
 			{
 				logger.Warning($"Unable to find {assetPath}");
 				return null;
@@ -2399,11 +2505,11 @@ namespace SoulmaskDataMiner.Miners
 			return GameUtil.ReadTextureProperty(iconProperty);
 		}
 
-		private void FindPoiTextures(MapPoiDatabase poiDatabase, IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons, Logger logger)
+		private void FindPoiTextures(MapPoiDatabase poiDatabase, Logger logger)
 		{
 			foreach (var pair in poiDatabase.TypeLookup)
 			{
-				if (!mapIcons.TryGetValue(pair.Key, out var texture))
+				if (!poiDatabase.StaticData.MapIcons.TryGetValue(pair.Key, out var texture))
 				{
 					continue;
 				}
@@ -2414,10 +2520,9 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-
 		private void WriteIcons(MapInfo mapData, Config config, Logger logger)
 		{
-			string outDir = Path.Combine(config.OutputDirectory, Name, "icons");
+			string outDir = Path.Combine(config.OutputDirectory, Name, "Icons");
 
 			HashSet<string> exported = new();
 			foreach (var pair in mapData.POIs)
@@ -2455,7 +2560,7 @@ namespace SoulmaskDataMiner.Miners
 
 			foreach (var pair in mapData.POIs)
 			{
-				string outPath = Path.Combine(config.OutputDirectory, Name, $"{pair.Key}.csv");
+				string outPath = Path.Combine(config.OutputDirectory, Name, mapData.MapName, $"{pair.Key}.csv");
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
@@ -2489,10 +2594,11 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void WriteSql(MapInfo mapData, ISqlWriter sqlWriter, Logger logger)
+		private void WriteSql(IEnumerable<MapInfo> allMapData, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `poi` (
+			//   `map` varchar(31) not null,
 			//   `gpIdx` int not null,
 			//   `gpName` varchar(63) not null,
 			//   `key` int,
@@ -2540,35 +2646,38 @@ namespace SoulmaskDataMiner.Miners
 
 			sqlWriter.WriteStartTable("poi");
 
-			foreach (var pair in mapData.POIs)
+			foreach (MapInfo mapData in allMapData)
 			{
-				foreach (MapPoi poi in pair.Value)
+				foreach (var pair in mapData.POIs)
 				{
-					// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
-					if (poi.Location == FVector.ZeroVector) continue;
-
-					string spawnerSegment = "null, null, null, null, null, null, null, null, null";
-					string poiSegment = "null, null, null";
-					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
+					foreach (MapPoi poi in pair.Value)
 					{
-						poiSegment = $"{DbStr(poi.Achievement?.Name)}, {DbStr(poi.Achievement?.Description)}, {DbStr(poi.Achievement?.Icon?.Name)}";
-					}
-					else
-					{
-						spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbVal(poi.ClanArea)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnInterval}";
-					}
+						// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
+						if (poi.Location == FVector.ZeroVector) continue;
 
-					string lootSegment = $"{DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
+						string spawnerSegment = "null, null, null, null, null, null, null, null, null";
+						string poiSegment = "null, null, null";
+						if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
+						{
+							poiSegment = $"{DbStr(poi.Achievement?.Name)}, {DbStr(poi.Achievement?.Description)}, {DbStr(poi.Achievement?.Icon?.Name)}";
+						}
+						else
+						{
+							spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbVal(poi.ClanArea)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnInterval}";
+						}
 
-					string posSegment = "null, null, null";
-					if (poi.Location.HasValue)
-					{
-						posSegment = $"{poi.Location.Value.X:0}, {poi.Location.Value.Y:0}, {poi.Location.Value.Z:0}";
+						string lootSegment = $"{DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
+
+						string posSegment = "null, null, null";
+						if (poi.Location.HasValue)
+						{
+							posSegment = $"{poi.Location.Value.X:0}, {poi.Location.Value.Y:0}, {poi.Location.Value.Z:0}";
+						}
+
+						sqlWriter.WriteRow(
+							$"{DbStr(mapData.MapName)}, {(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
+							$"{spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
 					}
-
-					sqlWriter.WriteRow(
-						$"{(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
-						$"{spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
 				}
 			}
 
@@ -2669,22 +2778,132 @@ namespace SoulmaskDataMiner.Miners
 			return equipBuilder.ToString();
 		}
 
+		private class MapLevelData
+		{
+			public string MapName { get; }
+
+			public string MapMainDirectory { get; }
+
+			public Package MainLevel { get; }
+
+			public Package GameplayLevel1 { get; }
+
+			public Package GameplayLevel2 { get; }
+
+			public Package GameplayLevel3 { get; }
+
+			public UObject WorldSettings { get; }
+
+			private MapLevelData(string mapName, string mapMainDirectory, Package mainLevel, Package gameplayLevel1, Package gameplayLevel2, Package gameplayLevel3, UObject worldSettings)
+			{
+				MapName = mapName;
+				MapMainDirectory = mapMainDirectory;
+				MainLevel = mainLevel;
+				GameplayLevel1 = gameplayLevel1;
+				GameplayLevel2 = gameplayLevel2;
+				GameplayLevel3 = gameplayLevel3;
+				WorldSettings = worldSettings;
+			}
+
+			public static MapLevelData? Load(string mapName, string mainLevelPath, IProviderManager providerManager, Logger logger)
+			{
+				Package? mainLevel = LoadLevel(mainLevelPath, providerManager, logger);
+
+				string mapDir = mainLevelPath.Substring(0, mainLevelPath.LastIndexOf('/'));
+				string mapBaseName = mapDir.Substring(mapDir.LastIndexOf('/') + 1);
+				string hubDir = $"{mapDir}/{mapBaseName}_Hub";
+
+				Package? gameplayLevel1 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay.umap", providerManager, logger);
+				Package? gameplayLevel2 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay2.umap", providerManager, logger);
+				Package? gameplayLevel3 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay3.umap", providerManager, logger);
+				 
+				if (mainLevel is null || gameplayLevel1 is null || gameplayLevel2 is null || gameplayLevel3 is null)
+				{
+					return null;
+				}
+
+				UObject mainExport = mainLevel.ExportMap[mainLevel.GetExportIndex("PersistentLevel")].ExportObject.Value;
+				FPackageIndex? worldSettingIndex = mainExport.Properties.FirstOrDefault(p => p.Name.Text.Equals("WorldSettings"))?.Tag?.GetValue<FPackageIndex>();
+				UObject? worldSettings = worldSettingIndex?.Load();
+				if (worldSettings is null)
+				{
+					logger.Warning($"Failed to read world settings from {mainLevelPath}");
+					return null;
+				}
+
+				return new(mapName, mapDir, mainLevel, gameplayLevel1, gameplayLevel2, gameplayLevel3, worldSettings);
+			}
+
+			private static Package? LoadLevel(string path, IProviderManager providerManager, Logger logger)
+			{
+				providerManager.Provider.TryGetGameFile(path, out GameFile? file);
+				if (file is null)
+				{
+					logger.Warning($"Failed to find level asset {path}");
+					return null;
+				}
+				return (Package)providerManager.Provider.LoadPackage(file);
+			}
+		}
+
 		private class MapInfo
 		{
+			public string MapName { get; }
+
 			public IReadOnlyDictionary<string, List<MapPoi>> POIs { get; }
 
 			public IReadOnlyList<UTexture2D> AdditionalMapIcons { get; }
 
-			public MapInfo(IReadOnlyDictionary<string, List<MapPoi>> pois, IReadOnlyList<UTexture2D> additionalMapIcons)
+			public MapInfo(string mapName, IReadOnlyDictionary<string, List<MapPoi>> pois, IReadOnlyList<UTexture2D> additionalMapIcons)
 			{
+				MapName = mapName;
 				POIs = pois;
 				AdditionalMapIcons = additionalMapIcons;
 			}
 		}
 
-		private class MapPoiDatabase
+		private class MapPoiStaticData
 		{
 			public LootDatabase Loot { get; }
+
+			public UObject MapIntel { get; }
+
+			public IReadOnlyDictionary<ETanSuoDianType, UTexture2D> MapIcons { get; }
+
+			public IReadOnlyDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; }
+
+			public UTexture2D RespawnIcon { get; set; }
+
+			public UTexture2D LootIcon { get; set; }
+
+			public UTexture2D BossIcon { get; set; }
+
+			public UTexture2D MinePlatformIcon { get; set; }
+
+			public MapPoiStaticData(
+				LootDatabase loot,
+				UObject mapIntel,
+				IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons,
+				IReadOnlyDictionary<NpcCategory, SpawnLayerInfo> spawnLayerMap,
+				UTexture2D respawnIcon,
+				UTexture2D lootIcon,
+				UTexture2D bossIcon,
+				UTexture2D minePlatformIcon)
+			{
+				Loot = loot;
+				MapIntel = mapIntel;
+				MapIcons = mapIcons;
+				SpawnLayerMap = spawnLayerMap;
+				RespawnIcon = respawnIcon;
+				LootIcon = lootIcon;
+				BossIcon = bossIcon;
+				MinePlatformIcon = minePlatformIcon;
+			}
+		}
+
+		private class MapPoiDatabase
+		{
+			public MapPoiStaticData StaticData { get; }
 
 			public IDictionary<int, MapPoi> IndexLookup { get; }
 
@@ -2697,8 +2916,6 @@ namespace SoulmaskDataMiner.Miners
 			public IDictionary<string, MapPoi> Tablets { get; }
 
 			public IList<MapPoi> RespawnPoints { get; }
-
-			public IDictionary<NpcCategory, SpawnLayerInfo> SpawnLayerMap { get; }
 
 			public IReadOnlyDictionary<string, DungeonData> DungeonMap { get; set; }
 
@@ -2717,26 +2934,17 @@ namespace SoulmaskDataMiner.Miners
 			// These are references to main POIs, not their own unique instances
 			public IList<MapPoi> Dungeons { get; }
 
-			public UTexture2D RespawnIcon { get; set; }
-
-			public UTexture2D LootIcon { get; set; }
-
-			public UTexture2D BossIcon { get; set; }
-
-			public UTexture2D MinePlatformIcon { get; set; }
-
 			public ISet<UTexture2D> AdditionalIconsToExport { get; }
 
-			public MapPoiDatabase(LootDatabase loot)
+			public MapPoiDatabase(MapPoiStaticData staticData)
 			{
-				Loot = loot;
+				StaticData = staticData;
 				IndexLookup = new Dictionary<int, MapPoi>();
 				TypeLookup = new Dictionary<ETanSuoDianType, List<MapPoi>>();
 				DungeonPois = new List<MapPoi>();
 				ArenaPois = new List<MapPoi>();
 				Tablets = new Dictionary<string, MapPoi>();
 				RespawnPoints = new List<MapPoi>();
-				SpawnLayerMap = new Dictionary<NpcCategory, SpawnLayerInfo>((int)NpcCategory.Count);
 				DungeonMap = null!;
 				Spawners = new List<MapPoi>();
 				Lootables = new List<MapPoi>();
@@ -2745,10 +2953,6 @@ namespace SoulmaskDataMiner.Miners
 				MinePlatforms = new List<MapPoi>();
 				MineralVeins = new List<MapPoi>();
 				Dungeons = new List<MapPoi>();
-				RespawnIcon = null!;
-				LootIcon = null!;
-				BossIcon = null!;
-				MinePlatformIcon = null!;
 				AdditionalIconsToExport = new HashSet<UTexture2D>();
 			}
 

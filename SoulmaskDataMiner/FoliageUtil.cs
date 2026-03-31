@@ -35,6 +35,8 @@ namespace SoulmaskDataMiner
 			"CommonRock_PickUp"
 		};
 
+		private static IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? sCachedFoliageData;
+
 		private MapData mMapData;
 
 		public FoliageUtil(MapData mapData)
@@ -42,7 +44,7 @@ namespace SoulmaskDataMiner
 			mMapData = mapData;
 		}
 
-		public IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? LoadFoliage(IProviderManager providerManager, Logger logger)
+		public IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? LoadFoliage(IProviderManager providerManager, string searchDir, Logger logger)
 		{
 			IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? foliageData = LoadFoliageData(providerManager, logger);
 			if (foliageData is null)
@@ -51,7 +53,7 @@ namespace SoulmaskDataMiner
 			}
 			Dictionary<string, FoliageData> allFoliage = new(foliageData.SelectMany(d => d.Value));
 
-			IReadOnlyDictionary<string, IReadOnlyList<FVector>> foliage = FindFoliage(providerManager, allFoliage, logger);
+			IReadOnlyDictionary<string, IReadOnlyList<FVector>> foliage = FindFoliage(providerManager, searchDir, allFoliage, logger);
 
 			IReadOnlyDictionary<string, IReadOnlyList<Cluster>> clusters = BuildClusters(foliage, logger);
 
@@ -65,7 +67,12 @@ namespace SoulmaskDataMiner
 
 		private IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? LoadFoliageData(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/ZhiBei/BP_ZhiBeiConfig.uasset", out GameFile? file))
+			if (sCachedFoliageData is not null)
+			{
+				return sCachedFoliageData;
+			}
+
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZhiBei/BP_ZhiBeiConfig.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to find BP_ZhiBeiConfig");
 				return null;
@@ -312,16 +319,19 @@ namespace SoulmaskDataMiner
 				((Dictionary<string, FoliageData>)entry).Add(name, new(foliageName, hitLootName, finalHitLootName, suggestedToolClass, amount, respawnTime, foliageIcon));
 			}
 
+			sCachedFoliageData = result;
 			return result;
 		}
 
-		private IReadOnlyDictionary<string, IReadOnlyList<FVector>> FindFoliage(IProviderManager providerManager, IReadOnlyDictionary<string, FoliageData> foliageData, Logger logger)
+		private IReadOnlyDictionary<string, IReadOnlyList<FVector>> FindFoliage(IProviderManager providerManager, string searchDir, IReadOnlyDictionary<string, FoliageData> foliageData, Logger logger)
 		{
 			Dictionary<string, IReadOnlyList<FVector>> result = new();
 
+			searchDir = searchDir.Replace("/Game/", "WS/Content/");
+
 			foreach (var filePair in providerManager.Provider.Files)
 			{
-				if (!filePair.Key.StartsWith("WS/Content/Maps/Level01/")) continue;
+				if (!filePair.Key.StartsWith(searchDir)) continue;
 				if (!filePair.Key.EndsWith(".umap")) continue;
 
 				Package package = (Package)providerManager.Provider.LoadPackage(filePair.Value);
@@ -333,7 +343,7 @@ namespace SoulmaskDataMiner
 					UInstancedStaticMeshComponent component = (UInstancedStaticMeshComponent)export.ExportObject.Value;
 					if (component.PerInstanceSMData is null || !component.PerInstanceSMData.Any()) continue;
 
-					UObject root = component.Outer!.Properties.First(p => p.Name.Text.Equals("RootComponent")).Tag!.GetValue<FPackageIndex>()!.Load()!;
+					UObject root = component.Outer!.Load()!.Properties.First(p => p.Name.Text.Equals("RootComponent")).Tag!.GetValue<FPackageIndex>()!.Load()!;
 					FPropertyTag? rootLocationProperty = root.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 					FVector rootLocation = rootLocationProperty?.Tag!.GetValue<FVector>() ?? FVector.ZeroVector;
 

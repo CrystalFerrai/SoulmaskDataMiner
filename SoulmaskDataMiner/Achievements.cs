@@ -191,7 +191,7 @@ namespace SoulmaskDataMiner
 
 		private static UObject? LoadDefaultsObject(string assetPath, IFileProvider provider, Logger logger)
 		{
-			if (!provider.TryFindGameFile(assetPath, out GameFile file))
+			if (!provider.TryGetGameFile(assetPath, out GameFile? file))
 			{
 				logger.Error($"Unable to load asset {Path.GetFileNameWithoutExtension(assetPath)}.");
 				return null;

@@ -47,7 +47,7 @@ namespace SoulmaskDataMiner.Miners
 
 		internal static IReadOnlyDictionary<EProficiency, ProficiencyData>? LoadProficiencyMap(IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryFindGameFile("WS/Content/Blueprints/UI/ShuLianDu/WBP_ShuLianDu.uasset", out GameFile file))
+			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/UI/ShuLianDu/WBP_ShuLianDu.uasset", out GameFile? file))
 			{
 				logger.Error("Unable to locate asset WBP_ShuLianDu.");
 				return null;
