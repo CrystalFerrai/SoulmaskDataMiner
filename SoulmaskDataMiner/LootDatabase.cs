@@ -92,10 +92,10 @@ namespace SoulmaskDataMiner
 		{
 			foreach (var filePair in provider.Files)
 			{
-				if (!filePair.Key.StartsWith("WS/Content/Blueprints/DataTable/CaiJiBao")) continue;
+				if (!filePair.Key.StartsWith("WS/Content/Blueprints/DataTable/CaiJiBao") && !filePair.Key.StartsWith("WS/Content/AdditionMap01/BluePrints/DataTable/Drop")) continue;
 				if (!filePair.Key.EndsWith(".uasset")) continue;
 
-				if (!provider.TryLoadPackage(filePair.Value, out IPackage iPackage)) continue;
+				if (!provider.TryLoadPackage(filePair.Value, out IPackage? iPackage)) continue;
 
 				Package? package = iPackage as Package;
 				if (package is null) continue;
@@ -129,7 +129,7 @@ namespace SoulmaskDataMiner
 
 					if (name is null || contentArray is null)
 					{
-						logger.Warning($"Could not read chest data from {Path.GetFileNameWithoutExtension(filePair.Key)} row \"{pair.Key.Text}\"");
+						logger.Warning($"Could not read loot data from {Path.GetFileNameWithoutExtension(filePair.Key)} row \"{pair.Key.Text}\"");
 						continue;
 					}
 
