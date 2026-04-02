@@ -571,6 +571,9 @@ namespace SoulmaskDataMiner
 				EClanZhiYe.ZHIYE_TYPE_KULI => "Laborer",
 				EClanZhiYe.ZHIYE_TYPE_ZAGONG => "Porter",
 				EClanZhiYe.ZHIYE_TYPE_ZONGJIANG => "Craftsman",
+				EClanZhiYe.ZHIYE_TYPE_ZHIZHE => "Unknown",
+				EClanZhiYe.ZHIYE_TYPE_XIULIAN => "Unknown",
+				EClanZhiYe.ZHIYE_TYPE_JISHI => "Unknown",
 				_ => Default(value)
 			};
 		}
@@ -587,8 +590,8 @@ namespace SoulmaskDataMiner
 				EClanType.CLAN_TYPE_B => "Flint Tribe",
 				EClanType.CLAN_TYPE_C => "Fang Tribe",
 				EClanType.CLAN_TYPE_D => "Plunderer",
-				EClanType.CLAN_TYPE_E => "Unknown",
-				EClanType.CLAN_TYPE_F => "Unknown",
+				EClanType.CLAN_TYPE_E => "Savagehorn Tribe",
+				EClanType.CLAN_TYPE_F => "Wildwolf Tribe",
 				EClanType.CLAN_TYPE_INVADER => "Invader",
 				_ => Default(value)
 			};

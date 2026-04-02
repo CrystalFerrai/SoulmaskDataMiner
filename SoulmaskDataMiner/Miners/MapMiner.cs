@@ -52,15 +52,7 @@ namespace SoulmaskDataMiner.Miners
 			Package levelsTablePackage = (Package)providerManager.Provider.LoadPackage("WS/Content/Blueprints/DataTable/DT_GameplayLevel.uasset");
 			UDataTable levelsTable = (UDataTable)levelsTablePackage.ExportMap[0].ExportObject.Value;
 
-			MapPoiStaticData? mapPoiStaticData = BuildPoiStaticData(providerManager, logger);
-			if (mapPoiStaticData is null)
-			{
-				// BuildPoiStaticData prints its own error messages, so we don't need one here
-				return false;
-			}
-
-			bool success = true;
-			List<MapInfo> allMapData = new();
+			Dictionary<string, string> mapNameToLevelPath = new();
 			foreach (var pair in levelsTable.RowMap)
 			{
 				string mapName = pair.Key.Text;
@@ -70,9 +62,22 @@ namespace SoulmaskDataMiner.Miners
 					logger.Warning($"Failed to find main level path for map {mapName}. Skipping.");
 					continue;
 				}
+				mapNameToLevelPath.Add(mapName, mainLevelPath);
+			}
 
-				logger.Important($"Map: {mapName}");
-				if (RunMap(mapName, mainLevelPath, mapPoiStaticData, providerManager, config, logger, out MapInfo? mapData))
+			MapPoiStaticData? mapPoiStaticData = BuildPoiStaticData(mapNameToLevelPath, providerManager, logger);
+			if (mapPoiStaticData is null)
+			{
+				// BuildPoiStaticData prints its own error messages, so we don't need one here
+				return false;
+			}
+
+			bool success = true;
+			List<MapInfo> allMapData = new();
+			foreach (var pair in mapNameToLevelPath)
+			{
+				logger.Important($"Map: {pair.Key}");
+				if (RunMap(pair.Key, pair.Value, mapPoiStaticData, providerManager, config, logger, out MapInfo? mapData))
 				{
 					allMapData.Add(mapData);
 				}
@@ -153,9 +158,9 @@ namespace SoulmaskDataMiner.Miners
 			return success;
 		}
 
-		private MapPoiStaticData? BuildPoiStaticData(IProviderManager providerManager, Logger logger)
+		private MapPoiStaticData? BuildPoiStaticData(IReadOnlyDictionary<string, string> mapNameToLevelPath, IProviderManager providerManager, Logger logger)
 		{
-			UObject? mapIntel = LoadMapIntel(providerManager, logger);
+			IReadOnlyDictionary<string, UObject>? mapIntel = LoadMapIntel(mapNameToLevelPath, providerManager, logger);
 			if (mapIntel is null)
 			{
 				logger.Error("Failed to load map intel.");
@@ -211,7 +216,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			logger.Information("Loading dependencies...");
 
-			MapPoiDatabase? poiDatabase = GetPois(providerManager, poiStaticData, providerManager.Achievements, logger);
+			MapPoiDatabase? poiDatabase = GetPois(providerManager, mapLevelData.MapName, poiStaticData, providerManager.Achievements, logger);
 			if (poiDatabase is null)
 			{
 				logger.Error("Failed to load map POIs.");
@@ -281,54 +286,75 @@ namespace SoulmaskDataMiner.Miners
 			return new(mapLevelData.MapName, poiDatabase.GetAllPois(), poiDatabase.AdditionalIconsToExport.ToArray());
 		}
 
-		private UObject? LoadMapIntel(IProviderManager providerManager, Logger logger)
+		private IReadOnlyDictionary<string, UObject>? LoadMapIntel(IReadOnlyDictionary<string, string> mapNameToLevelPath, IProviderManager providerManager, Logger logger)
 		{
-			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZiYuanGuanLi/BP_MapQingBaoConfig.uasset", out GameFile? file))
+			if (!providerManager.SingletonManager.ResourceManager.TryGetPropertyValue("MapQingBaoConfigClassMap", out UScriptMap? mapIntelClassMap))
 			{
-				logger.Error("Unable to load asset BP_MapQingBaoConfig.");
+				logger.Error("Failed to read map intel class map");
 				return null;
 			}
 
-			Package package = (Package)providerManager.Provider.LoadPackage(file);
-			return GameUtil.FindBlueprintDefaultsObject(package);
-		}
-
-		private IReadOnlyDictionary<ETanSuoDianType, UTexture2D>? GetMapIcons(UObject mapIntel, Logger logger)
-		{
-			foreach (FPropertyTag property in mapIntel.Properties)
+			Dictionary<string, UObject> mapIntelMap = new();
+			foreach (var pair in mapIntelClassMap.Properties)
 			{
-				if (!property.Name.Text.Equals("AllTanSuoDianIconMap")) continue;
+				string mapName = pair.Key.GetValue<string>()!;
+				if (!mapNameToLevelPath.ContainsKey(mapName)) continue;
 
-				Dictionary<ETanSuoDianType, UTexture2D> mapIcons = new();
-
-				UScriptMap iconMap = property.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
-				foreach (var pair in iconMap.Properties)
-				{
-					ETanSuoDianType iconType;
-					if (!GameUtil.TryParseEnum<ETanSuoDianType>(pair.Key.GetValue<FName>(), out iconType))
-					{
-						logger.Warning($"Unable to parse icon type {pair.Key.GetValue<FName>().Text}");
-						continue;
-					}
-					UTexture2D? icon = GameUtil.ReadTextureProperty(pair.Value);
-					if (icon is null)
-					{
-						logger.Warning($"Unable to load icon for type {iconType}");
-						continue;
-					}
-
-					mapIcons.Add(iconType, icon);
-				}
-
-				return mapIcons;
+				FPackageIndex classIndex = pair.Value!.GetValue<FPackageIndex>()!;
+				UBlueprintGeneratedClass mapIntelClass = (UBlueprintGeneratedClass)classIndex.ResolvedObject!.Load()!;
+				mapIntelMap.Add(mapName, mapIntelClass.ClassDefaultObject.Load()!);
 			}
 
-			return null;
+			return mapIntelMap.Count > 0 ? mapIntelMap : null;
 		}
 
-		private MapPoiDatabase? GetPois(IProviderManager providerManager, MapPoiStaticData mapPoiStaticData, Achievements achievements, Logger logger)
+		private IReadOnlyDictionary<ETanSuoDianType, UTexture2D>? GetMapIcons(IReadOnlyDictionary<string, UObject> mapIntel, Logger logger)
 		{
-			FPropertyTag? poiMapProperty = mapPoiStaticData.MapIntel.Properties.FirstOrDefault(p => p.Name.Text.Equals("AllTanSuoDianInfoMap"));
+			Dictionary<ETanSuoDianType, UTexture2D> mapIcons = new();
+
+			foreach (var intelPair in mapIntel)
+			{
+				foreach (FPropertyTag property in intelPair.Value.Properties)
+				{
+					if (!property.Name.Text.Equals("AllTanSuoDianIconMap")) continue;
+
+					UScriptMap iconMap = property.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
+					foreach (var pair in iconMap.Properties)
+					{
+						ETanSuoDianType iconType;
+						if (!GameUtil.TryParseEnum<ETanSuoDianType>(pair.Key.GetValue<FName>(), out iconType))
+						{
+							logger.Warning($"Unable to parse icon type {pair.Key.GetValue<FName>().Text}");
+							continue;
+						}
+
+						UTexture2D? icon = GameUtil.ReadTextureProperty(pair.Value);
+						if (icon is null)
+						{
+							logger.Warning($"Unable to load icon for type {iconType}");
+							continue;
+						}
+
+						if (mapIcons.TryGetValue(iconType, out UTexture2D? existingIcon))
+						{
+							if (!icon.Name.Equals(existingIcon.Name))
+							{
+								logger.Warning($"Duplicate icon for type {iconType}. Existing: {existingIcon.Name}, New: {icon.Name}");
+							}
+							continue;
+						}
+
+						mapIcons.Add(iconType, icon);
+					}
+				}
+			}
+
+			return mapIcons.Count > 0 ? mapIcons : null;
+		}
+
+		private MapPoiDatabase? GetPois(IProviderManager providerManager, string mapName, MapPoiStaticData mapPoiStaticData, Achievements achievements, Logger logger)
+		{
+			FPropertyTag? poiMapProperty = mapPoiStaticData.MapIntel[mapName].Properties.FirstOrDefault(p => p.Name.Text.Equals("AllTanSuoDianInfoMap"));
 			if (poiMapProperty is null)
 			{
 				return null;
@@ -435,7 +461,7 @@ namespace SoulmaskDataMiner.Miners
 
 			foreach (var pair in providerManager.Provider.Files)
 			{
-				if (!pair.Key.StartsWith("WS/Content/Blueprints/JianZhu/GameFunction/Shibei/")) continue;
+				if (!pair.Key.StartsWith("WS/Content/Blueprints/JianZhu/GameFunction/Shibei/") && !pair.Key.StartsWith("WS/Content/AdditionMap01/BluePrints/Building/GameFunction/Tablet/")) continue;
 				if (!pair.Key.EndsWith(".uasset")) continue;
 
 				Package package = (Package)providerManager.Provider.LoadPackage(pair.Value);
@@ -1976,7 +2002,7 @@ namespace SoulmaskDataMiner.Miners
 				MapPoi poi = new()
 				{
 					GroupIndex = SpawnLayerGroup.PointOfInterest,
-					Type = "World Boss",
+					Type = "Boss Altar",
 					Title = bossName,
 					Name = "World boss summoning altar",
 					BossInfo = bossData,
@@ -2866,7 +2892,7 @@ namespace SoulmaskDataMiner.Miners
 		{
 			public LootDatabase Loot { get; }
 
-			public UObject MapIntel { get; }
+			public IReadOnlyDictionary<string, UObject> MapIntel { get; }
 
 			public IReadOnlyDictionary<ETanSuoDianType, UTexture2D> MapIcons { get; }
 
@@ -2882,7 +2908,7 @@ namespace SoulmaskDataMiner.Miners
 
 			public MapPoiStaticData(
 				LootDatabase loot,
-				UObject mapIntel,
+				IReadOnlyDictionary<string, UObject> mapIntel,
 				IReadOnlyDictionary<ETanSuoDianType, UTexture2D> mapIcons,
 				IReadOnlyDictionary<NpcCategory, SpawnLayerInfo> spawnLayerMap,
 				UTexture2D respawnIcon,
@@ -3113,6 +3139,11 @@ namespace SoulmaskDataMiner.Miners
 				ETanSuoDianType.ETSD_TYPE_KUANGCHUANG_SMALL => "Small Mine",
 				ETanSuoDianType.ETSD_TYPE_SHEN_MIAO => "Mysterious Ruins",
 				ETanSuoDianType.ETSD_TYPE_ARENA => "Arena",
+				ETanSuoDianType.ETSD_TYPE_CAVE => "Cave",
+				ETanSuoDianType.ETSD_TYPE_UNDERGROUNDPALACE => "Ancient Dungeon",
+				ETanSuoDianType.ETSD_TYPE_WORLDBOSS => "World Boss",
+				ETanSuoDianType.ETSD_TYPE_MYSTERYISLAND => "Mysterious Island",
+				ETanSuoDianType.ETSD_TYPE_SHIPCAMP => "Airship Camp",
 				_ => "Unknown"
 			};
 		}
@@ -3138,6 +3169,11 @@ namespace SoulmaskDataMiner.Miners
 				ETanSuoDianType.ETSD_TYPE_KUANGCHUANG_SMALL => "Mine (Small)",
 				ETanSuoDianType.ETSD_TYPE_SHEN_MIAO => "Ruins (Mysterious)",
 				ETanSuoDianType.ETSD_TYPE_ARENA => "Arena",
+				ETanSuoDianType.ETSD_TYPE_CAVE => "Cave",
+				ETanSuoDianType.ETSD_TYPE_UNDERGROUNDPALACE => "Ancient Dungeon",
+				ETanSuoDianType.ETSD_TYPE_WORLDBOSS => "World Boss",
+				ETanSuoDianType.ETSD_TYPE_MYSTERYISLAND => "Mysterious Island",
+				ETanSuoDianType.ETSD_TYPE_SHIPCAMP => "Airship Camp",
 				_ => "Unknown"
 			};
 		}
