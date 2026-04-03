@@ -869,6 +869,10 @@ namespace SoulmaskDataMiner.Miners
 					{
 						minePlatformObjectList.Add(export);
 					}
+					else if (mineralVeinClasses.Contains(export.ClassName))
+					{
+						mineralVeinObjectList.Add(export);
+					}
 				}
 			}
 
@@ -2594,6 +2598,12 @@ namespace SoulmaskDataMiner.Miners
 
 				foreach (MapPoi poi in pair.Value)
 				{
+					if (poi.Location == FVector.ZeroVector)
+					{
+						logger.Debug($"POI with missing location: {poi.Title} ({poi.Type})");
+						continue;
+					}
+
 					string spawnerSegment = ",,,,,,,,";
 					string poiSegment = ",,";
 					if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
