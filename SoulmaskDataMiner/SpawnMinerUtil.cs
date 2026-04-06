@@ -495,7 +495,7 @@ namespace SoulmaskDataMiner
 				return NpcCategory.Ostrich;
 			}
 
-			if (bph.IsDerivedFrom(fistNpcClass, "HCharacterDongWu") || bph.IsDerivedFrom(fistNpcClass, "HCharacterKurma"))
+			if (bph.IsDerivedFrom(fistNpcClass, "HCharacterDongWu"))
 			{
 				if (npcData.IsBaby)
 				{

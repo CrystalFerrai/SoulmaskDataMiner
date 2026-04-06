@@ -233,7 +233,7 @@ namespace SoulmaskDataMiner
 			Dictionary<string, UObject?> chestClasses = new();
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
 			{
-				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export?.ExportObject.Value;
+				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export.ExportObject.Value;
 				UObject? defaultObj = exportObj?.ClassDefaultObject.Load();
 				chestClasses.Add(bpClass.Name, defaultObj);
 			}
@@ -337,7 +337,7 @@ namespace SoulmaskDataMiner
 
 			foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Instance.GetDerivedClasses("HJianZhuGameFunction"))
 			{
-				UBlueprintGeneratedClass? bpClass = (UBlueprintGeneratedClass?)classInfo.Export?.ExportObject.Value;
+				UBlueprintGeneratedClass? bpClass = (UBlueprintGeneratedClass?)classInfo.Export.ExportObject.Value;
 				UObject? defaultsObj = bpClass?.ClassDefaultObject.Load();
 				if (defaultsObj is null) continue;
 

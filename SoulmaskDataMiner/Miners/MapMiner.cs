@@ -748,11 +748,6 @@ namespace SoulmaskDataMiner.Miners
 			string[] spawnerBaseClasses = new string[]
 			{
 				"HShuaGuaiQiBase",
-					"HShuaGuaiQiRandNPC",
-						"HShuaGuaiQiShouLong",
-							"HJianZhuBuLuoQiuLong",
-						"ShuaGuaiQi_RuQingNPC",
-						"HShuaGuaiQiDiXiaCheng",
 				"HTanChaActor"
 			};
 
@@ -765,7 +760,7 @@ namespace SoulmaskDataMiner.Miners
 			Dictionary<string, UObject?> spawnerClasses = spawnerBaseClasses.ToDictionary(c => c, c => (UObject?)null);
 			foreach (BlueprintClassInfo bpClass in spawnerBpClasses)
 			{
-				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export?.ExportObject.Value;
+				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export.ExportObject.Value;
 				FPropertyTag? scgClassProperty = exportObj?.ClassDefaultObject.Load()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("SCGClass"));
 				UObject? defaultScgObj = scgClassProperty?.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
 				spawnerClasses.Add(bpClass.Name, defaultScgObj);
@@ -782,7 +777,7 @@ namespace SoulmaskDataMiner.Miners
 			Dictionary<string, UObject?> chestClasses = new();
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
 			{
-				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export?.ExportObject.Value;
+				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export.ExportObject.Value;
 				UObject? defaultObj = exportObj?.ClassDefaultObject.Load();
 				chestClasses.Add(bpClass.Name, defaultObj);
 			}

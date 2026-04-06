@@ -54,9 +54,9 @@ namespace SoulmaskDataMiner.Miners
 		{
 			string[] classNames = new string[]
 			{
-				"UHSuperCommonSet",
-				"UHSuperStateSet",
-				"UHBuWeiShangHaiAttriSet"
+				"HSuperCommonSet",
+				"HSuperStateSet",
+				"HBuWeiShangHaiAttriSet"
 			};
 
 			List<AttributeData> attrList = new();

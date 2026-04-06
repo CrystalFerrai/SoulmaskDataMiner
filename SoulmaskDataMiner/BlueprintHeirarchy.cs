@@ -100,6 +100,7 @@ namespace SoulmaskDataMiner
 			}
 
 			Dictionary<string, InternalClassInfo> addToSuperMap = new();
+			HashSet<string> scriptClasses = new();
 			foreach (var pair in superMap)
 			{
 				InternalClassInfo superClassInfo;
@@ -118,6 +119,45 @@ namespace SoulmaskDataMiner
 					superClassInfo = new();
 					superClassInfo.DerivedNames.Add(pair.Key);
 					addToSuperMap.Add(pair.Value.SuperName!, superClassInfo);
+					scriptClasses.Add(pair.Value.SuperName!);
+				}
+			}
+
+			if (providerManager.ClassMetadata is not null)
+			{
+				foreach (string className in scriptClasses)
+				{
+					if (providerManager.ClassMetadata.TryGetValue(className, out MetaClass metaClass))
+					{
+						InternalClassInfo classInfo = addToSuperMap[className];
+						classInfo.SuperName = metaClass.Super;
+						addToSuperMap[className] = classInfo;
+
+						string currentName = className;
+						while (metaClass.Super is not null)
+						{
+							if (addToSuperMap.TryGetValue(metaClass.Super, out InternalClassInfo superClass))
+							{
+								superClass.DerivedNames.Add(currentName);
+								break;
+							}
+
+							if (providerManager.ClassMetadata.TryGetValue(metaClass.Super, out MetaClass superMetaClass))
+							{
+								InternalClassInfo superClassInfo = new() { SuperName = superMetaClass.Super };
+								superClassInfo.DerivedNames.Add(currentName);
+								addToSuperMap.Add(metaClass.Super, superClassInfo);
+
+								currentName = metaClass.Super;
+								metaClass = superMetaClass;
+							}
+							else
+							{
+								logger.Debug($"Unable to find super class {metaClass.Super}");
+								break;
+							}
+						}
+					}
 				}
 			}
 
@@ -149,8 +189,7 @@ namespace SoulmaskDataMiner
 		}
 
 		/// <summary>
-		/// Returns all blueprint classes derived from the specified class. Only able to see
-		/// inheritance within the blueprint heirarchy, not between classes defined in code.
+		/// Returns all blueprint classes derived from the specified class.
 		/// </summary>
 		public IEnumerable<BlueprintClassInfo> GetDerivedClasses(string className)
 		{
@@ -205,7 +244,10 @@ namespace SoulmaskDataMiner
 			{
 				if (mSuperMap.TryGetValue(name, out InternalClassInfo derivedInfo))
 				{
-					yield return new() { Name = name, Export = derivedInfo.Export, Super = classInfo.Export };
+					if (derivedInfo.Export is not null)
+					{
+						yield return new() { Name = name, Export = derivedInfo.Export, Super = classInfo.Export };
+					}
 					foreach (BlueprintClassInfo derived in InternalGetDerivedClasses(derivedInfo))
 					{
 						yield return derived;
@@ -241,8 +283,13 @@ namespace SoulmaskDataMiner
 	internal struct BlueprintClassInfo
 	{
 		public string Name;
-		public FObjectExport? Export;
+		public FObjectExport Export;
 		public FObjectExport? Super;
+
+		public override string ToString()
+		{
+			return Name;
+		}
 	}
 
 	internal struct ObjectWithDefaults

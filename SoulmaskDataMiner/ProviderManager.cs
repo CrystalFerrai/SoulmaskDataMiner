@@ -209,7 +209,7 @@ namespace SoulmaskDataMiner
 				{
 					foreach (JProperty @class in classObj.Properties())
 					{
-						string className = @class.Name;
+						string className = @class.Name.Substring(1); // Trim leading U, A, F, etc.
 						if (classes.ContainsKey(className))
 						{
 							logger.Debug($"Found an additional instance of class \"{className}\" in metadata. Skipping.");
@@ -232,7 +232,7 @@ namespace SoulmaskDataMiner
 									JArray classSuperArray = (JArray)classProperty.Value;
 									if (classSuperArray.Count > 0)
 									{
-										classSuper = (string)classSuperArray[0]!;
+										classSuper = ((string)classSuperArray[0]!).Substring(1); // Trim leading U, A, F, etc.
 									}
 									continue;
 								}

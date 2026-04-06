@@ -17,6 +17,7 @@ using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using System.Diagnostics.CodeAnalysis;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -51,25 +52,29 @@ namespace SoulmaskDataMiner.Miners
 		/// </summary>
 		protected IEnumerable<ObjectInfo> FindObjects(IEnumerable<string> baseClassNames)
 		{
-			List<ObjectInfo> infos = new();
+			HashSet<ObjectInfo> infoSet = new();
 			foreach (string className in baseClassNames)
 			{
 				foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Instance.GetDerivedClasses(className))
 				{
-					if (classInfo.Export?.ExportObject.Value is UClass classObj)
+					if (classInfo.Export.ExportObject.Value is UClass classObj)
 					{
+						string packageName = classInfo.Export.ExportObject.Value.Owner!.Name;
+						if (packageName.StartsWith("WS/Content")) packageName = $"/Game{packageName[10..]}";
 						ObjectInfo obj = new()
 						{
 							ClassName = classInfo.Name,
+							FullPath = $"{packageName}.{classInfo.Name}",
 							SuperName = className
 						};
 						FindObjectProperties(classObj, ref obj);
-						infos.Add(obj);
+						infoSet.Add(obj);
 					}
 				}
 			}
-			infos.Sort();
 
+			List<ObjectInfo> infos = new(infoSet);
+			infos.Sort();
 			return infos;
 		}
 
@@ -118,6 +123,7 @@ namespace SoulmaskDataMiner.Miners
 		protected struct ObjectInfo : IComparable<ObjectInfo>
 		{
 			public string ClassName;
+			public string FullPath;
 			public string? SuperName;
 			public string? Name;
 			public string? Description;
@@ -137,6 +143,21 @@ namespace SoulmaskDataMiner.Miners
 					return ClassName.CompareTo(other.ClassName);
 				}
 				return result;
+			}
+
+			public override int GetHashCode()
+			{
+				return FullPath.GetHashCode();
+			}
+
+			public override bool Equals([NotNullWhen(true)] object? obj)
+			{
+				return obj is ObjectInfo other && FullPath.Equals(other.FullPath);
+			}
+
+			public override string ToString()
+			{
+				return ClassName;
 			}
 		}
 	}

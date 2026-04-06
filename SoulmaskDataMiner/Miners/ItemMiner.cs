@@ -33,6 +33,8 @@ namespace SoulmaskDataMiner.Miners
 
 		protected override string? IconProperty => "Icon";
 
+		private const string BaseClass_Item = "HDaoJuBase";
+
 		protected override IReadOnlySet<string>? AdditionalPropertyNames => new HashSet<string>()
 		{
 			"CaiLiaoType",
@@ -44,38 +46,6 @@ namespace SoulmaskDataMiner.Miners
 
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
-			string[] baseClassNames = new string[]
-			{
-				"HDaoJuBase",
-					"HDaoJuZhuangBei",
-						"HDaoJuWuQi",
-							"HDaoJu_SheJiWuQi",
-							"HDaoJu_TouZhi_WuQi",
-							"HDaoJuShuiTong",
-						"HDaoJuJiQiQiu",
-					"HDaoJu_ZiDan",
-					"HDaoJuXiaoHao",
-						"HDaoJuChuCaoJi",
-						"HDaoJuFeiLiao",
-						"HDaoJuForget",
-						"HDaoJuFunction",
-						"HDaoJuHunMi",
-						"HDaoJuMianJu",
-						"HDaoJuMoney",
-						"HDaoJuShaChongJi",
-						"HDaoJuShiWu",
-						"HDaoJuYellowCrystal",
-						"HDaoJuYellowCrystalBattery",
-					"HDaoJuDianChi",
-					"HDaoJuHongJingShi",
-					"HDaoJuJianZhu",
-					"HDaoJuJianZhuPingTai",
-					"HDaoJuShuiPing",
-					"HDaoJuZhaoMingMoKuai",
-					"HDaoJuUSBFlashDrive",
-					"HDaoJuSpawnMonster"
-			};
-
 			var categories = GetItemCategories(providerManager, logger);
 			if (categories is null)
 			{
@@ -90,7 +60,7 @@ namespace SoulmaskDataMiner.Miners
 				return false;
 			}
 
-			IEnumerable<ObjectInfo> itemInfos = FindObjects(baseClassNames);
+			IEnumerable<ObjectInfo> itemInfos = FindObjects(BaseClass_Item.AsEnumerable());
 			IEnumerable<ItemData> items = ReadItemData(itemInfos, categories, testIcon);
 
 			WriteCsv(items, config, logger);
@@ -218,7 +188,7 @@ namespace SoulmaskDataMiner.Miners
 				writer.WriteLine("name,class,desc,icon,stack,weight,cat,cat_name,cat_icon");
 				foreach (ItemData item in items)
 				{
-					writer.WriteLine($"{CsvStr(item.Info.Name)},{CsvStr(item.Info.ClassName)},{CsvStr(item.Info.Description)},{item.Info.Icon?.Name},{item.StackSize},{item.Weight},{item.CategoryID},{CsvStr(item.CategoryName)},{item.CategoryIcon}");
+					writer.WriteLine($"{CsvStr(item.Info.Name)},{CsvStr(item.Info.FullPath)},{CsvStr(item.Info.Description)},{item.Info.Icon?.Name},{item.StackSize},{item.Weight},{item.CategoryID},{CsvStr(item.CategoryName)},{item.CategoryIcon}");
 				}
 			}
 		}
@@ -228,7 +198,8 @@ namespace SoulmaskDataMiner.Miners
 			// Schema
 			// create table `item` (
 			//   `name` varchar(255) not null,
-			//   `class` varchar(255) not null
+			//   `class` varchar(255) not null,
+			//   `path` varchar(511) not null,
 			//   `desc` varchar(511),
 			//   `icon` varchar(255),
 			//   `stack` int not null,
@@ -241,7 +212,7 @@ namespace SoulmaskDataMiner.Miners
 			sqlWriter.WriteStartTable("item");
 			foreach (ItemData item in items)
 			{
-				sqlWriter.WriteRow($"{DbStr(item.Info.Name, true)}, {DbStr(item.Info.ClassName)}, {DbStr(item.Info.Description)}, {DbStr(item.Info.Icon?.Name)}, {item.StackSize}, {item.Weight}, {item.CategoryID}, {DbStr(item.CategoryName)}, {DbStr(item.CategoryIcon.Name)}");
+				sqlWriter.WriteRow($"{DbStr(item.Info.Name, true)}, {DbStr(item.Info.ClassName)}, {DbStr(item.Info.FullPath)}, {DbStr(item.Info.Description)}, {DbStr(item.Info.Icon?.Name)}, {item.StackSize}, {item.Weight}, {item.CategoryID}, {DbStr(item.CategoryName)}, {DbStr(item.CategoryIcon.Name)}");
 			}
 			sqlWriter.WriteEndTable();
 		}
