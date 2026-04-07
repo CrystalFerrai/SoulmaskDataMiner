@@ -176,7 +176,7 @@ namespace SoulmaskDataMiner
 
 							string? dungeonName = null;
 							string? spawnerName = null;
-							SpawnData? spawnerData = null;
+							SpawnDataCollection? spawnerData = null;
 							foreach (FPropertyTag property in export.ExportObject.Value.Properties)
 							{
 								switch (property.Name.Text)
@@ -202,12 +202,17 @@ namespace SoulmaskDataMiner
 								continue;
 							}
 
+							if (spawnerData.GameModeSpawnData.Count > 0)
+							{
+								logger.Warning($"Spawner \"{spawnerName}\" in dungeon level {pair.Key} has game mode specific spawn data, which is not supported.");
+							}
+
 							if (!moduleLevelData.SpawnerMap.TryGetValue(dungeonName, out Dictionary<string, SpawnData>? map))
 							{
 								map = new();
 								moduleLevelData.SpawnerMap.Add(dungeonName, map);
 							}
-							map.TryAdd(spawnerName, spawnerData);
+							map.TryAdd(spawnerName, spawnerData.DefaultSpawnData);
 						}
 
 						cachedModuleData.Add(moduleLevelPath.AssetPathName.Text, moduleLevelData);

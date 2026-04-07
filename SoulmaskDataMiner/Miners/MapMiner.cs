@@ -13,7 +13,6 @@
 // limitations under the License.
 
 using CUE4Parse.FileProvider.Objects;
-using CUE4Parse.GameTypes.PUBG.Assets.Exports;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Component;
@@ -25,8 +24,6 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using CUE4Parse_Conversion.UEFormat.Structs;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -1057,7 +1054,7 @@ namespace SoulmaskDataMiner.Miners
 
 			// Process spawners
 
-			Dictionary<string, SpawnData?> spawnDataCache = new();
+			Dictionary<string, SpawnDataCollection?> spawnDataCache = new();
 
 			logger.Information($"Processing {spawnerObjects.Count} spawners...");
 			foreach (ObjectWithDefaults spawnerObject in spawnerObjects)
@@ -1152,257 +1149,271 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				string spawnDataKey = string.Join(',', scgClasses.Select(c => c.Name));
-				SpawnData? spawnData = null;
-				if (!spawnDataCache.TryGetValue(spawnDataKey, out spawnData))
+				SpawnDataCollection? spawnDataCollection = null;
+				if (!spawnDataCache.TryGetValue(spawnDataKey, out spawnDataCollection))
 				{
-					spawnData = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, spawnerObject.DefaultsObject);
-					spawnDataCache.Add(spawnDataKey, spawnData);
+					spawnDataCollection = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, spawnerObject.DefaultsObject);
+					spawnDataCache.Add(spawnDataKey, spawnDataCollection);
 				}
-				if (spawnData is null)
+				if (spawnDataCollection is null)
 				{
 					continue;
 				}
-				string poiName = string.Join(", ", spawnData.NpcNames);
 
-				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
-				if (locationProperty is null)
+				CreateSpawnPoi(poiDatabase, export.ObjectName.Text, null, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, logger);
+				foreach (var pair in spawnDataCollection.GameModeSpawnData)
 				{
-					logger.Warning($"[{export.ObjectName}] Failed to find location for spawn point");
-					continue;
+					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, pair.Key, pair.Value, rootComponent, spawnInterval.Value, logger);
 				}
+			}
+		}
 
-				FVector location = locationProperty.Tag!.GetValue<FVector>();
+		private void CreateSpawnPoi(MapPoiDatabase poiDatabase, string spawnerName, ECustomGameMode? gameMode, SpawnData spawnData, USceneComponent? rootComponent, float spawnInterval, Logger logger)
+		{
+			string poiName = string.Join(", ", spawnData.NpcNames);
 
-				NpcData firstNpc = spawnData.NpcData.First().Value;
-				NpcCategory layerType = SpawnMinerUtil.GetNpcCategory(firstNpc);
+			FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+			if (locationProperty is null)
+			{
+				logger.Warning($"[{spawnerName}] Failed to find location for spawn point");
+				return;
+			}
 
-				SpawnLayerInfo layerInfo;
-				SpawnLayerGroup group;
-				string type;
-				bool male, female;
+			FVector location = locationProperty.Tag!.GetValue<FVector>();
 
-				void applyLayerTypeAndSex(bool onlyBabies)
+			NpcData firstNpc = spawnData.NpcData.First().Value;
+			NpcCategory layerType = SpawnMinerUtil.GetNpcCategory(firstNpc);
+
+			SpawnLayerInfo layerInfo;
+			SpawnLayerGroup group;
+			string type;
+			bool male, female;
+
+			void applyLayerTypeAndSex(bool onlyBabies)
+			{
+				layerInfo = poiDatabase.StaticData.SpawnLayerMap[layerType];
+				group = SpawnLayerGroup.Npc;
+				type = layerInfo.Name;
+				male = false;
+				female = false;
+
+				switch (layerType)
 				{
-					layerInfo = poiDatabase.StaticData.SpawnLayerMap[layerType];
-					group = SpawnLayerGroup.Npc;
-					type = layerInfo.Name;
-					male = false;
-					female = false;
-
-					switch (layerType)
-					{
-						case NpcCategory.Animal:
-							group = SpawnLayerGroup.Animal;
-							if (poiName.Contains(','))
-							{
-								type = "(Multiple)";
-							}
-							else
-							{
-								type = poiName;
-							}
-							break;
-						case NpcCategory.Human:
-							group = SpawnLayerGroup.Human;
-							type = spawnData.ClanType.ToEn();
-							break;
-						case NpcCategory.Llama:
-						case NpcCategory.Alpaca:
-						case NpcCategory.Jaguar:
-						case NpcCategory.Leopard:
-						case NpcCategory.Ostrich:
-						case NpcCategory.Turkey:
-						case NpcCategory.Capybara:
-						case NpcCategory.Boar:
-						case NpcCategory.Elephant:
-						case NpcCategory.Lizard:
-						case NpcCategory.Bison:
-						case NpcCategory.Eagle:
-						case NpcCategory.Tortoise:
-						case NpcCategory.Moose:
-							group = SpawnLayerGroup.BabyAnimal;
+					case NpcCategory.Animal:
+						group = SpawnLayerGroup.Animal;
+						if (poiName.Contains(','))
+						{
+							type = "(Multiple)";
+						}
+						else
+						{
 							type = poiName;
-							break;
-					}
+						}
+						break;
+					case NpcCategory.Human:
+						group = SpawnLayerGroup.Human;
+						type = spawnData.ClanType.ToEn();
+						break;
+					case NpcCategory.Llama:
+					case NpcCategory.Alpaca:
+					case NpcCategory.Jaguar:
+					case NpcCategory.Leopard:
+					case NpcCategory.Ostrich:
+					case NpcCategory.Turkey:
+					case NpcCategory.Capybara:
+					case NpcCategory.Boar:
+					case NpcCategory.Elephant:
+					case NpcCategory.Lizard:
+					case NpcCategory.Bison:
+					case NpcCategory.Eagle:
+					case NpcCategory.Tortoise:
+					case NpcCategory.Moose:
+						group = SpawnLayerGroup.BabyAnimal;
+						type = poiName;
+						break;
+				}
 
-					foreach (WeightedValue<NpcData> npcData in spawnData.NpcData)
+				foreach (WeightedValue<NpcData> npcData in spawnData.NpcData)
+				{
+					if (!onlyBabies && spawnData.IsMixedAge && npcData.Value.IsBaby) continue;
+					if (onlyBabies && !npcData.Value.IsBaby) continue;
+
+					EXingBieType sex = npcData.Value.Sex;
+					if (sex == EXingBieType.CHARACTER_XINGBIE_NAN)
 					{
-						if (!onlyBabies && spawnData.IsMixedAge && npcData.Value.IsBaby) continue;
-						if (onlyBabies && !npcData.Value.IsBaby) continue;
-
-						EXingBieType sex = npcData.Value.Sex;
-						if (sex == EXingBieType.CHARACTER_XINGBIE_NAN)
-						{
-							male = true;
-						}
-						else if (sex == EXingBieType.CHARACTER_XINGBIE_NV)
-						{
-							female = true;
-						}
-						else if (sex == EXingBieType.CHARACTER_XINGBIE_WEIZHI)
-						{
-							male = true;
-							female = true;
-						}
+						male = true;
 					}
-				}
-				applyLayerTypeAndSex(false);
-
-				string levelText = (spawnData.MinLevel == spawnData.MaxLevel) ? spawnData.MinLevel.ToString() : $"{spawnData.MinLevel} - {spawnData.MaxLevel}";
-
-				string? tribeStatus = null;
-				if (spawnData.Statuses.Any())
-				{
-					tribeStatus = string.Join(", ", spawnData.Statuses.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
-				}
-
-				string? occupation = null;
-				string? clanOccupations = null;
-				if (spawnData.Occupations.Any())
-				{
-					occupation = string.Join(", ", spawnData.Occupations.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
-					clanOccupations = $"[{string.Join(',', spawnData.Occupations.Select(o => (int)o.Value))}]";
-				}
-
-				int? clanType = spawnData.ClanType == EClanType.CLAN_TYPE_NONE ? null : (int)spawnData.ClanType;
-				int? clanArea = spawnData.ClanArea >= 0 ? spawnData.ClanArea : null;
-
-				string? equipment = SerializeEquipment(spawnData);
-
-				string? lootId = null;
-				string? lootMap = null;
-				string? collectMap = null;
-
-				void applyAnimalLoot(bool onlyBabies)
-				{
-					string firstClass = firstNpc.CharacterClass.Name;
-					bool isMultiAnimal = false;
-
-					Dictionary<string, CollectionData> collectionMap = new();
-					foreach (NpcData npc in spawnData.NpcData.Select(d => d.Value))
+					else if (sex == EXingBieType.CHARACTER_XINGBIE_NV)
 					{
-						if (!firstClass.Equals(npc.CharacterClass.Name))
-						{
-							isMultiAnimal = true;
-						}
-
-						if (collectionMap.ContainsKey(npc.CharacterClass.Name)) continue;
-
-						BlueprintHeirarchy.SearchInheritance(npc.CharacterClass, (current) =>
-						{
-							if (poiDatabase.StaticData.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
-							{
-								collectionMap.Add(npc.CharacterClass.Name, collectionData);
-								return true;
-							}
-							return false;
-						});
+						female = true;
 					}
-
-					if (collectionMap.Count > 0)
+					else if (sex == EXingBieType.CHARACTER_XINGBIE_WEIZHI)
 					{
-						StringBuilder collectMapBuilder = new("[");
-						foreach (var pair in collectionMap)
-						{
-							collectMapBuilder.Append("{");
-
-							NpcData npc = spawnData.NpcData.First(wv => wv.Value.CharacterClass.Name.Equals(pair.Key)).Value;
-							
-							if (isMultiAnimal)
-							{
-								collectMapBuilder.Append($"\"name\":\"{npc.Name}\",");
-							}
-
-							if (npc.IsBaby && !spawnData.IsMixedAge || onlyBabies)
-							{
-								if (pair.Value.Baby is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Baby}\",");
-								else if (pair.Value.Hit is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Hit}\",");
-							}
-							else
-							{
-								if (pair.Value.Hit is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Hit}\",");
-								if (pair.Value.FinalHit is not null) collectMapBuilder.Append($"\"bonus\":\"{pair.Value.FinalHit}\",");
-							}
-							collectMapBuilder.Append($"\"amount\":{pair.Value.Amount}");
-							collectMapBuilder.Append("},");
-						}
-						if (collectMapBuilder.Length > 1)
-						{
-							collectMapBuilder.Length -= 1; // Remove trailing comma
-						}
-						collectMapBuilder.Append("]");
-
-						collectMap = collectMapBuilder.ToString();
+						male = true;
+						female = true;
 					}
 				}
+			}
+			applyLayerTypeAndSex(false);
 
-				if (group == SpawnLayerGroup.Animal || group == SpawnLayerGroup.BabyAnimal)
+			string levelText = (spawnData.MinLevel == spawnData.MaxLevel) ? spawnData.MinLevel.ToString() : $"{spawnData.MinLevel} - {spawnData.MaxLevel}";
+
+			string? tribeStatus = null;
+			if (spawnData.Statuses.Any())
+			{
+				tribeStatus = string.Join(", ", spawnData.Statuses.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
+			}
+
+			string? occupation = null;
+			string? clanOccupations = null;
+			if (spawnData.Occupations.Any())
+			{
+				occupation = string.Join(", ", spawnData.Occupations.Select(wv => $"{wv.Value.ToEn()} ({wv.Weight:0%})"));
+				clanOccupations = $"[{string.Join(',', spawnData.Occupations.Select(o => (int)o.Value))}]";
+			}
+
+			int? clanType = spawnData.ClanType == EClanType.CLAN_TYPE_NONE ? null : (int)spawnData.ClanType;
+			string? clanAreas = spawnData.ClanAreas.Any() ? string.Join('|', spawnData.ClanAreas) : null;
+
+			string? equipment = SerializeEquipment(spawnData);
+
+			string? lootId = null;
+			string? lootMap = null;
+			string? collectMap = null;
+
+			void applyAnimalLoot(bool onlyBabies)
+			{
+				string firstClass = firstNpc.CharacterClass.Name;
+				bool isMultiAnimal = false;
+
+				Dictionary<string, CollectionData> collectionMap = new();
+				foreach (NpcData npc in spawnData.NpcData.Select(d => d.Value))
 				{
-					applyAnimalLoot(false);
-				}
-				else
-				{
-					lootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot;
-					lootMap = SerializeLootMap(spawnData, lootId);
-					if (lootMap is not null) lootId = null;
+					if (!firstClass.Equals(npc.CharacterClass.Name))
+					{
+						isMultiAnimal = true;
+					}
+
+					if (collectionMap.ContainsKey(npc.CharacterClass.Name)) continue;
+
+					BlueprintHeirarchy.SearchInheritance(npc.CharacterClass, (current) =>
+					{
+						if (poiDatabase.StaticData.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
+						{
+							collectionMap.Add(npc.CharacterClass.Name, collectionData);
+							return true;
+						}
+						return false;
+					});
 				}
 
-				MapPoi poi = new()
+				if (collectionMap.Count > 0)
+				{
+					StringBuilder collectMapBuilder = new("[");
+					foreach (var pair in collectionMap)
+					{
+						collectMapBuilder.Append("{");
+
+						NpcData npc = spawnData.NpcData.First(wv => wv.Value.CharacterClass.Name.Equals(pair.Key)).Value;
+
+						if (isMultiAnimal)
+						{
+							collectMapBuilder.Append($"\"name\":\"{npc.Name}\",");
+						}
+
+						if (npc.IsBaby && !spawnData.IsMixedAge || onlyBabies)
+						{
+							if (pair.Value.Baby is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Baby}\",");
+							else if (pair.Value.Hit is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Hit}\",");
+						}
+						else
+						{
+							if (pair.Value.Hit is not null) collectMapBuilder.Append($"\"base\":\"{pair.Value.Hit}\",");
+							if (pair.Value.FinalHit is not null) collectMapBuilder.Append($"\"bonus\":\"{pair.Value.FinalHit}\",");
+						}
+						collectMapBuilder.Append($"\"amount\":{pair.Value.Amount}");
+						collectMapBuilder.Append("},");
+					}
+					if (collectMapBuilder.Length > 1)
+					{
+						collectMapBuilder.Length -= 1; // Remove trailing comma
+					}
+					collectMapBuilder.Append("]");
+
+					collectMap = collectMapBuilder.ToString();
+				}
+			}
+
+			if (group == SpawnLayerGroup.Animal || group == SpawnLayerGroup.BabyAnimal)
+			{
+				applyAnimalLoot(false);
+			}
+			else
+			{
+				lootId = firstNpc.SpawnerLoot ?? firstNpc.CharacterLoot;
+				lootMap = SerializeLootMap(spawnData, lootId);
+				if (lootMap is not null) lootId = null;
+			}
+
+			MapPoi poi = new()
+			{
+				GroupIndex = group,
+				Type = type,
+				Title = poiName,
+				Name = layerInfo.Name,
+				Description = $"Level {levelText}",
+				Male = male,
+				Female = female,
+				TribeStatus = tribeStatus,
+				Occupation = occupation,
+				ClanType = clanType,
+				ClanAreas = clanAreas,
+				ClanOccupations = clanOccupations,
+				Equipment = equipment,
+				SpawnCount = spawnData.SpawnCount,
+				SpawnInterval = spawnInterval,
+				Location = location,
+				MapLocation = WorldToMap(location),
+				Icon = layerInfo.Icon,
+				LootId = lootId,
+				LootMap = lootMap,
+				CollectMap = collectMap
+			};
+			if (gameMode.HasValue)
+			{
+				poi.GameMode = gameMode.Value;
+			}
+
+			poiDatabase.Spawners.Add(poi);
+
+			if (spawnData.IsMixedAge)
+			{
+				WeightedValue<NpcData>[] babyData = spawnData.NpcData.Where(d => d.Value.IsBaby).ToArray();
+
+				layerType = SpawnMinerUtil.GetNpcCategory(babyData[0].Value);
+				applyLayerTypeAndSex(true);
+
+				SpawnMinerUtil.CalculateLevels(babyData, false, out int minLevel, out int maxLevel);
+
+				levelText = (minLevel == maxLevel) ? minLevel.ToString() : $"{minLevel} - {maxLevel}";
+
+				collectMap = null;
+				applyAnimalLoot(true);
+
+				poi = new(poi)
 				{
 					GroupIndex = group,
 					Type = type,
-					Title = poiName,
 					Name = layerInfo.Name,
 					Description = $"Level {levelText}",
 					Male = male,
 					Female = female,
-					TribeStatus = tribeStatus,
-					Occupation = occupation,
-					ClanType = clanType,
-					ClanArea = clanArea,
-					ClanOccupations = clanOccupations,
-					Equipment = equipment,
-					SpawnCount = spawnData.SpawnCount,
-					SpawnInterval = spawnInterval.Value,
-					Location = location,
-					MapLocation = WorldToMap(location),
+					SpawnCount = babyData.Sum(b => b.Value.SpawnCount),
 					Icon = layerInfo.Icon,
-					LootId = lootId,
-					LootMap = lootMap,
 					CollectMap = collectMap
 				};
 
 				poiDatabase.Spawners.Add(poi);
-
-				if (spawnData.IsMixedAge)
-				{
-					WeightedValue<NpcData>[] babyData = spawnData.NpcData.Where(d => d.Value.IsBaby).ToArray();
-
-					layerType = SpawnMinerUtil.GetNpcCategory(babyData[0].Value);
-					applyLayerTypeAndSex(true);
-
-					SpawnMinerUtil.CalculateLevels(babyData, false, out int minLevel, out int maxLevel);
-
-					levelText = (minLevel == maxLevel) ? minLevel.ToString() : $"{minLevel} - {maxLevel}";
-
-					collectMap = null;
-					applyAnimalLoot(true);
-
-					poi = new(poi)
-					{
-						GroupIndex = group,
-						Type = type,
-						Name = layerInfo.Name,
-						Description = $"Level {levelText}",
-						Male = male,
-						Female = female,
-						SpawnCount = babyData.Sum(b => b.Value.SpawnCount),
-						Icon = layerInfo.Icon,
-						CollectMap = collectMap
-					};
-
-					poiDatabase.Spawners.Add(poi);
-				}
 			}
 		}
 
@@ -1421,6 +1432,8 @@ namespace SoulmaskDataMiner.Miners
 				string? openTip = null;
 				FPackageIndex? lootItem = null;
 				USceneComponent? rootComponent = null;
+				List<ECustomGameMode> availableGameModes = new();
+				Dictionary<ECustomGameMode, string> gameModeLootIds = new();
 				void searchProperties(UObject searchObj)
 				{
 					UScriptArray? openCheckList = null;
@@ -1433,6 +1446,47 @@ namespace SoulmaskDataMiner.Miners
 								if (respawnTime < 0)
 								{
 									respawnTime = property.Tag!.GetValue<int>();
+								}
+								break;
+							case "AliveCustomeGameMode":
+								{
+									UScriptArray? gameModeArray = property.Tag?.GetValue<UScriptArray>();
+									if (gameModeArray is not null)
+									{
+										foreach (FPropertyTagType item in gameModeArray.Properties)
+										{
+											if (GameUtil.TryParseEnum(item, out ECustomGameMode gameMode))
+											{
+												availableGameModes.Add(gameMode);
+											}
+											else
+											{
+												logger.Warning($"[{export.ObjectName}] Chest specifies unrecognized game mode: {item.GetValue<FName>().Text}");
+											}
+										}
+									}
+								}
+								break;
+							case "DifferentGameModeDropID":
+								{
+									UScriptMap? gameModeLootMap = property.Tag?.GetValue<UScriptMap>();
+									if (gameModeLootMap is not null)
+									{
+										foreach (var lootPair in gameModeLootMap.Properties)
+										{
+											ECustomGameMode mode;
+											string loot;
+											if (GameUtil.TryParseEnum(lootPair.Key, out mode))
+											{
+												loot = lootPair.Value!.GetValue<FName>().Text;
+												gameModeLootIds.Add(mode, loot);
+											}
+											else
+											{
+												logger.Warning($"[{export.ObjectName}] Chest specifies unrecognized game mode: {lootPair.Key.GetValue<FName>().Text}");
+											}
+										}
+									}
 								}
 								break;
 							case "BaoXiangDiaoLuoID":
@@ -1528,7 +1582,34 @@ namespace SoulmaskDataMiner.Miners
 					SpawnInterval = respawnTime > 0 ? respawnTime : 0
 				};
 
-				poiDatabase.Lootables.Add(poi);
+				if (availableGameModes.Count > 0)
+				{
+					foreach (ECustomGameMode mode in availableGameModes)
+					{
+						MapPoi modePoi = new(poi)
+						{
+							GameMode = mode
+						};
+						if (gameModeLootIds.TryGetValue(mode, out string? value))
+						{
+							modePoi.LootId = value;
+						}
+						poiDatabase.Lootables.Add(modePoi);
+					}
+				}
+				else
+				{
+					poiDatabase.Lootables.Add(poi);
+					foreach (var pair in gameModeLootIds)
+					{
+						MapPoi modePoi = new(poi)
+						{
+							GameMode = pair.Key,
+							LootId = pair.Value
+						};
+						poiDatabase.Lootables.Add(modePoi);
+					}
+				}
 			}
 		}
 
@@ -2062,7 +2143,7 @@ namespace SoulmaskDataMiner.Miners
 										}
 
 										string? npcName = null;
-										SpawnData? spawnData = null;
+										SpawnDataCollection? spawnData = null;
 										int? rewardId = null;
 
 										foreach (FPropertyTag spawnerItemProperty in spawnerStruct.Properties)
@@ -2087,7 +2168,12 @@ namespace SoulmaskDataMiner.Miners
 											continue;
 										}
 
-										spawnerInfos.Add(new() { NpcName = npcName, SpawnData = spawnData, RewardId = rewardId.Value });
+										if (spawnData.GameModeSpawnData.Count > 0)
+										{
+											logger.Warning($"Arena {obj.Name} has game mode specific spawn data, which is not supported.");
+										}
+
+										spawnerInfos.Add(new() { NpcName = npcName, SpawnData = spawnData.DefaultSpawnData, RewardId = rewardId.Value });
 									}
 								}
 								break;
@@ -2589,7 +2675,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
+				writer.WriteLine("mode,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -2607,7 +2693,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.ClanType},{poi.ClanArea},{poi.ClanOccupations},{poi.SpawnCount},{poi.SpawnInterval}";
+						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.ClanType},{CsvStr(poi.ClanAreas)},{poi.ClanOccupations},{poi.SpawnCount},{poi.SpawnInterval}";
 					}
 
 					string lootSegment = $"{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)},{CsvStr(poi.Equipment)},{CsvStr(poi.CollectMap)}";
@@ -2618,8 +2704,10 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0},{poi.Location.Value.Y:0},{poi.Location.Value.Z:0}";
 					}
 
+					string gameMode = poi.GameMode.HasValue ? ((int)poi.GameMode).ToString() : string.Empty;
+
 					writer.WriteLine(
-						$"{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
+						$"{gameMode},{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
 						$"{spawnerSegment},{lootSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)},{CsvStr(poi.ArenaInfo)}");
 				}
 			}
@@ -2630,6 +2718,7 @@ namespace SoulmaskDataMiner.Miners
 			// Schema
 			// create table `poi` (
 			//   `map` varchar(31) not null,
+			//   `mode` int,
 			//   `gpIdx` int not null,
 			//   `gpName` varchar(63) not null,
 			//   `key` int,
@@ -2650,7 +2739,7 @@ namespace SoulmaskDataMiner.Miners
 			//   `stat` varchar(63),
 			//   `occ` varchar(127),
 			//   `clantype` int,
-			//   `clanarea` int,
+			//   `clanareas` varchar[31],
 			//   `clanocc` varchar[31],
 			//   `num` int,
 			//   `intr` float,
@@ -2694,7 +2783,7 @@ namespace SoulmaskDataMiner.Miners
 						}
 						else
 						{
-							spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbVal(poi.ClanArea)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnInterval}";
+							spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbStr(poi.ClanAreas)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnInterval}";
 						}
 
 						string lootSegment = $"{DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
@@ -2706,7 +2795,7 @@ namespace SoulmaskDataMiner.Miners
 						}
 
 						sqlWriter.WriteRow(
-							$"{DbStr(mapData.MapName)}, {(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
+							$"{DbStr(mapData.MapName)}, {DbVal((int?)poi.GameMode)}, {(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
 							$"{spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
 					}
 				}
@@ -3016,6 +3105,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private class MapPoi : ICloneable
 		{
+			public ECustomGameMode? GameMode { get; set; }
 			public int? Key { get; set; }
 			public SpawnLayerGroup GroupIndex { get; set; }
 			public string Type { get; set; } = null!;
@@ -3028,7 +3118,7 @@ namespace SoulmaskDataMiner.Miners
 			public string? TribeStatus { get; set; }
 			public string? Occupation { get; set; }
 			public int? ClanType { get; set; }
-			public int? ClanArea { get; set; }
+			public string? ClanAreas { get; set; }
 			public string? ClanOccupations { get; set; }
 			public string? Equipment { get; set; }
 			public int SpawnCount { get; set; }
@@ -3054,6 +3144,7 @@ namespace SoulmaskDataMiner.Miners
 
 			public MapPoi(MapPoi other)
 			{
+				GameMode = other.GameMode;
 				Key = other.Key;
 				GroupIndex = other.GroupIndex;
 				Type = other.Type;
@@ -3066,7 +3157,7 @@ namespace SoulmaskDataMiner.Miners
 				TribeStatus = other.TribeStatus;
 				Occupation = other.Occupation;
 				ClanType = other.ClanType;
-				ClanArea = other.ClanArea;
+				ClanAreas = other.ClanAreas;
 				ClanOccupations = other.ClanOccupations;
 				Equipment = other.Equipment;
 				SpawnCount = other.SpawnCount;

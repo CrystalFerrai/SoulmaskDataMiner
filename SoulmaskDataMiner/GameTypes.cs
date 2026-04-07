@@ -253,6 +253,18 @@ namespace SoulmaskDataMiner
 	}
 
 	/// <summary>
+	/// Game mode
+	/// </summary>
+	internal enum ECustomGameMode
+	{
+		Survival,
+		Management,
+		Action,
+		PVP,
+		Max,
+	}
+
+	/// <summary>
 	/// Item category
 	/// </summary>
 	internal enum EDaoJuCaiLiaoType
@@ -530,17 +542,6 @@ namespace SoulmaskDataMiner
 	/// </summary>
 	internal static class GameEnumExtensions
 	{
-		public static string ToEn(this EXingBieType value)
-		{
-			return value switch
-			{
-				EXingBieType.CHARACTER_XINGBIE_NAN => "Male",
-				EXingBieType.CHARACTER_XINGBIE_NV => "Female",
-				EXingBieType.CHARACTER_XINGBIE_WEIZHI => "Random", // Technically "Unknown", but means "Random" for spawners
-				_ => Default(value)
-			};
-		}
-
 		/// <summary>
 		/// Return an English representation of the value
 		/// </summary>
@@ -552,6 +553,25 @@ namespace SoulmaskDataMiner
 				EClanDiWei.CLAN_DIWEI_LOW => "Novice",
 				EClanDiWei.CLAN_DIWEI_MIDDLE => "Skilled",
 				EClanDiWei.CLAN_DIWEI_HIGH => "Master",
+				_ => Default(value)
+			};
+		}
+
+		/// <summary>
+		/// Return an English representation of the value
+		/// </summary>
+		public static string ToEn(this EClanType value)
+		{
+			return value switch
+			{
+				EClanType.CLAN_TYPE_NONE => "Unaffiliated",
+				EClanType.CLAN_TYPE_A => "Claw Tribe",
+				EClanType.CLAN_TYPE_B => "Flint Tribe",
+				EClanType.CLAN_TYPE_C => "Fang Tribe",
+				EClanType.CLAN_TYPE_D => "Plunderer",
+				EClanType.CLAN_TYPE_E => "Savagehorn Tribe",
+				EClanType.CLAN_TYPE_F => "Wildwolf Tribe",
+				EClanType.CLAN_TYPE_INVADER => "Invader",
 				_ => Default(value)
 			};
 		}
@@ -581,18 +601,15 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// Return an English representation of the value
 		/// </summary>
-		public static string ToEn(this EClanType value)
+		public static string ToEn(this ECustomGameMode value)
 		{
+			// Values from DT_YiWenText CustomGameMode_#
 			return value switch
 			{
-				EClanType.CLAN_TYPE_NONE => "Unaffiliated",
-				EClanType.CLAN_TYPE_A => "Claw Tribe",
-				EClanType.CLAN_TYPE_B => "Flint Tribe",
-				EClanType.CLAN_TYPE_C => "Fang Tribe",
-				EClanType.CLAN_TYPE_D => "Plunderer",
-				EClanType.CLAN_TYPE_E => "Savagehorn Tribe",
-				EClanType.CLAN_TYPE_F => "Wildwolf Tribe",
-				EClanType.CLAN_TYPE_INVADER => "Invader",
+				ECustomGameMode.Survival => "Survival",
+				ECustomGameMode.Management => "Tribe",
+				ECustomGameMode.Action => "Warrior",
+				ECustomGameMode.PVP => "PvP",
 				_ => Default(value)
 			};
 		}
@@ -613,6 +630,20 @@ namespace SoulmaskDataMiner
 				EKuangMaiType.KMT_TieKuang => "Iron",
 				EKuangMaiType.KMT_XiaoShi => "Nitrate",
 				EKuangMaiType.KMT_ShuiJing => "Crystal",
+				_ => Default(value)
+			};
+		}
+
+		/// <summary>
+		/// Return an English representation of the value
+		/// </summary>
+		public static string ToEn(this EXingBieType value)
+		{
+			return value switch
+			{
+				EXingBieType.CHARACTER_XINGBIE_NAN => "Male",
+				EXingBieType.CHARACTER_XINGBIE_NV => "Female",
+				EXingBieType.CHARACTER_XINGBIE_WEIZHI => "Random", // Technically "Unknown", but means "Random" for spawners
 				_ => Default(value)
 			};
 		}

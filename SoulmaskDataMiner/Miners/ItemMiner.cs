@@ -41,7 +41,8 @@ namespace SoulmaskDataMiner.Miners
 			"CaiLiaoErJiType",
 			"MaxAmount",
 			"IsSpecialTestDaoJu",
-			"Weight"
+			"Weight",
+			"HiddenItemInGameMode" // TODO: Do something with this variable
 		};
 
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)

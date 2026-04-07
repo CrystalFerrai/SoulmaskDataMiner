@@ -34,7 +34,7 @@ namespace SoulmaskDataMiner
 		/// <param name="spawnerNameForLogging">The name of the spawner instance to use when logging warnings</param>
 		/// <param name="defaultScgObj">If the passed in <see cref="scgClass" /> has no defaults object, fallback on this defaults object.</param>
 		/// <returns>The spawn data if successfully loaded, else null</returns>
-		public static SpawnData? LoadSpawnData(FPropertyTag scgClassProperty, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
+		public static SpawnDataCollection? LoadSpawnData(FPropertyTag scgClassProperty, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
 		{
 			UBlueprintGeneratedClass? scgClass = scgClassProperty.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>();
 			if (scgClass is null) return null;
@@ -50,7 +50,7 @@ namespace SoulmaskDataMiner
 		/// <param name="spawnerNameForLogging">The name of the spawner instance to use when logging warnings</param>
 		/// <param name="defaultScgObj">If the passed in <see cref="scgClass" /> has no defaults object, fallback on this defaults object.</param>
 		/// <returns>The spawn data if successfully loaded, else null</returns>
-		public static SpawnData? LoadSpawnData(UBlueprintGeneratedClass scgClass, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
+		public static SpawnDataCollection? LoadSpawnData(UBlueprintGeneratedClass scgClass, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
 		{
 			return LoadSpawnData(scgClass.AsEnumerable(), logger, spawnerNameForLogging, defaultScgObj);
 		}
@@ -63,14 +63,16 @@ namespace SoulmaskDataMiner
 		/// <param name="spawnerNameForLogging">The name of the spawner instance to use when logging warnings</param>
 		/// <param name="defaultScgObj">If the passed in <see cref="scgClass" /> has no defaults object, fallback on this defaults object.</param>
 		/// <returns>The spawn data if successfully loaded, else null</returns>
-		public static SpawnData? LoadSpawnData(IEnumerable<UBlueprintGeneratedClass> scgClasses, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
+		public static SpawnDataCollection? LoadSpawnData(IEnumerable<UBlueprintGeneratedClass> scgClasses, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
 		{
 			NpcEquipmentUtil equipmentUtil = new();
 
-			List<ScgData> scgDataList = new();
+			List<ScgData> defaultScgDataList = new();
+			Dictionary<ECustomGameMode, List<ScgData>> scgDataMap = new();
 			foreach (UBlueprintGeneratedClass scgClass in scgClasses)
 			{
 				ScgData scgData = new();
+				ScgGameModeData scgGameModeData = new();
 
 				BlueprintHeirarchy.SearchInheritance(scgClass, (current) =>
 				{
@@ -95,10 +97,24 @@ namespace SoulmaskDataMiner
 									scgData.ScgInfo = property.Tag?.GetValue<UScriptArray>()?.Properties.Select(p => p.GetValue<FStructFallback>()!).ToList();
 								}
 								break;
-							case "bManRen":
-								if (property.Tag!.GetValue<bool>())
+							case "SpawnNpcInfoMap":
+								if (scgGameModeData.GameModeNpcInfoMap is null)
 								{
-									scgData.IsRandomBarbarian = true;
+									UScriptMap? map = property.Tag?.GetValue<UScriptMap>();
+									if (map is not null)
+									{
+										scgGameModeData.GameModeNpcInfoMap = new();
+										foreach (var pair in map.Properties)
+										{
+											ECustomGameMode gameMode;
+											if (!GameUtil.TryParseEnum(pair.Key, out gameMode)) continue;
+
+											List<FStructFallback>? npcInfoList = pair.Value?.GetValue<UScriptArray>()?.Properties.Select(p => p.GetValue<FStructFallback>()!).ToList();
+											if (npcInfoList is null) continue;
+
+											scgGameModeData.GameModeNpcInfoMap.Add(gameMode, npcInfoList);
+										}
+									}
 								}
 								break;
 							case "ManRenMingZi":
@@ -135,22 +151,63 @@ namespace SoulmaskDataMiner
 								}
 								break;
 							case "DiWeiAndZhuangBeiDataTable":
-								if (scgData.EquipmentTable is null)
+								if (scgData.EquipmentTables.ArmorTable is null)
 								{
 									UDataTable? table = property.Tag?.GetValue<FPackageIndex>()?.Load() as UDataTable;
 									if (table is not null)
 									{
-										scgData.EquipmentTable = equipmentUtil.LoadEquipmentTable(table, logger);
+										scgData.EquipmentTables.ArmorTable = equipmentUtil.LoadEquipmentTable(table, logger);
 									}
 								}
 								break;
 							case "DiWeiAndWuQiDataTable":
-								if (scgData.WeaponTable is null)
+								if (scgData.EquipmentTables.WeaponTable is null)
 								{
 									UDataTable? table = property.Tag?.GetValue<FPackageIndex>()?.Load() as UDataTable;
 									if (table is not null)
 									{
-										scgData.WeaponTable = equipmentUtil.LoadEquipmentTable(table, logger);
+										scgData.EquipmentTables.WeaponTable = equipmentUtil.LoadEquipmentTable(table, logger);
+									}
+								}
+								break;
+							case "CustomGameModeDataTableMap":
+								if (scgGameModeData.GameModeEquipmentTableMap is null)
+								{
+									UScriptMap? map = property.Tag?.GetValue<UScriptMap>();
+									if (map is not null)
+									{
+										scgGameModeData.GameModeEquipmentTableMap = new();
+										foreach (var pair in map.Properties)
+										{
+											ECustomGameMode gameMode;
+											if (!GameUtil.TryParseEnum(pair.Key, out gameMode)) continue;
+
+											FStructFallback? structFallback = pair.Value?.GetValue<FStructFallback>();
+											if (structFallback is null) continue;
+
+											ScgEquipmentTables tables = new();
+											foreach (FPropertyTag structProp in structFallback.Properties)
+											{
+												switch (structProp.Name.Text)
+												{
+													case "StatusAndEquipData":
+														UDataTable? armorTable = structProp.Tag?.GetValue<FPackageIndex>()?.Load() as UDataTable;
+														if (armorTable is not null)
+														{
+															tables.ArmorTable = equipmentUtil.LoadEquipmentTable(armorTable, logger);
+														}
+														break;
+													case "StatusAndWeaponData":
+														UDataTable? weaponTable = structProp.Tag?.GetValue<FPackageIndex>()?.Load() as UDataTable;
+														if (weaponTable is not null)
+														{
+															tables.WeaponTable = equipmentUtil.LoadEquipmentTable(weaponTable, logger);
+														}
+														break;
+												}
+											}
+											scgGameModeData.GameModeEquipmentTableMap.Add(gameMode, tables);
+										}
 									}
 								}
 								break;
@@ -162,16 +219,53 @@ namespace SoulmaskDataMiner
 
 				if (scgData.IsValid())
 				{
-					scgDataList.Add(scgData);
+					defaultScgDataList.Add(scgData);
+					if (scgGameModeData.HasData)
+					{
+						foreach (ECustomGameMode gameMode in Enum.GetValues<ECustomGameMode>())
+						{
+							if (scgGameModeData.HasDataForGameMode(gameMode))
+							{
+								List<ScgData>? scgDataList;
+								if (!scgDataMap.TryGetValue(gameMode, out scgDataList))
+								{
+									scgDataList = new();
+									scgDataMap.Add(gameMode, scgDataList);
+								}
+								scgDataList.Add(new ScgData(scgData, gameMode, scgGameModeData));
+							}
+						}
+					}
 				}
 			}
 
-			if (scgDataList.Count == 0)
+			if (defaultScgDataList is null)
 			{
 				// Not all spawners have a spawn list baked in. Some are scripted at runtime.
 				return null;
 			}
 
+			SpawnData? defaultSpawnData = CreateSpawnData(defaultScgDataList, logger, spawnerNameForLogging, defaultScgObj);
+			if (defaultSpawnData is null)
+			{
+				return null;
+			}
+
+			Dictionary<ECustomGameMode, SpawnData> spawnDataMap = new();
+			foreach (var pair in scgDataMap)
+			{
+				SpawnData? spawnData = CreateSpawnData(pair.Value, logger, spawnerNameForLogging, defaultScgObj);
+				if (spawnData is not null)
+				{
+					spawnDataMap.Add(pair.Key, spawnData);
+				}
+			}
+
+			return new(defaultSpawnData, spawnDataMap);
+		}
+
+		private static SpawnData? CreateSpawnData(IReadOnlyList<ScgData> scgDataList, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)
+		{
 			Dictionary<int, int> sgbToScgIndexMap = new();
 			int scgIndex = 0, sgbIndex = 0;
 
@@ -182,7 +276,7 @@ namespace SoulmaskDataMiner
 			IReadOnlyDictionary<string, Range<int>>? equipmentList = null;
 			IReadOnlyDictionary<string, Range<int>>? weaponList = null;
 			EClanType clanType = EClanType.CLAN_TYPE_NONE;
-			int clanArea = -1;
+			HashSet<int> clanAreas = new();
 			foreach (ScgData scgData in scgDataList)
 			{
 				foreach (FStructFallback scgInfo in scgData.ScgInfo!)
@@ -243,13 +337,13 @@ namespace SoulmaskDataMiner
 					}
 					occupationList.AddRange(WeightedValue<EClanZhiYe>.Reduce(occupations));
 
-					if (scgData.EquipmentTable is not null)
+					if (scgData.EquipmentTables.ArmorTable is not null)
 					{
-						equipmentList = scgData.EquipmentTable.GetItemsForOccupations(occupationList.Select(wv => wv.Value));
+						equipmentList = scgData.EquipmentTables.ArmorTable.GetItemsForOccupations(occupationList.Select(wv => wv.Value));
 					}
-					if (scgData.WeaponTable is not null)
+					if (scgData.EquipmentTables.WeaponTable is not null)
 					{
-						weaponList = scgData.WeaponTable.GetItemsForOccupations(occupationList.Select(wv => wv.Value));
+						weaponList = scgData.EquipmentTables.WeaponTable.GetItemsForOccupations(occupationList.Select(wv => wv.Value));
 					}
 				}
 
@@ -272,16 +366,9 @@ namespace SoulmaskDataMiner
 					}
 				}
 
-				if (scgData.ClanArea is not null)
+				if (scgData.ClanArea.HasValue)
 				{
-					if (clanArea < 0)
-					{
-						clanArea = scgData.ClanArea.Value;
-					}
-					else if (scgData.ClanArea != clanArea)
-					{
-						logger.Warning("Spawn data contains multiple clan areas. Only the first type will be recorded.");
-					}
+					clanAreas.Add(scgData.ClanArea.Value);
 				}
 
 				++scgIndex;
@@ -442,7 +529,7 @@ namespace SoulmaskDataMiner
 
 			int totalSpawnCount = isMixedAge ? npcData.Select(wv => wv.Value).Where(n => !n.IsBaby).Sum(n => n.SpawnCount) : spawnCounts.Sum();
 
-			return new(outNames, npcData, tribeStatusList, occupationList, equipmentList, weaponList, clanType, clanArea, minLevel, maxLevel, totalSpawnCount, isMixedAge);
+			return new(outNames, npcData, tribeStatusList, occupationList, equipmentList, weaponList, clanType, clanAreas, minLevel, maxLevel, totalSpawnCount, isMixedAge);
 		}
 
 		public static void CalculateLevels(IEnumerable<WeightedValue<NpcData>> npcData, bool isMixedAge, out int minLevel, out int maxLevel)
@@ -567,17 +654,59 @@ namespace SoulmaskDataMiner
 			return NpcCategory.Unknown;
 		}
 
+		private struct ScgGameModeData
+		{
+			public Dictionary<ECustomGameMode, List<FStructFallback>>? GameModeNpcInfoMap;
+			public Dictionary<ECustomGameMode, ScgEquipmentTables>? GameModeEquipmentTableMap;
+
+			public bool HasData => GameModeNpcInfoMap is not null || GameModeEquipmentTableMap is not null;
+
+			public bool HasDataForGameMode(ECustomGameMode gameMode)
+			{
+				return
+					GameModeNpcInfoMap is not null && GameModeNpcInfoMap.ContainsKey(gameMode) ||
+					GameModeEquipmentTableMap is not null && GameModeEquipmentTableMap.ContainsKey(gameMode);
+			}
+		}
+
 		private struct ScgData
 		{
 			public List<FStructFallback>? ScgInfo;
-			public bool? IsRandomBarbarian;
 			public string? HumanName;
 			public UScriptMap? TribeStatusMap;
 			public UScriptMap? OccupationMap;
 			public EClanType? ClanType;
 			public int? ClanArea;
-			public EquipmentTable? EquipmentTable;
-			public EquipmentTable? WeaponTable;
+			public ScgEquipmentTables EquipmentTables;
+
+			public ScgData()
+			{
+			}
+
+			public ScgData(ScgData baseData, ECustomGameMode gameMode, ScgGameModeData gameModeData)
+			{
+				if (gameModeData.GameModeNpcInfoMap is not null && gameModeData.GameModeNpcInfoMap.TryGetValue(gameMode, out List<FStructFallback>? scgInfo))
+				{
+					ScgInfo = scgInfo;
+				}
+				else
+				{
+					ScgInfo = baseData.ScgInfo;
+				}
+				HumanName = baseData.HumanName;
+				TribeStatusMap = baseData.TribeStatusMap;
+				OccupationMap = baseData.OccupationMap;
+				ClanType = baseData.ClanType;
+				ClanArea = baseData.ClanArea;
+				if (gameModeData.GameModeEquipmentTableMap is not null && gameModeData.GameModeEquipmentTableMap.TryGetValue(gameMode, out ScgEquipmentTables equipmentTables))
+				{
+					EquipmentTables = equipmentTables;
+				}
+				else
+				{
+					EquipmentTables = baseData.EquipmentTables;
+				}
+			}
 
 			public bool IsValid()
 			{
@@ -588,15 +717,20 @@ namespace SoulmaskDataMiner
 			{
 				return
 					ScgInfo is not null &&
-					IsRandomBarbarian.HasValue &&
 					HumanName is not null &&
 					TribeStatusMap is not null &&
 					OccupationMap is not null &&
 					ClanType.HasValue &&
 					ClanArea.HasValue &&
-					EquipmentTable is not null &&
-					WeaponTable is not null;
+					EquipmentTables.ArmorTable is not null &&
+					EquipmentTables.WeaponTable is not null;
 			}
+		}
+
+		private struct ScgEquipmentTables
+		{
+			public EquipmentTable? ArmorTable;
+			public EquipmentTable? WeaponTable;
 		}
 	}
 
@@ -700,7 +834,7 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// Map region of spawned human NPC
 		/// </summary>
-		public int ClanArea { get; }
+		public IEnumerable<int> ClanAreas { get; }
 
 		/// <summary>
 		/// The minimum NPC level the spawner will spawn
@@ -746,7 +880,7 @@ namespace SoulmaskDataMiner
 			IReadOnlyDictionary<string, Range<int>>? equipmentClasses,
 			IReadOnlyDictionary<string, Range<int>>? weaponClasses,
 			EClanType clanType,
-			int clanArea,
+			IEnumerable<int> clanAreas,
 			int minLevel,
 			int maxLevel,
 			int spawnCount,
@@ -759,11 +893,24 @@ namespace SoulmaskDataMiner
 			EquipmentClasses = equipmentClasses;
 			WeaponClasses = weaponClasses;
 			ClanType = clanType;
-			ClanArea = clanArea;
+			ClanAreas = clanAreas;
 			MinLevel = minLevel;
 			MaxLevel = maxLevel;
 			SpawnCount = spawnCount;
 			IsMixedAge = isMixedAge;
+		}
+	}
+
+	internal class SpawnDataCollection
+	{
+		public SpawnData DefaultSpawnData { get; }
+
+		public IReadOnlyDictionary<ECustomGameMode, SpawnData> GameModeSpawnData { get; }
+
+		public SpawnDataCollection(SpawnData defaultSpawnData, IReadOnlyDictionary<ECustomGameMode, SpawnData> gameModeSpawnData)
+		{
+			DefaultSpawnData = defaultSpawnData;
+			GameModeSpawnData = gameModeSpawnData;
 		}
 	}
 
