@@ -1160,15 +1160,25 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
-				CreateSpawnPoi(poiDatabase, export.ObjectName.Text, null, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, logger);
-				foreach (var pair in spawnDataCollection.GameModeSpawnData)
+				if (spawnDataCollection.GameModeSpawnData.Count > 0)
 				{
-					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, pair.Key, pair.Value, rootComponent, spawnInterval.Value, logger);
+					byte remainingModes = 0xff;
+					foreach (var pair in spawnDataCollection.GameModeSpawnData)
+					{
+						byte modeMask = CreateGameModeMask(pair.Key);
+						remainingModes &= (byte)~modeMask;
+						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, pair.Value, rootComponent, spawnInterval.Value, logger);
+					}
+					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, remainingModes, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, logger);
+				}
+				else
+				{
+					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, null, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, logger);
 				}
 			}
 		}
 
-		private void CreateSpawnPoi(MapPoiDatabase poiDatabase, string spawnerName, ECustomGameMode? gameMode, SpawnData spawnData, USceneComponent? rootComponent, float spawnInterval, Logger logger)
+		private void CreateSpawnPoi(MapPoiDatabase poiDatabase, string spawnerName, byte? modeMask, SpawnData spawnData, USceneComponent? rootComponent, float spawnInterval, Logger logger)
 		{
 			string poiName = string.Join(", ", spawnData.NpcNames);
 
@@ -1379,9 +1389,9 @@ namespace SoulmaskDataMiner.Miners
 				LootMap = lootMap,
 				CollectMap = collectMap
 			};
-			if (gameMode.HasValue)
+			if (modeMask.HasValue)
 			{
-				poi.GameMode = gameMode.Value;
+				poi.GameModeMask = modeMask.Value;
 			}
 
 			poiDatabase.Spawners.Add(poi);
@@ -1588,7 +1598,7 @@ namespace SoulmaskDataMiner.Miners
 					{
 						MapPoi modePoi = new(poi)
 						{
-							GameMode = mode
+							GameModeMask = CreateGameModeMask(mode)
 						};
 						if (gameModeLootIds.TryGetValue(mode, out string? value))
 						{
@@ -1599,16 +1609,24 @@ namespace SoulmaskDataMiner.Miners
 				}
 				else
 				{
-					poiDatabase.Lootables.Add(poi);
+					byte remainingModes = 0xff;
 					foreach (var pair in gameModeLootIds)
 					{
+						byte modeMask = CreateGameModeMask(pair.Key);
+						remainingModes &= (byte)~modeMask;
 						MapPoi modePoi = new(poi)
 						{
-							GameMode = pair.Key,
+							GameModeMask = modeMask,
 							LootId = pair.Value
 						};
 						poiDatabase.Lootables.Add(modePoi);
 					}
+
+					MapPoi remainingModesPoi = new(poi)
+					{
+						GameModeMask = remainingModes == 0xff ? null : remainingModes
+					};
+					poiDatabase.Lootables.Add(remainingModesPoi);
 				}
 			}
 		}
@@ -2675,7 +2693,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("mode,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
+				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -2704,7 +2722,7 @@ namespace SoulmaskDataMiner.Miners
 						posSegment = $"{poi.Location.Value.X:0},{poi.Location.Value.Y:0},{poi.Location.Value.Z:0}";
 					}
 
-					string gameMode = poi.GameMode.HasValue ? ((int)poi.GameMode).ToString() : string.Empty;
+					string gameMode = poi.GameModeMask.HasValue ? (poi.GameModeMask.Value).ToString() : string.Empty;
 
 					writer.WriteLine(
 						$"{gameMode},{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
@@ -2718,7 +2736,7 @@ namespace SoulmaskDataMiner.Miners
 			// Schema
 			// create table `poi` (
 			//   `map` varchar(31) not null,
-			//   `mode` int,
+			//   `modes` tinyint unsigned,
 			//   `gpIdx` int not null,
 			//   `gpName` varchar(63) not null,
 			//   `key` int,
@@ -2795,7 +2813,7 @@ namespace SoulmaskDataMiner.Miners
 						}
 
 						sqlWriter.WriteRow(
-							$"{DbStr(mapData.MapName)}, {DbVal((int?)poi.GameMode)}, {(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
+							$"{DbStr(mapData.MapName)}, {DbVal(poi.GameModeMask)}, {(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
 							$"{spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
 					}
 				}
@@ -2808,6 +2826,13 @@ namespace SoulmaskDataMiner.Miners
 		{
 			return sMapData.WorldToImage(world);
 		}
+
+
+		private static byte CreateGameModeMask(ECustomGameMode mode)
+		{
+			return (byte)(1 << (byte)mode);
+		}
+
 
 		private string? SerializeLootMap(SpawnData spawner, string? firstLootId)
 		{
@@ -3105,7 +3130,7 @@ namespace SoulmaskDataMiner.Miners
 
 		private class MapPoi : ICloneable
 		{
-			public ECustomGameMode? GameMode { get; set; }
+			public byte? GameModeMask { get; set; }
 			public int? Key { get; set; }
 			public SpawnLayerGroup GroupIndex { get; set; }
 			public string Type { get; set; } = null!;
@@ -3144,7 +3169,7 @@ namespace SoulmaskDataMiner.Miners
 
 			public MapPoi(MapPoi other)
 			{
-				GameMode = other.GameMode;
+				GameModeMask = other.GameModeMask;
 				Key = other.Key;
 				GroupIndex = other.GroupIndex;
 				Type = other.Type;
