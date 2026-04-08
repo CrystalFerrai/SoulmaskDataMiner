@@ -109,7 +109,10 @@ namespace SoulmaskDataMiner
 			}
 			mGameTextTable = GameTextTable.Load(mProvider, logger);
 			mResourceManager = GameSingletonManager.Load(mProvider, logger);
-			mAchievements = Achievements.Load(mResourceManager, logger);
+			if (mResourceManager is not null)
+			{
+				mAchievements = Achievements.Load(mResourceManager, logger);
+			}
 
 			return true;
 		}
