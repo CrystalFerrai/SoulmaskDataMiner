@@ -22,6 +22,7 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using System.Linq;
 
 namespace SoulmaskDataMiner
 {
@@ -58,9 +59,10 @@ namespace SoulmaskDataMiner
 		/// <param name="provider">The provider to load from</param>
 		/// <param name="logger">For logging warnings and errors</param>
 		/// <returns>The loaded data, or null if data could not be loaded</returns>
-		public static Achievements? Load(IFileProvider provider, Logger logger)
+		public static Achievements? Load(GameSingletonManager resourceManager, Logger logger)
 		{
-			UObject? achiementListObj = LoadDefaultsObject("WS/Content/Blueprints/ZiYuanGuanLi/BP_ChengJiuConfig.uasset", provider, logger);
+			UBlueprintGeneratedClass? achievementListClass = (UBlueprintGeneratedClass?)resourceManager.ResourceManager.Properties.FirstOrDefault(p => p.Name.Text.Equals("ChengJiuConfigClass"))?.Tag?.GetValue<FPackageIndex>()?.Load();
+			UObject? achiementListObj = achievementListClass?.ClassDefaultObject.Load();
 			if (achiementListObj is null)
 			{
 				logger.Error("Error loading game achievement list asset");

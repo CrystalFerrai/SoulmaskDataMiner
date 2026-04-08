@@ -419,7 +419,8 @@ namespace SoulmaskDataMiner.Miners
 					poi.Title = GetTitle(poiType.Value);
 				}
 
-				if (achievements.CollectMap.TryGetValue(index, out AchievementData? achievement))
+				// HACK: Location achievements only seem to apply to Level01_Main, but i could find nothing in the data indicating why
+				if (mapName == "Level01_Main" && achievements.CollectMap.TryGetValue(index, out AchievementData? achievement))
 				{
 					poi.Achievement = achievement;
 				}
