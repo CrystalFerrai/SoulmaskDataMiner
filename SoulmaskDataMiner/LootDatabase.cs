@@ -311,16 +311,16 @@ namespace SoulmaskDataMiner
 			}
 
 			Package package = (Package)provider.LoadPackage(file);
-			UScriptMap? configMap = GameUtil.FindBlueprintDefaultsObject(package)?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ShengWuPropConfigMap"))?.Tag?.GetValue<UScriptMap>();
+			UScriptMap? configMap = GameUtil.FindBlueprintDefaultsObject(package)?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ShengWuPropConfigSoftMap"))?.Tag?.GetValue<UScriptMap>();
 			if (configMap == null)
 			{
-				logger.Error("Unable to load ShengWuPropConfigMap from BP_ShengWuCollectData");
+				logger.Error("Unable to load ShengWuPropConfigSoftMap from BP_ShengWuCollectData");
 				return false;
 			}
 
 			foreach (var configPair in configMap.Properties)
 			{
-				string key = configPair.Key.GetValue<FPackageIndex>()!.Name;
+				string key = configPair.Key.GetValue<FSoftObjectPath>()!.AssetPathName.Text;
 				FStructFallback config = configPair.Value!.GetValue<FStructFallback>()!;
 
 				UScriptMap? collectMap = null;
