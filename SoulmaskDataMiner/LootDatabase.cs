@@ -321,6 +321,7 @@ namespace SoulmaskDataMiner
 			foreach (var configPair in configMap.Properties)
 			{
 				string key = configPair.Key.GetValue<FSoftObjectPath>()!.AssetPathName.Text;
+				key = key.Substring(key.LastIndexOf('.') + 1);
 				FStructFallback config = configPair.Value!.GetValue<FStructFallback>()!;
 
 				UScriptMap? collectMap = null;
