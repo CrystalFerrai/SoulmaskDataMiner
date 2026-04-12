@@ -357,12 +357,58 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
+			Dictionary<int, string> pointToRegionMap = new();
+
+			UScriptMap? intelMapProperty = mapPoiStaticData.MapIntel[mapName].Properties.FirstOrDefault(p => p.Name.Text.Equals("MapQingBaoMap"))?
+				.Tag?.GetValue<FStructFallback>()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("MapQingBaoMap"))?.Tag?.GetValue<UScriptMap>();
+			if (intelMapProperty is not null)
+			{
+				foreach (var pair in intelMapProperty.Properties)
+				{
+					FStructFallback valueStruct = pair.Value!.GetValue<FStructFallback>()!;
+					string? areaName = null;
+					UScriptMap? pointMap = null;
+					foreach (FPropertyTag valueProperty in valueStruct.Properties)
+					{
+						switch (valueProperty.Name.Text)
+						{
+							case "AreaName":
+								areaName = GameUtil.ReadTextProperty(valueProperty);
+								break;
+							case "TanSuoPointMap":
+								pointMap = valueProperty.Tag?.GetValue<UScriptMap>();
+								break;
+						}
+					}
+
+					if (areaName is null || pointMap is null)
+					{
+						logger.Debug("MapQingBaoMap contains an item with missing data");
+						continue;
+					}
+
+					foreach (var pointPair in pointMap.Properties)
+					{
+						int pointVal = pointPair.Key.GetValue<int>();
+						if (!pointToRegionMap.TryAdd(pointVal, areaName))
+						{
+							logger.Debug($"MapQingBaoMap area \"{areaName}\" contains a point that is already present in the region map: {pointVal}");
+						}
+					}
+				}
+			}
+
 			MapPoiDatabase poiDatabase = new(mapPoiStaticData);
 
 			UScriptMap poiMap = poiMapProperty.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
 			foreach (var pair in poiMap.Properties)
 			{
 				int index = pair.Key.GetValue<int>();
+				string? region;
+				if (!pointToRegionMap.TryGetValue(index, out region))
+				{
+					region = null;
+				}
 
 				FStructFallback? poiProperties = pair.Value?.GetValue<FStructFallback>();
 				if (poiProperties is null)
@@ -375,7 +421,8 @@ namespace SoulmaskDataMiner.Miners
 				MapPoi poi = new()
 				{
 					Key = index,
-					GroupIndex = SpawnLayerGroup.PointOfInterest
+					GroupIndex = SpawnLayerGroup.PointOfInterest,
+					Region = region
 				};
 				foreach (FPropertyTag poiProperty in poiProperties.Properties)
 				{
@@ -2694,7 +2741,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
+				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,region,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -2727,7 +2774,7 @@ namespace SoulmaskDataMiner.Miners
 
 					writer.WriteLine(
 						$"{gameMode},{(int)poi.GroupIndex},{CsvStr(GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
-						$"{spawnerSegment},{lootSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)},{CsvStr(poi.ArenaInfo)}");
+						$"{CsvStr(poi.Region)},{spawnerSegment},{lootSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)},{CsvStr(poi.ArenaInfo)}");
 				}
 			}
 		}
@@ -2753,6 +2800,7 @@ namespace SoulmaskDataMiner.Miners
 			//   `name` varchar(127),
 			//   `desc` varchar(511),
 			//   `extra` varchar(511),
+			//   `region` varchar(63),
 			//   `m` bool,
 			//   `f` bool,
 			//   `stat` varchar(63),
@@ -2815,7 +2863,7 @@ namespace SoulmaskDataMiner.Miners
 
 						sqlWriter.WriteRow(
 							$"{DbStr(mapData.MapName)}, {DbVal(poi.GameModeMask)}, {(int)poi.GroupIndex}, {DbStr(GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
-							$"{spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
+							$"{DbStr(poi.Region)}, {spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
 					}
 				}
 			}
@@ -3139,6 +3187,7 @@ namespace SoulmaskDataMiner.Miners
 			public string? Name { get; set; }
 			public string? Description { get; set; }
 			public string? Extra { get; set; }
+			public string? Region { get; set; }
 			public bool Male { get; set; }
 			public bool Female { get; set; }
 			public string? TribeStatus { get; set; }
@@ -3178,6 +3227,7 @@ namespace SoulmaskDataMiner.Miners
 				Name = other.Name;
 				Description = other.Description;
 				Extra = other.Extra;
+				Region = other.Region;
 				Male = other.Male;
 				Female = other.Female;
 				TribeStatus = other.TribeStatus;

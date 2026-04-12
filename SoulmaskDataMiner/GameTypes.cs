@@ -441,6 +441,44 @@ namespace SoulmaskDataMiner
 	};
 
 	/// <summary>
+	/// Map region
+	/// </summary>
+	internal enum EMapArea
+	{
+		EMAPAREA_EMPTY,
+		EMAPAREA_NO_1,
+		EMAPAREA_NO_2,
+		EMAPAREA_NO_3,
+		EMAPAREA_NO_4,
+		EMAPAREA_NO_5,
+		EMAPAREA_NO_6,
+		EMAPAREA_NO_7,
+		EMAPAREA_NO_8,
+		EMAPAREA_NO_9,
+		EMAPAREA_NO_10,
+		EMAPAREA_NO_11,
+		EMAPAREA_NO_12,
+		EMAPAREA_NO_13,
+		EMAPAREA_NO_14,
+		EMAPAREA_NO_15,
+		EMAPAREA_NO_16,
+		EMAPAREA_NO_17,
+		EMAPAREA_NO_18,
+		EMAPAREA_NO_19,
+		EMAPAREA_NO_20,
+		EMAPAREA_NO_21,
+		EMAPAREA_NO_22,
+		EMAPAREA_NO_23,
+		EMAPAREA_NO_24,
+		EMAPAREA_NO_25,
+		EMAPAREA_NO_26,
+		EMAPAREA_NO_27,
+		EMAPAREA_NO_28,
+		EMAPAREA_NO_29,
+		EMAPAREA_NO_30
+	}
+
+	/// <summary>
 	/// Proficiency type
 	/// </summary>
 	internal enum EProficiency
