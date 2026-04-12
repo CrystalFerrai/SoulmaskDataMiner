@@ -60,7 +60,8 @@ namespace SoulmaskDataMiner
 		/// Creates an instance with default values based on the game's primary map
 		/// </summary>
 		public MapData()
-			: this(new(-408000, -408000), new(408000, 408000), 8, 8, new(4096, 4096))
+			// Values from WorldSettings actor in levels. At the moment, both main levels have the same values. Properties: MapQiDian, MapSize
+			: this(new(-408028.0f, -408144.0f), new(408072, 407956), 8, 8, new(4096, 4096))
 		{
 		}
 
