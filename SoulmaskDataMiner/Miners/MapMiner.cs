@@ -398,7 +398,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 
-			MapPoiDatabase poiDatabase = new(mapPoiStaticData);
+			MapPoiDatabase poiDatabase = new(mapPoiStaticData, mapName);
 
 			UScriptMap poiMap = poiMapProperty.Tag!.GetValue<FStructFallback>()!.Properties[0].Tag!.GetValue<UScriptMap>()!;
 			foreach (var pair in poiMap.Properties)
@@ -1270,7 +1270,7 @@ namespace SoulmaskDataMiner.Miners
 						break;
 					case NpcCategory.Human:
 						group = SpawnLayerGroup.Human;
-						type = spawnData.ClanType.ToEn();
+						type = spawnData.ClanType.ToEn(poiDatabase.MapName);
 						break;
 					case NpcCategory.Llama:
 					case NpcCategory.Alpaca:
@@ -3099,6 +3099,8 @@ namespace SoulmaskDataMiner.Miners
 		{
 			public MapPoiStaticData StaticData { get; }
 
+			public string MapName { get; }
+
 			public IDictionary<int, MapPoi> IndexLookup { get; }
 
 			public IDictionary<ETanSuoDianType, List<MapPoi>> TypeLookup { get; }
@@ -3130,9 +3132,10 @@ namespace SoulmaskDataMiner.Miners
 
 			public ISet<UTexture2D> AdditionalIconsToExport { get; }
 
-			public MapPoiDatabase(MapPoiStaticData staticData)
+			public MapPoiDatabase(MapPoiStaticData staticData, string mapName)
 			{
 				StaticData = staticData;
+				MapName = mapName;
 				IndexLookup = new Dictionary<int, MapPoi>();
 				TypeLookup = new Dictionary<ETanSuoDianType, List<MapPoi>>();
 				DungeonPois = new List<MapPoi>();

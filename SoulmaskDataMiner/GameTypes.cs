@@ -598,7 +598,7 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// Return an English representation of the value
 		/// </summary>
-		public static string ToEn(this EClanType value)
+		public static string ToEn(this EClanType value, string mapName)
 		{
 			return value switch
 			{
@@ -606,7 +606,7 @@ namespace SoulmaskDataMiner
 				EClanType.CLAN_TYPE_A => "Claw Tribe",
 				EClanType.CLAN_TYPE_B => "Flint Tribe",
 				EClanType.CLAN_TYPE_C => "Fang Tribe",
-				EClanType.CLAN_TYPE_D => "Plunderer",
+				EClanType.CLAN_TYPE_D => mapName == "DLC_Level01_Main" ? "Sand Bandit" : "Plunderer",
 				EClanType.CLAN_TYPE_E => "Savagehorn Tribe",
 				EClanType.CLAN_TYPE_F => "Wildwolf Tribe",
 				EClanType.CLAN_TYPE_INVADER => "Invader",
