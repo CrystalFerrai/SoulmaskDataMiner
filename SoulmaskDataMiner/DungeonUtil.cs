@@ -50,8 +50,6 @@ namespace SoulmaskDataMiner
 			IReadOnlyDictionary<string, DungeonConfig>? configMap = LoadDungeonConfig(providerManager, logger);
 			if (configMap is null) return null;
 
-
-
 			FindEntrances(providerManager, configMap, logger);
 			FindLevelObjects(providerManager, configMap, logger);
 			FindThemeObjects(providerManager, configMap, logger);
