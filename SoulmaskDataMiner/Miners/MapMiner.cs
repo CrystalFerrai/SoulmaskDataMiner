@@ -656,10 +656,11 @@ namespace SoulmaskDataMiner.Miners
 		{
 			string[] texturePaths = new string[]
 			{
-				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji1.uasset",
-				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji.uasset",
-				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji2.uasset",
-				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji3.uasset"
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji1.uasset", // Unknown
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji.uasset",  // Animal
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji2.uasset", // Mechanical
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji3.uasset", // Human
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji4.uasset"  // Boat
 			};
 
 			Dictionary<NpcCategory, SpawnLayerInfo> result = new();

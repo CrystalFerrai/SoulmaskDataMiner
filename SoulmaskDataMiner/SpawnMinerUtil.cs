@@ -585,9 +585,9 @@ namespace SoulmaskDataMiner
 				return NpcCategory.Mechanical;
 			}
 
-			if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_TuoNiao_Egg_C"))
+			if (bph.IsDerivedFrom(fistNpcClass, "BP_RaftSpace_Base_C"))
 			{
-				return NpcCategory.Ostrich;
+				return NpcCategory.Boat;
 			}
 
 			if (bph.IsDerivedFrom(fistNpcClass, "HCharacterDongWu"))
@@ -980,6 +980,7 @@ namespace SoulmaskDataMiner
 		Animal,
 		Mechanical,
 		Human,
+		Boat,
 
 		Alpaca,
 		Bison,
