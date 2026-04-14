@@ -459,6 +459,7 @@ namespace SoulmaskDataMiner
 			bool isHumanSpawner = humanNames.Count > 0;
 
 			HashSet<string> npcNames = new(npcData.Count);
+			HashSet<string> babyNames = new();
 			EXingBieType defaultSex = isHumanSpawner ? EXingBieType.CHARACTER_XINGBIE_NAN : EXingBieType.CHARACTER_XINGBIE_WEIZHI;
 			foreach (WeightedValue<NpcData> npc in npcData)
 			{
@@ -513,7 +514,14 @@ namespace SoulmaskDataMiner
 					{
 						npc.Value.Name = npcName;
 					}
-					npcNames.Add(npcName);
+					if (npc.Value.IsBaby)
+					{
+						babyNames.Add(npcName);
+					}
+					else
+					{
+						npcNames.Add(npcName);
+					}
 				}
 
 				npc.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
@@ -521,7 +529,7 @@ namespace SoulmaskDataMiner
 			}
 
 			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
-			if (outNames.Count == 0)
+			if (outNames.Count == 0 && babyNames.Count == 0)
 			{
 				logger.Warning($"[{spawnerNameForLogging}] Failed to locate NPC name for spawn point");
 				return null;
@@ -529,7 +537,7 @@ namespace SoulmaskDataMiner
 
 			int totalSpawnCount = isMixedAge ? npcData.Select(wv => wv.Value).Where(n => !n.IsBaby).Sum(n => n.SpawnCount) : spawnCounts.Sum();
 
-			return new(outNames, npcData, tribeStatusList, occupationList, equipmentList, weaponList, clanType, clanAreas, minLevel, maxLevel, totalSpawnCount, isMixedAge);
+			return new(outNames, babyNames, npcData, tribeStatusList, occupationList, equipmentList, weaponList, clanType, clanAreas, minLevel, maxLevel, totalSpawnCount, isMixedAge);
 		}
 
 		public static void CalculateLevels(IEnumerable<WeightedValue<NpcData>> npcData, bool isMixedAge, out int minLevel, out int maxLevel)
@@ -586,13 +594,53 @@ namespace SoulmaskDataMiner
 			{
 				if (npcData.IsBaby)
 				{
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_DaYangTuo_C"))
-					{
-						return NpcCategory.Llama;
-					}
 					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YangTuo_C"))
 					{
 						return NpcCategory.Alpaca;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YeNiu_C"))
+					{
+						return NpcCategory.Bison;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YeZhu_C"))
+					{
+						return NpcCategory.Boar;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_Dromedary_C"))
+					{
+						return NpcCategory.Camel;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_ShuiTun_C"))
+					{
+						return NpcCategory.Capybara;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_Chicken_C"))
+					{
+						return NpcCategory.Chicken;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_Ass_C"))
+					{
+						return NpcCategory.Donkey;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_JiaoDiao_Egg_C"))
+					{
+						return NpcCategory.Eagle;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Kurma_DaXiang_C"))
+					{
+						return NpcCategory.Elephant;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_Flamingo_Egg_C"))
+					{
+						return NpcCategory.Flamingo;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_Giraffe_Child_C"))
+					{
+						return NpcCategory.Giraffe;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_Hippopotamus_C"))
+					{
+						return NpcCategory.Hippopotamus;
 					}
 					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_XueBao_C"))
 					{
@@ -602,45 +650,37 @@ namespace SoulmaskDataMiner
 					{
 						return NpcCategory.Leopard;
 					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_TuoNiao_Egg"))
-					{
-						return NpcCategory.Ostrich;
-					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_HuoJi_C"))
-					{
-						return NpcCategory.Turkey;
-					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_ShuiTun_C"))
-					{
-						return NpcCategory.Capybara;
-					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YeZhu_C"))
-					{
-						return NpcCategory.Boar;
-					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_Kurma_DaXiang_C"))
-					{
-						return NpcCategory.Elephant;
-					}
 					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_QiuYuXi_C"))
 					{
 						return NpcCategory.Lizard;
 					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_YeNiu_C"))
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_DaYangTuo_C"))
 					{
-						return NpcCategory.Bison;
+						return NpcCategory.Llama;
 					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_JiaoDiao_Egg_C"))
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_SangaCattle_C"))
 					{
-						return NpcCategory.Eagle;
+						return NpcCategory.Longhorn;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Kurma_TuoLu_C"))
+					{
+						return NpcCategory.Moose;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_TuoNiao_Egg_C"))
+					{
+						return NpcCategory.Ostrich;
+					}
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_Monster_Rhinoceros_C"))
+					{
+						return NpcCategory.Rhino;
 					}
 					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_XiangGui_Egg_C"))
 					{
 						return NpcCategory.Tortoise;
 					}
-					if (bph.IsDerivedFrom(fistNpcClass, "BP_Kurma_TuoLu_C"))
+					if (bph.IsDerivedFrom(fistNpcClass, "BP_DongWu_HuoJi_C"))
 					{
-						return NpcCategory.Moose;
+						return NpcCategory.Turkey;
 					}
 				}
 				return NpcCategory.Animal;
@@ -795,6 +835,16 @@ namespace SoulmaskDataMiner
 			SpawnerLoot = loot;
 		}
 
+		public override int GetHashCode()
+		{
+			return CharacterClass.Owner?.Name.GetHashCode() ?? 0;
+		}
+
+		public override bool Equals(object? obj)
+		{
+			return obj is NpcData other && CharacterClass.Owner?.Name == other.CharacterClass.Owner?.Name;
+		}
+
 		public override string ToString()
 		{
 			return $"{CharacterClass.Name}: {(IsBaby ? "Baby" : "Adult")} {Sex.ToEn()} [{MinLevel}-{MaxLevel}]";
@@ -807,9 +857,14 @@ namespace SoulmaskDataMiner
 	internal class SpawnData
 	{
 		/// <summary>
-		/// The names of the NPCs the spawner spawns
+		/// The names of the NPCs the spawner spawns, not including baby names
 		/// </summary>
 		public IReadOnlySet<string> NpcNames { get; }
+
+		/// <summary>
+		/// The names of the baby NPCs the spawner spawns
+		/// </summary>
+		public IReadOnlySet<string> BabyNames { get; }
 
 		/// <summary>
 		/// The classes for the NPCs that the spawner spawns
@@ -874,6 +929,7 @@ namespace SoulmaskDataMiner
 
 		public SpawnData(
 			IReadOnlySet<string> npcNames,
+			IReadOnlySet<string> babyNames,
 			IEnumerable<WeightedValue<NpcData>> npcClasses,
 			IEnumerable<WeightedValue<EClanDiWei>> statuses,
 			IEnumerable<WeightedValue<EClanZhiYe>> occupations,
@@ -887,6 +943,7 @@ namespace SoulmaskDataMiner
 			bool isMixedAge)
 		{
 			NpcNames = npcNames;
+			BabyNames = babyNames;
 			NpcData = npcClasses;
 			Statuses = statuses;
 			Occupations = occupations;
@@ -923,20 +980,30 @@ namespace SoulmaskDataMiner
 		Animal,
 		Mechanical,
 		Human,
-		Llama,
+
 		Alpaca,
+		Bison,
+		Boar,
+		Camel,
+		Capybara,
+		Chicken,
+		Donkey,
+		Eagle,
+		Elephant,
+		Flamingo,
+		Giraffe,
+		Hippopotamus,
 		Jaguar,
 		Leopard,
-		Ostrich,
-		Turkey,
-		Capybara,
-		Boar,
-		Elephant,
 		Lizard,
-		Bison,
-		Eagle,
-		Tortoise,
+		Llama,
+		Longhorn,
 		Moose,
+		Ostrich,
+		Rhino,
+		Tortoise,
+		Turkey,
+
 		Count
 	}
 }

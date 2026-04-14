@@ -71,10 +71,11 @@ namespace SoulmaskDataMiner.Miners
 
 			bool success = true;
 			List<MapInfo> allMapData = new();
+			HashSet<NpcData> allBabies = new();
 			foreach (var pair in mapNameToLevelPath)
 			{
 				logger.Important($"Map: {pair.Key}");
-				if (RunMap(pair.Key, pair.Value, mapPoiStaticData, providerManager, config, logger, out MapInfo? mapData))
+				if (RunMap(pair.Key, pair.Value, mapPoiStaticData, providerManager, config, logger, allBabies, out MapInfo? mapData))
 				{
 					allMapData.Add(mapData);
 				}
@@ -85,11 +86,12 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			WriteSql(allMapData, sqlWriter, logger);
+			WriteBabies(allBabies, config, logger);
 
 			return success;
 		}
 
-		private bool RunMap(string mapName, string mainLevelPath, MapPoiStaticData mapPoiStaticData, IProviderManager providerManager, Config config, Logger logger, [NotNullWhen(true)] out MapInfo? mapData)
+		private bool RunMap(string mapName, string mainLevelPath, MapPoiStaticData mapPoiStaticData, IProviderManager providerManager, Config config, Logger logger, ISet<NpcData> allBabies, [NotNullWhen(true)] out MapInfo? mapData)
 		{
 			mapData = null;
 
@@ -110,7 +112,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			logger.Information("<<< Begin processing map >>>");
-			mapData = ProcessMap(mapLevelData, mapPoiStaticData, providerManager, logger);
+			mapData = ProcessMap(mapLevelData, mapPoiStaticData, providerManager, logger, allBabies);
 			logger.Information("<<< Finished processing map >>>");
 			if (mapData is null)
 			{
@@ -209,7 +211,7 @@ namespace SoulmaskDataMiner.Miners
 			return new(providerManager.LootDatabase, mapIntel, mapIcons, spawnLayers, respawnIcon, lootIcon, bossIcon, minePlatformIcon);
 		}
 
-		private MapInfo? ProcessMap(MapLevelData mapLevelData, MapPoiStaticData poiStaticData, IProviderManager providerManager, Logger logger)
+		private MapInfo? ProcessMap(MapLevelData mapLevelData, MapPoiStaticData poiStaticData, IProviderManager providerManager, Logger logger, ISet<NpcData> allBabies)
 		{
 			logger.Information("Loading dependencies...");
 
@@ -269,7 +271,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessPois(poiDatabase, poiObjects, logger);
 			ProcessTablets(poiDatabase, tabletObjects, logger);
 			ProcessRespawnPoints(poiDatabase, respawnObjects, logger);
-			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger);
+			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger, allBabies);
 			ProcessChests(poiDatabase, chestObjects, logger);
 			ProcessFoliage(poiDatabase, foliageData, logger);
 			ProcessDungeons(poiDatabase, dungeonObjects, logger);
@@ -709,54 +711,78 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
-			UTexture2D? llamaIcon = loadTexture("BP_DongWu_DaYangTuo_C");
 			UTexture2D? alpacaIcon = loadTexture("BP_DongWu_YangTuo_C");
+			UTexture2D? bisonIcon = loadTexture("BP_DongWu_YeNiu_C");
+			UTexture2D? boarIcon = loadTexture("BP_DongWu_YeZhu_C");
+			UTexture2D? camelIcon = loadTexture("BP_Monster_Dromedary_C");
+			UTexture2D? capybaraIcon = loadTexture("BP_DongWu_ShuiTun_C");
+			UTexture2D? chickenIcon = loadTexture("BP_Monster_Chicken_C");
+			UTexture2D? donkeyIcon = loadTexture("BP_Monster_Ass_C");
+			UTexture2D? eagleIcon = loadTexture("BP_DongWu_JiaoDiao_C");
+			UTexture2D? elephantIcon = loadTexture("BP_DongWu_DaXiang_C");
+			UTexture2D? flamingoIcon = loadTexture("BP_Monster_Flamingo_Egg_C");
+			UTexture2D? giraffeIcon = loadTexture("BP_Monster_Giraffe_C");
+			UTexture2D? hippopotamusIcon = loadTexture("BP_Monster_Hippopotamus_C");
 			UTexture2D? jaguarIcon = loadTexture("BP_DongWu_XueBao_C");
 			UTexture2D? leopardIcon = loadTexture("BP_DongWu_BaoZi_C");
-			UTexture2D? ostrichIcon = loadTexture("BP_DongWu_TuoNiao_C");
-			UTexture2D? turkeyIcon = loadTexture("BP_DongWu_HuoJi_C");
-			UTexture2D? capybaraIcon = loadTexture("BP_DongWu_ShuiTun_C");
-			UTexture2D? boarIcon = loadTexture("BP_DongWu_YeZhu_C");
-			UTexture2D? elephantIcon = loadTexture("BP_DongWu_DaXiang_C");
 			UTexture2D? lizardIcon = loadTexture("BP_DongWu_QiuYuXi_C");
-			UTexture2D? bisonIcon = loadTexture("BP_DongWu_YeNiu_C");
-			UTexture2D? eagleIcon = loadTexture("BP_DongWu_JiaoDiao_C");
-			UTexture2D? tortoiseIcon = loadTexture("BP_DongWu_XiangGui_C");
+			UTexture2D? llamaIcon = loadTexture("BP_DongWu_DaYangTuo_C");
+			UTexture2D? longhornIcon = loadTexture("BP_Monster_SangaCattle_C");
 			UTexture2D? mooseIcon = loadTexture("BP_DongWu_TuoLu_C");
-			if (llamaIcon is null ||
-				alpacaIcon is null ||
+			UTexture2D? ostrichIcon = loadTexture("BP_DongWu_TuoNiao_C");
+			UTexture2D? rhinoIcon = loadTexture("BP_Monster_Rhinoceros_C");
+			UTexture2D? tortoiseIcon = loadTexture("BP_DongWu_XiangGui_C");
+			UTexture2D? turkeyIcon = loadTexture("BP_DongWu_HuoJi_C");
+			if (alpacaIcon is null ||
+				bisonIcon is null ||
+				boarIcon is null ||
+				camelIcon is null ||
+				capybaraIcon is null ||
+				chickenIcon is null ||
+				donkeyIcon is null ||
+				eagleIcon is null ||
+				elephantIcon is null ||
+				flamingoIcon is null ||
+				giraffeIcon is null ||
+				hippopotamusIcon is null ||
 				jaguarIcon is null ||
 				leopardIcon is null ||
-				ostrichIcon is null ||
-				turkeyIcon is null ||
-				capybaraIcon is null ||
-				boarIcon is null ||
-				elephantIcon is null ||
 				lizardIcon is null ||
-				bisonIcon is null ||
-				eagleIcon is null ||
+				llamaIcon is null ||
+				longhornIcon is null ||
+				mooseIcon is null ||
+				ostrichIcon is null ||
+				rhinoIcon is null ||
 				tortoiseIcon is null ||
-				mooseIcon is null)
+				turkeyIcon is null)
 			{
 				logger.Error("Failed to load spawner icon texture.");
 				return null;
 			}
 
 			const string babyAnimalSpawnName = "Baby Animal Spawn";
-			result[NpcCategory.Llama] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = llamaIcon };
 			result[NpcCategory.Alpaca] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = alpacaIcon };
+			result[NpcCategory.Bison] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = bisonIcon };
+			result[NpcCategory.Boar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = boarIcon };
+			result[NpcCategory.Camel] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = camelIcon };
+			result[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
+			result[NpcCategory.Chicken] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = chickenIcon };
+			result[NpcCategory.Donkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = donkeyIcon };
+			result[NpcCategory.Eagle] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = eagleIcon };
+			result[NpcCategory.Elephant] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = elephantIcon };
+			result[NpcCategory.Flamingo] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = flamingoIcon };
+			result[NpcCategory.Giraffe] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = giraffeIcon };
+			result[NpcCategory.Hippopotamus] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = hippopotamusIcon };
 			result[NpcCategory.Jaguar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = jaguarIcon };
 			result[NpcCategory.Leopard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = leopardIcon };
-			result[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
-			result[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
-			result[NpcCategory.Capybara] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = capybaraIcon };
-			result[NpcCategory.Boar] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = boarIcon };
-			result[NpcCategory.Elephant] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = elephantIcon };
 			result[NpcCategory.Lizard] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = lizardIcon };
-			result[NpcCategory.Bison] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = bisonIcon };
-			result[NpcCategory.Eagle] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = eagleIcon };
-			result[NpcCategory.Tortoise] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = tortoiseIcon };
+			result[NpcCategory.Llama] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = llamaIcon };
+			result[NpcCategory.Longhorn] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = longhornIcon };
 			result[NpcCategory.Moose] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = mooseIcon };
+			result[NpcCategory.Ostrich] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = ostrichIcon };
+			result[NpcCategory.Rhino] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = rhinoIcon };
+			result[NpcCategory.Tortoise] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = tortoiseIcon };
+			result[NpcCategory.Turkey] = new SpawnLayerInfo() { Name = babyAnimalSpawnName, Icon = turkeyIcon };
 
 			return result;
 		}
@@ -1061,7 +1087,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void ProcessSpawners(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger)
+		private void ProcessSpawners(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger, ISet<NpcData> allBabies)
 		{
 			// Process barracks
 
@@ -1208,6 +1234,23 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
+				void findBabies(SpawnData spawnData)
+				{
+					foreach (WeightedValue<NpcData> npc in spawnData.NpcData)
+					{
+						if (npc.Value.IsBaby)
+						{
+							allBabies.Add(npc.Value);
+						}
+					}
+				}
+
+				findBabies(spawnDataCollection.DefaultSpawnData);
+				foreach (var pair in spawnDataCollection.GameModeSpawnData)
+				{
+					findBabies(pair.Value);
+				}
+
 				if (spawnDataCollection.GameModeSpawnData.Count > 0)
 				{
 					byte remainingModes = 0xff;
@@ -1228,7 +1271,10 @@ namespace SoulmaskDataMiner.Miners
 
 		private void CreateSpawnPoi(MapPoiDatabase poiDatabase, string spawnerName, byte? modeMask, SpawnData spawnData, USceneComponent? rootComponent, float spawnInterval, Logger logger)
 		{
-			string poiName = string.Join(", ", spawnData.NpcNames);
+			string npcName = string.Join(", ", spawnData.NpcNames);
+			string babyNpcName = string.Join(", ", spawnData.BabyNames);
+
+			string poiName = npcName;
 
 			FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 			if (locationProperty is null)
@@ -1259,35 +1305,46 @@ namespace SoulmaskDataMiner.Miners
 				{
 					case NpcCategory.Animal:
 						group = SpawnLayerGroup.Animal;
-						if (poiName.Contains(','))
+						poiName = npcName;
+						if (npcName.Contains(','))
 						{
 							type = "(Multiple)";
 						}
 						else
 						{
-							type = poiName;
+							type = npcName;
 						}
 						break;
 					case NpcCategory.Human:
 						group = SpawnLayerGroup.Human;
 						type = spawnData.ClanType.ToEn(poiDatabase.MapName);
 						break;
-					case NpcCategory.Llama:
+
 					case NpcCategory.Alpaca:
+					case NpcCategory.Bison:
+					case NpcCategory.Boar:
+					case NpcCategory.Camel:
+					case NpcCategory.Capybara:
+					case NpcCategory.Chicken:
+					case NpcCategory.Donkey:
+					case NpcCategory.Eagle:
+					case NpcCategory.Elephant:
+					case NpcCategory.Flamingo:
+					case NpcCategory.Giraffe:
+					case NpcCategory.Hippopotamus:
 					case NpcCategory.Jaguar:
 					case NpcCategory.Leopard:
-					case NpcCategory.Ostrich:
-					case NpcCategory.Turkey:
-					case NpcCategory.Capybara:
-					case NpcCategory.Boar:
-					case NpcCategory.Elephant:
 					case NpcCategory.Lizard:
-					case NpcCategory.Bison:
-					case NpcCategory.Eagle:
-					case NpcCategory.Tortoise:
+					case NpcCategory.Llama:
+					case NpcCategory.Longhorn:
 					case NpcCategory.Moose:
+					case NpcCategory.Ostrich:
+					case NpcCategory.Rhino:
+					case NpcCategory.Tortoise:
+					case NpcCategory.Turkey:
 						group = SpawnLayerGroup.BabyAnimal;
-						type = poiName;
+						type = babyNpcName;
+						poiName = babyNpcName;
 						break;
 				}
 
@@ -1341,29 +1398,31 @@ namespace SoulmaskDataMiner.Miners
 
 			void applyAnimalLoot(bool onlyBabies)
 			{
-				string firstClass = firstNpc.CharacterClass.Name;
-				bool isMultiAnimal = false;
-
 				Dictionary<string, CollectionData> collectionMap = new();
+				HashSet<string> collectionClasses = new();
 				foreach (NpcData npc in spawnData.NpcData.Select(d => d.Value))
 				{
-					if (!firstClass.Equals(npc.CharacterClass.Name))
+					if (onlyBabies && !npc.IsBaby || !onlyBabies && npc.IsBaby)
 					{
-						isMultiAnimal = true;
+						continue;
 					}
-
 					if (collectionMap.ContainsKey(npc.CharacterClass.Name)) continue;
 
 					BlueprintHeirarchy.SearchInheritance(npc.CharacterClass, (current) =>
 					{
+						if (collectionClasses.Contains(current.Name)) return true;
+
 						if (poiDatabase.StaticData.Loot.CollectionMap.TryGetValue(current.Name, out CollectionData collectionData))
 						{
+							collectionClasses.Add(current.Name);
 							collectionMap.Add(npc.CharacterClass.Name, collectionData);
 							return true;
 						}
 						return false;
 					});
 				}
+
+				bool isMultiAnimal = collectionMap.Count > 1;
 
 				if (collectionMap.Count > 0)
 				{
@@ -1462,6 +1521,7 @@ namespace SoulmaskDataMiner.Miners
 				{
 					GroupIndex = group,
 					Type = type,
+					Title = babyNpcName,
 					Name = layerInfo.Name,
 					Description = $"Level {levelText}",
 					Male = male,
@@ -2869,6 +2929,19 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			sqlWriter.WriteEndTable();
+		}
+
+		private void WriteBabies(IReadOnlySet<NpcData> babies, Config config, Logger logger)
+		{
+			string outPath = Path.Combine(config.OutputDirectory, Name, "babies.csv");
+			using FileStream outFile = IOUtil.CreateFile(outPath, logger);
+			using StreamWriter writer = new(outFile, Encoding.UTF8);
+
+			writer.WriteLine("class,name");
+			foreach (NpcData baby in babies)
+			{
+				writer.WriteLine($"{CsvStr(baby.CharacterClass.Owner!.Name)},{CsvStr(baby.Name)}");
+			}
 		}
 
 		private static FVector2D WorldToMap(FVector world)
