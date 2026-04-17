@@ -240,7 +240,7 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? poiObjects,
 				out IReadOnlyList<FObjectExport>? tabletObjects,
 				out IReadOnlyList<FObjectExport>? respawnObjects,
-				out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
+				out IReadOnlyList<SpawnerObject>? spawnerObjects,
 				out IReadOnlyList<FObjectExport>? barracksObjects,
 				out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 				out IReadOnlyList<FObjectExport>? dungeonObjects,
@@ -792,7 +792,7 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? poiObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? tabletObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? respawnObjects,
-			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? spawnerObjects,
+			[NotNullWhen(true)] out IReadOnlyList<SpawnerObject>? spawnerObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? barracksObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? dungeonObjects,
@@ -819,8 +819,9 @@ namespace SoulmaskDataMiner.Miners
 
 			string[] spawnerBaseClasses = new string[]
 			{
-				"HShuaGuaiQiBase",
-				"HTanChaActor"
+				"HShuaGuaiQiBase", // Standard spawners
+				"HShuaGuaiVolumeChuFaQi", // Triggers spawns when the player enters a volume
+				"HTanChaActor" // Foootprint tracking event spawners for baby animals
 			};
 
 			List<BlueprintClassInfo> spawnerBpClasses = new();
@@ -869,7 +870,7 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> poiObjectList = new();
 			List<FObjectExport> respawnObjectList = new();
 			List<FObjectExport> tabletObjectList = new();
-			List<ObjectWithDefaults> spawnerObjectList = new();
+			List<SpawnerObject> spawnerObjectList = new();
 			List<FObjectExport> barracksObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
 			List<FObjectExport> dungeonObjectList = new();
@@ -892,7 +893,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else if (spawnerClasses.TryGetValue(export.ClassName, out UObject? defaultScgObj))
 					{
-						spawnerObjectList.Add(new() { Export = export, DefaultsObject = defaultScgObj });
+						spawnerObjectList.Add(new() { BaseClassName = export.ClassName, Object = new() { Export = export, DefaultsObject = defaultScgObj } });
 					}
 					else if (barracksClasses.Contains(export.ClassName))
 					{
@@ -1088,7 +1089,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void ProcessSpawners(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger, ISet<NpcData> allBabies)
+		private void ProcessSpawners(MapPoiDatabase poiDatabase, IReadOnlyList<SpawnerObject> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger, ISet<NpcData> allBabies)
 		{
 			// Process barracks
 
@@ -1132,14 +1133,15 @@ namespace SoulmaskDataMiner.Miners
 			Dictionary<string, SpawnDataCollection?> spawnDataCache = new();
 
 			logger.Information($"Processing {spawnerObjects.Count} spawners...");
-			foreach (ObjectWithDefaults spawnerObject in spawnerObjects)
+			foreach (SpawnerObject spawnerObject in spawnerObjects)
 			{
-				FObjectExport export = spawnerObject.Export;
+				FObjectExport export = spawnerObject.Object.Export;
 				UObject obj = export.ExportObject.Value;
 
 				List<UBlueprintGeneratedClass> scgClasses = new();
 				USceneComponent? rootComponent = null;
-				float? spawnInterval = null;
+				float? spawnInterval = null, playerRadius = null, buildingRadius = null;
+				int? spawnCount = null;
 				void searchProperties(UObject searchObj)
 				{
 					foreach (FPropertyTag property in searchObj.Properties)
@@ -1162,6 +1164,7 @@ namespace SoulmaskDataMiner.Miners
 								}
 								break;
 							case "SCGJianGeShiJian":
+							case "ZhuiZongFaildTimeConf":
 								spawnInterval = property.Tag!.GetValue<float>();
 								break;
 							case "ShuaGuaiQiWithRand":
@@ -1190,6 +1193,16 @@ namespace SoulmaskDataMiner.Miners
 									}
 								}
 								break;
+							case "SCGNum":
+							case "MaxSCGNum":
+								spawnCount = property.Tag!.GetValue<int>();
+								break;
+							case "WanJiaJuLi":
+								playerRadius = property.Tag!.GetValue<float>();
+								break;
+							case "JianZhuJuLi":
+								buildingRadius = property.Tag!.GetValue<float>();
+								break;
 							case "RootComponent":
 								if (rootComponent is null)
 								{
@@ -1215,7 +1228,32 @@ namespace SoulmaskDataMiner.Miners
 
 				if (!spawnInterval.HasValue)
 				{
-					spawnInterval = 10.0f;
+					switch (spawnerObject.BaseClassName)
+					{
+						case "HShuaGuaiQiBase":
+						default:
+							spawnInterval = 10.0f;
+							break;
+						case "HShuaGuaiVolumeChuFaQi":
+							spawnInterval = 3600.0f;
+							break;
+						case "HTanChaActor":
+							spawnInterval = 600.0f;
+							break;
+					}
+				}
+
+				if (!spawnCount.HasValue)
+				{
+					spawnCount = 0;
+				}
+				if (!playerRadius.HasValue)
+				{
+					playerRadius = 0.0f;
+				}
+				if (!buildingRadius.HasValue)
+				{
+					buildingRadius = 0.0f;
 				}
 
 				if (barracksSpawnerNames.Contains(export.ObjectName.Text))
@@ -1227,7 +1265,7 @@ namespace SoulmaskDataMiner.Miners
 				SpawnDataCollection? spawnDataCollection = null;
 				if (!spawnDataCache.TryGetValue(spawnDataKey, out spawnDataCollection))
 				{
-					spawnDataCollection = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, spawnerObject.DefaultsObject);
+					spawnDataCollection = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, spawnerObject.Object.DefaultsObject);
 					spawnDataCache.Add(spawnDataKey, spawnDataCollection);
 				}
 				if (spawnDataCollection is null)
@@ -1259,18 +1297,18 @@ namespace SoulmaskDataMiner.Miners
 					{
 						byte modeMask = CreateGameModeMask(pair.Key);
 						remainingModes &= (byte)~modeMask;
-						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, pair.Value, rootComponent, spawnInterval.Value, logger);
+						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, pair.Value, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, logger);
 					}
-					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, remainingModes, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, logger);
+					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, remainingModes, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, logger);
 				}
 				else
 				{
-					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, null, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, logger);
+					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, null, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, logger);
 				}
 			}
 		}
 
-		private void CreateSpawnPoi(MapPoiDatabase poiDatabase, string spawnerName, byte? modeMask, SpawnData spawnData, USceneComponent? rootComponent, float spawnInterval, Logger logger)
+		private void CreateSpawnPoi(MapPoiDatabase poiDatabase, string spawnerName, byte? modeMask, SpawnData spawnData, USceneComponent? rootComponent, float spawnInterval, int spawnCount, float playerRadius, float buildingRadius, Logger logger)
 		{
 			string npcName = string.Join(", ", spawnData.NpcNames);
 			string babyNpcName = string.Join(", ", spawnData.BabyNames);
@@ -1488,8 +1526,11 @@ namespace SoulmaskDataMiner.Miners
 				ClanAreas = clanAreas,
 				ClanOccupations = clanOccupations,
 				Equipment = equipment,
-				SpawnCount = spawnData.SpawnCount,
+				SpawnCount = spawnCount,
+				SpawnCountMax = spawnData.SpawnCount,
 				SpawnInterval = spawnInterval,
+				PlayerExclusionRadius = playerRadius,
+				BuildingExclusionRadius = buildingRadius,
 				Location = location,
 				MapLocation = WorldToMap(location),
 				Icon = layerInfo.Icon,
@@ -1527,7 +1568,7 @@ namespace SoulmaskDataMiner.Miners
 					Description = $"Level {levelText}",
 					Male = male,
 					Female = female,
-					SpawnCount = babyData.Sum(b => b.Value.SpawnCount),
+					SpawnCountMax = babyData.Sum(b => b.Value.SpawnCount),
 					Icon = layerInfo.Icon,
 					CollectMap = collectMap
 				};
@@ -1546,6 +1587,7 @@ namespace SoulmaskDataMiner.Miners
 				UObject obj = export.ExportObject.Value;
 
 				int respawnTime = -1;
+				float respawnExclusionRadius = -1.0f;
 				string? lootId = null;
 				string? poiName = null;
 				string? openTip = null;
@@ -1565,6 +1607,12 @@ namespace SoulmaskDataMiner.Miners
 								if (respawnTime < 0)
 								{
 									respawnTime = property.Tag!.GetValue<int>();
+								}
+								break;
+							case "CheckNearlyPlayerFanWei":
+								if (respawnExclusionRadius < 0.0f)
+								{
+									respawnExclusionRadius = property.Tag!.GetValue<float>();
 								}
 								break;
 							case "AliveCustomeGameMode":
@@ -1659,7 +1707,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 
 				searchProperties(obj);
-				if ((respawnTime < 0 || lootId is null || poiName is null || openTip is null || rootComponent is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
+				if ((respawnTime < 0 || respawnExclusionRadius < 0.0f || lootId is null || poiName is null || openTip is null || rootComponent is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
 				{
 					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 					{
@@ -1667,8 +1715,17 @@ namespace SoulmaskDataMiner.Miners
 						if (currentObj is null) return true;
 
 						searchProperties(currentObj);
-						return lootId is not null && poiName is not null && openTip is not null && rootComponent is not null;
+						return respawnTime >= 0 && respawnExclusionRadius >= 0.0f && lootId is not null && poiName is not null && openTip is not null && rootComponent is not null;
 					});
+				}
+
+				if (respawnTime < 0)
+				{
+					respawnTime = 0; // Default from HJianZhuBaoXiang
+				}
+				if (respawnExclusionRadius < 0.0f)
+				{
+					respawnExclusionRadius = 2000.0f; // Default from HJianZhuBaoXiang
 				}
 
 				if (lootId is null && lootItem is null || poiName is null || rootComponent is null)
@@ -1698,7 +1755,8 @@ namespace SoulmaskDataMiner.Miners
 					MapLocation = WorldToMap(location),
 					LootId = lootId,
 					LootItem = lootItem?.Name,
-					SpawnInterval = respawnTime > 0 ? respawnTime : 0
+					SpawnInterval = respawnTime,
+					PlayerExclusionRadius = respawnExclusionRadius
 				};
 
 				if (availableGameModes.Count > 0)
@@ -1782,7 +1840,7 @@ namespace SoulmaskDataMiner.Miners
 							Title = foliage.Name,
 							Name = nameText,
 							Description = isOre ? toolClass : null,
-							SpawnCount = location.Count,
+							SpawnCountMax = location.Count,
 							SpawnInterval = spawnInterval,
 							CollectMap = collectMap,
 							MapLocation = WorldToMap(new(location.CenterX, location.CenterY, 0.0f)),
@@ -2802,7 +2860,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,region,m,f,stat,occ,clantype,clanarea,clanocc,num,intr,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
+				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,region,m,f,stat,occ,clantype,clanarea,clanocc,num,max,intr,player,building,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -2820,7 +2878,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.ClanType},{CsvStr(poi.ClanAreas)},{poi.ClanOccupations},{poi.SpawnCount},{poi.SpawnInterval}";
+						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.ClanType},{CsvStr(poi.ClanAreas)},{poi.ClanOccupations},{poi.SpawnCount},{poi.SpawnCountMax},{poi.SpawnInterval},{poi.PlayerExclusionRadius},{poi.BuildingExclusionRadius}";
 					}
 
 					string lootSegment = $"{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)},{CsvStr(poi.Equipment)},{CsvStr(poi.CollectMap)}";
@@ -2870,7 +2928,10 @@ namespace SoulmaskDataMiner.Miners
 			//   `clanareas` varchar[31],
 			//   `clanocc` varchar[31],
 			//   `num` int,
+			//   `max` int,
 			//   `intr` float,
+			//   `player` float,
+			//   `building` float,
 			//   `loot` varchar(127),
 			//   `lootitem` varchar(127),
 			//   `lootmap` varchar(255),
@@ -2903,7 +2964,7 @@ namespace SoulmaskDataMiner.Miners
 						// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
 						if (poi.Location == FVector.ZeroVector) continue;
 
-						string spawnerSegment = "null, null, null, null, null, null, null, null, null";
+						string spawnerSegment = "null, null, null, null, null, null, null, null, null, null, null, null";
 						string poiSegment = "null, null, null";
 						if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 						{
@@ -2911,7 +2972,7 @@ namespace SoulmaskDataMiner.Miners
 						}
 						else
 						{
-							spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbStr(poi.ClanAreas)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnInterval}";
+							spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbStr(poi.ClanAreas)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnCountMax}, {poi.SpawnInterval}, {poi.PlayerExclusionRadius}, {poi.BuildingExclusionRadius}";
 						}
 
 						string lootSegment = $"{DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
@@ -3044,6 +3105,12 @@ namespace SoulmaskDataMiner.Miners
 			equipBuilder.Append("}");
 
 			return equipBuilder.ToString();
+		}
+
+		private struct SpawnerObject
+		{
+			public string BaseClassName;
+			public ObjectWithDefaults Object;
 		}
 
 		private class MapLevelData
@@ -3274,7 +3341,10 @@ namespace SoulmaskDataMiner.Miners
 			public string? ClanOccupations { get; set; }
 			public string? Equipment { get; set; }
 			public int SpawnCount { get; set; }
+			public int SpawnCountMax { get; set; }
 			public float SpawnInterval { get; set; }
+			public float PlayerExclusionRadius { get; set; }
+			public float BuildingExclusionRadius { get; set; }
 			public string? LootId { get; set; }
 			public string? LootItem { get; set; }
 			public string? LootMap { get; set; }
@@ -3314,7 +3384,10 @@ namespace SoulmaskDataMiner.Miners
 				ClanOccupations = other.ClanOccupations;
 				Equipment = other.Equipment;
 				SpawnCount = other.SpawnCount;
+				SpawnCountMax = other.SpawnCountMax;
 				SpawnInterval = other.SpawnInterval;
+				PlayerExclusionRadius = other.PlayerExclusionRadius;
+				BuildingExclusionRadius = other.BuildingExclusionRadius;
 				LootId = other.LootId;
 				LootItem = other.LootItem;
 				LootMap = other.LootMap;
