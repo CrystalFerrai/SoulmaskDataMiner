@@ -981,6 +981,7 @@ namespace SoulmaskDataMiner
 		Mechanical,
 		Human,
 		Boat,
+		Firefly,
 
 		Alpaca,
 		Bison,

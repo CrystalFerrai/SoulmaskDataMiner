@@ -207,6 +207,23 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// Locates the default properties object for a blueprint
 		/// </summary>
+		/// <param name="provider">The provider to load the blueprint from</param>
+		/// <param name="assetPath">The path to the blueprint asset</param>
+		/// <returns>The object, or null if failure</returns>
+		public static UObject? FindBlueprintDefaultsObject(IFileProvider provider, string assetPath)
+		{
+			if (!provider.TryGetGameFile(assetPath, out GameFile? file))
+			{
+				return null;
+			}
+
+			Package package = (Package)provider.LoadPackage(file);
+			return FindBlueprintDefaultsObject(package);
+		}
+
+		/// <summary>
+		/// Locates the default properties object for a blueprint
+		/// </summary>
 		/// <param name="package">The package containing the blueprint</param>
 		/// <returns>The object, or null if failure</returns>
 		public static UObject? FindBlueprintDefaultsObject(Package package)
@@ -222,6 +239,28 @@ namespace SoulmaskDataMiner
 			}
 
 			return null;
+		}
+
+		/// <summary>
+		/// Locates the default properties object for a blueprint
+		/// </summary>
+		/// <param name="export">The blueprint class export</param>
+		/// <returns>The object, or null if failure</returns>
+		public static UObject? FindBlueprintDefaultsObject(FObjectExport export)
+		{
+			UBlueprintGeneratedClass? exportObj = export.ExportObject.Value as UBlueprintGeneratedClass;
+			return exportObj?.ClassDefaultObject.ResolvedObject?.Load();
+		}
+
+		/// <summary>
+		/// Locates the default properties object for a blueprint
+		/// </summary>
+		/// <param name="packageIndex">The blueprint class export package index</param>
+		/// <returns>The object, or null if failure</returns>
+		public static UObject? FindBlueprintDefaultsObject(FPackageIndex packageIndex)
+		{
+			UBlueprintGeneratedClass? exportObj = packageIndex.Load() as UBlueprintGeneratedClass;
+			return exportObj?.ClassDefaultObject.ResolvedObject?.Load();
 		}
 
 		/// <summary>

@@ -242,6 +242,7 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? respawnObjects,
 				out IReadOnlyList<SpawnerObject>? spawnerObjects,
 				out IReadOnlyList<FObjectExport>? barracksObjects,
+				out IReadOnlyList<ObjectWithDefaults>? fireflyObjects,
 				out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 				out IReadOnlyList<FObjectExport>? dungeonObjects,
 				out IReadOnlyList<FObjectExport>? arenaObjects,
@@ -272,6 +273,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessTablets(poiDatabase, tabletObjects, logger);
 			ProcessRespawnPoints(poiDatabase, respawnObjects, logger);
 			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger, allBabies);
+			ProcessFireflies(poiDatabase, fireflyObjects, logger);
 			ProcessChests(poiDatabase, chestObjects, logger);
 			ProcessFoliage(poiDatabase, foliageData, logger);
 			ProcessDungeons(poiDatabase, dungeonObjects, logger);
@@ -660,7 +662,8 @@ namespace SoulmaskDataMiner.Miners
 				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji.uasset",  // Animal
 				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji2.uasset", // Mechanical
 				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji3.uasset", // Human
-				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji4.uasset"  // Boat
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji4.uasset", // Boat
+				"WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/shitubiaoji.uasset"   // Firefly
 			};
 
 			Dictionary<NpcCategory, SpawnLayerInfo> result = new();
@@ -794,6 +797,7 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? respawnObjects,
 			[NotNullWhen(true)] out IReadOnlyList<SpawnerObject>? spawnerObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? barracksObjects,
+			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? fireflyObjects,
 			[NotNullWhen(true)] out IReadOnlyList<ObjectWithDefaults>? chestObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? dungeonObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? arenaObjects,
@@ -806,6 +810,7 @@ namespace SoulmaskDataMiner.Miners
 			tabletObjects = null;
 			spawnerObjects = null;
 			barracksObjects = null;
+			fireflyObjects = null;
 			chestObjects = null;
 			dungeonObjects = null;
 			arenaObjects = null;
@@ -843,6 +848,9 @@ namespace SoulmaskDataMiner.Miners
 
 			HashSet<string> barracksClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(barracksBaseClass).Select(c => c.Name));
 
+			const string fireflyBaseClass = "BP_CrowdNPC_Firefly_C";
+			UObject fireflyDefaults = GameUtil.FindBlueprintDefaultsObject(providerManager.Provider, "WS/Content/Blueprints/CrowdNPC/BP_CrowdNPC_Firefly.uasset")!;
+
 			const string chestBaseClass = "HJianZhuBaoXiang";
 
 			List<BlueprintClassInfo> chestBpClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(chestBaseClass));
@@ -850,9 +858,7 @@ namespace SoulmaskDataMiner.Miners
 			Dictionary<string, UObject?> chestClasses = new();
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
 			{
-				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export.ExportObject.Value;
-				UObject? defaultObj = exportObj?.ClassDefaultObject.Load();
-				chestClasses.Add(bpClass.Name, defaultObj);
+				chestClasses.Add(bpClass.Name, GameUtil.FindBlueprintDefaultsObject(bpClass.Export));
 			}
 
 			const string arenaBaseClass = "HJianZhuJingJiChang";
@@ -872,6 +878,7 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> tabletObjectList = new();
 			List<SpawnerObject> spawnerObjectList = new();
 			List<FObjectExport> barracksObjectList = new();
+			List<ObjectWithDefaults> fireflyObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
 			List<FObjectExport> dungeonObjectList = new();
 			List<FObjectExport> arenaObjectList = new();
@@ -943,12 +950,24 @@ namespace SoulmaskDataMiner.Miners
 					}
 				}
 			}
+			foreach (Package package in mapLevelData.CrowdNpcLevels)
+			{
+				logger.Debug(package.Name);
+				foreach (FObjectExport export in package.ExportMap)
+				{
+					if (export.ClassName.Equals(fireflyBaseClass))
+					{
+						fireflyObjectList.Add(new() { Export = export, DefaultsObject = fireflyDefaults });
+					}
+				}
+			}
 
 			poiObjects = poiObjectList;
 			respawnObjects = respawnObjectList;
 			tabletObjects = tabletObjectList;
 			spawnerObjects = spawnerObjectList;
 			barracksObjects = barracksObjectList;
+			fireflyObjects = fireflyObjectList;
 			chestObjects = chestObjectList;
 			dungeonObjects = dungeonObjectList;
 			arenaObjects = arenaObjectList;
@@ -1571,6 +1590,120 @@ namespace SoulmaskDataMiner.Miners
 					SpawnCountMax = babyData.Sum(b => b.Value.SpawnCount),
 					Icon = layerInfo.Icon,
 					CollectMap = collectMap
+				};
+
+				poiDatabase.Spawners.Add(poi);
+			}
+		}
+
+		private void ProcessFireflies(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> fireflyObjects, Logger logger)
+		{
+			logger.Information($"Processing {fireflyObjects.Count} firefly spawners...");
+
+			foreach (ObjectWithDefaults fireflyObject in fireflyObjects)
+			{
+				FObjectExport export = fireflyObject.Export;
+				UObject obj = export.ExportObject.Value;
+
+				float appearTime = -1.0f, disappearTime = -1.0f, refreshTime = -1.0f;
+				int maxCount = -1;
+				FPackageIndex? lootItem = null;
+				USceneComponent? rootComponent = null;
+				FVector? locationOffset = null;
+				void searchProperties(UObject searchObj)
+				{
+					foreach (FPropertyTag property in searchObj.Properties)
+					{
+						switch (property.Name.Text)
+						{
+							case "AppearTime":
+								if (appearTime < 0.0f)
+								{
+									appearTime = property.Tag!.GetValue<float>();
+								}
+								break;
+							case "DisappearTime":
+								if (disappearTime < 0.0f)
+								{
+									disappearTime = property.Tag!.GetValue<float>();
+								}
+								break;
+							case "RefreshTime":
+								if (refreshTime < 0.0f)
+								{
+									refreshTime = property.Tag!.GetValue<float>();
+								}
+								break;
+							case "RewardDaoJuMaxNums":
+								if (maxCount < 0)
+								{
+									maxCount = property.Tag!.GetValue<int>();
+								}
+								break;
+							case "InteractRewardDaoJuClass":
+								if (lootItem is null)
+								{
+									lootItem = property.Tag?.GetValue<FPackageIndex>();
+								}
+								break;
+							case "RootComponent":
+								if (rootComponent is null)
+								{
+									rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+								}
+								break;
+							case "SpawnBoxLocationOffset":
+								if (!locationOffset.HasValue)
+								{
+									locationOffset = property.Tag!.GetValue<FVector>();
+								}
+								break;
+						}
+					}
+				}
+
+				searchProperties(obj);
+				if (obj.Class?.Load() is UBlueprintGeneratedClass objClass)
+				{
+					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+					{
+						UObject? currentObj = current.ClassDefaultObject.Load();
+						if (currentObj is null) return true;
+
+						searchProperties(currentObj);
+						return appearTime >= 0.0f && disappearTime >= 0.0f && refreshTime >= 0.0f && maxCount >= 0 && lootItem is not null && rootComponent is not null && locationOffset.HasValue;
+					});
+				}
+
+				if (appearTime < 0.0f || disappearTime < 0.0f || refreshTime < 0.0f || maxCount < 0 || lootItem is null || rootComponent is null || !locationOffset.HasValue)
+				{
+					logger.Warning($"[{export.ObjectName}] Firefly spawner missing properties");
+					continue;
+				}
+
+				FPropertyTag? locationProperty = rootComponent.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				if (locationProperty is null)
+				{
+					logger.Warning($"[{export.ObjectName}] Failed to find location for firefly spawner");
+					continue;
+				}
+
+				string appearTimeText = TimeSpan.FromSeconds(appearTime).ToString(@"hh\:mm");
+				string disappearTimeText = TimeSpan.FromSeconds(disappearTime).ToString(@"hh\:mm");
+
+				FVector location = locationProperty.Tag!.GetValue<FVector>() + locationOffset.Value;
+				MapPoi poi = new()
+				{
+					GroupIndex = SpawnLayerGroup.Npc,
+					Type = "Fireflies",
+					Title = "Firefly Spawner",
+					Description = $"Appears from {appearTimeText} until {disappearTimeText}",
+					Location = location,
+					MapLocation = WorldToMap(location),
+					SpawnCountMax = maxCount,
+					SpawnInterval = refreshTime,
+					Icon = poiDatabase.StaticData.SpawnLayerMap[NpcCategory.Firefly].Icon,
+					LootItem = lootItem.Name
 				};
 
 				poiDatabase.Spawners.Add(poi);
@@ -3127,9 +3260,11 @@ namespace SoulmaskDataMiner.Miners
 
 			public Package GameplayLevel3 { get; }
 
+			public IReadOnlyList<Package> CrowdNpcLevels { get; }
+
 			public UObject WorldSettings { get; }
 
-			private MapLevelData(string mapName, string mapMainDirectory, Package mainLevel, Package gameplayLevel1, Package gameplayLevel2, Package gameplayLevel3, UObject worldSettings)
+			private MapLevelData(string mapName, string mapMainDirectory, Package mainLevel, Package gameplayLevel1, Package gameplayLevel2, Package gameplayLevel3, IReadOnlyList<Package> crowdNpcLevels, UObject worldSettings)
 			{
 				MapName = mapName;
 				MapMainDirectory = mapMainDirectory;
@@ -3137,6 +3272,7 @@ namespace SoulmaskDataMiner.Miners
 				GameplayLevel1 = gameplayLevel1;
 				GameplayLevel2 = gameplayLevel2;
 				GameplayLevel3 = gameplayLevel3;
+				CrowdNpcLevels = crowdNpcLevels;
 				WorldSettings = worldSettings;
 			}
 
@@ -3145,8 +3281,10 @@ namespace SoulmaskDataMiner.Miners
 				Package? mainLevel = LoadLevel(mainLevelPath, providerManager, logger);
 
 				string mapDir = mainLevelPath.Substring(0, mainLevelPath.LastIndexOf('/'));
+				if (mapDir.StartsWith("/Game/")) mapDir = $"WS/Content{mapDir.Substring(5)}";
 				string mapBaseName = mapDir.Substring(mapDir.LastIndexOf('/') + 1);
 				string hubDir = $"{mapDir}/{mapBaseName}_Hub";
+				string crowdNpcDir = $"{mapDir}/CrowdNPC";
 
 				Package? gameplayLevel1 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay.umap", providerManager, logger);
 				Package? gameplayLevel2 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay2.umap", providerManager, logger);
@@ -3155,6 +3293,17 @@ namespace SoulmaskDataMiner.Miners
 				if (mainLevel is null || gameplayLevel1 is null || gameplayLevel2 is null || gameplayLevel3 is null)
 				{
 					return null;
+				}
+
+				List<Package> crowdNpcLevels = new();
+				foreach (var pair in providerManager.Provider.Files)
+				{
+					if (!pair.Key.StartsWith(crowdNpcDir) || !pair.Key.EndsWith(".umap"))
+					{
+						continue;
+					}
+
+					crowdNpcLevels.Add((Package)providerManager.Provider.LoadPackage(pair.Value));
 				}
 
 				UObject mainExport = mainLevel.ExportMap[mainLevel.GetExportIndex("PersistentLevel")].ExportObject.Value;
@@ -3166,7 +3315,7 @@ namespace SoulmaskDataMiner.Miners
 					return null;
 				}
 
-				return new(mapName, mapDir, mainLevel, gameplayLevel1, gameplayLevel2, gameplayLevel3, worldSettings);
+				return new(mapName, mapDir, mainLevel, gameplayLevel1, gameplayLevel2, gameplayLevel3, crowdNpcLevels, worldSettings);
 			}
 
 			private static Package? LoadLevel(string path, IProviderManager providerManager, Logger logger)
@@ -3509,7 +3658,7 @@ namespace SoulmaskDataMiner.Miners
 				SpawnLayerGroup.BabyAnimal => "Baby Animal Spawn",
 				SpawnLayerGroup.Animal => "Animal Spawn",
 				SpawnLayerGroup.Human => "Human Spawn",
-				SpawnLayerGroup.Npc => "Other NPC Spawn",
+				SpawnLayerGroup.Npc => "Other Spawn",
 				SpawnLayerGroup.Pickup => "Collectible Objects",
 				SpawnLayerGroup.Chest => "Lootable Objects",
 				SpawnLayerGroup.Ore => "Ore Deposits",
