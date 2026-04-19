@@ -179,6 +179,30 @@ namespace SoulmaskDataMiner
 										case "BP_Condition_Area_IsDaCaoYuan_C":
 											entry.AreaCondition = 8;
 											break;
+										case "BP_Condition_Area_IsDLC01_1_C":
+											entry.AreaCondition = 103;
+											break;
+										case "BP_Condition_Area_IsDLC01_2_C":
+											entry.AreaCondition = 107;
+											break;
+										case "BP_Condition_Area_IsDLC01_3_C":
+											entry.AreaCondition = 118;
+											break;
+										case "BP_Condition_Area_IsDLC01_4_C":
+											entry.AreaCondition = 125;
+											break;
+										case "BP_Condition_Area_IsDLC02_1_C":
+											entry.AreaCondition = 102;
+											break;
+										case "BP_Condition_Area_IsDLC02_2_C":
+											entry.AreaCondition = 111;
+											break;
+										case "BP_Condition_Area_IsDLC02_3_C":
+											entry.AreaCondition = 122;
+											break;
+										case "BP_Condition_Area_IsDLC02_4_C":
+											entry.AreaCondition = 126;
+											break;
 										case "BP_Condition_Area_IsHuangYuan_C":
 											entry.AreaCondition = 3;
 											break;
@@ -207,14 +231,32 @@ namespace SoulmaskDataMiner
 										case "BP_Condition_GongJiangDrop_C":
 											entry.CraftsmanOnly = true;
 											break;
+										case "BP_Condition_IsHorn_C":
+											entry.ClanCondition = (int)EClanType.CLAN_TYPE_E;
+											break;
 										case "BP_Condition_IsShenMi_C":
 											entry.ClanCondition = (int)EClanType.CLAN_TYPE_C;
 											break;
 										case "BP_Condition_IsYeMan_C":
 											entry.ClanCondition = (int)EClanType.CLAN_TYPE_A;
 											break;
+										case "BP_Condition_IsWolf_C":
+											entry.ClanCondition = (int)EClanType.CLAN_TYPE_F;
+											break;
 										case "BP_Condition_IsZhiHui_C":
 											entry.ClanCondition = (int)EClanType.CLAN_TYPE_B;
+											break;
+										case "TJ_DL_IsActionMode_C":
+											entry.GameMode = (int)ECustomGameMode.Action;
+											break;
+										case "TJ_DL_IsManagementMode_C":
+											entry.GameMode = (int)ECustomGameMode.Management;
+											break;
+										case "TJ_DL_IsNotPVP_C":
+											entry.NotGameMode = (int)ECustomGameMode.PVP;
+											break;
+										case "TJ_DL_IsNotSurvival_C":
+											entry.NotGameMode = (int)ECustomGameMode.Survival;
 											break;
 										case "TJ_DL_IsPVP_C":
 											entry.PvpOnly = true;
@@ -228,7 +270,22 @@ namespace SoulmaskDataMiner
 										case "TJ_DL_PVP_7Day+_C":
 											entry.PvpDayCondition = 7;
 											break;
+										case "TJ_Map_Is_DLCLevel01_Main_C":
+											entry.AllowedMaps.Add("DemoMap");
+											entry.AllowedMaps.Add("DLC_Level01_Main");
+											break;
+										case "TJ_Map_Is_Level01_Main_C":
+											entry.AllowedMaps.Add("DemoMap");
+											entry.AllowedMaps.Add("Level01_Main");
+											break;
+										case "TJ_Map_IsOnly_DLCLevel01_Main_C":
+											entry.AllowedMaps.Add("DLC_Level01_Main");
+											break;
+										case "TJ_Map_IsOnly_Level01_Main_C":
+											entry.AllowedMaps.Add("Level01_Main");
+											break;
 										default:
+											logger.Debug($"Found unknown loot condition {conditionName} in {Path.GetFileNameWithoutExtension(filePair.Key)} row \"{pair.Key.Text}\"");
 											break;
 									}
 								}
@@ -518,6 +575,9 @@ namespace SoulmaskDataMiner
 		public int? AreaCondition;
 		public int? ClanCondition;
 		public bool CraftsmanOnly;
+		public List<string> AllowedMaps;
+		public int? GameMode;
+		public int? NotGameMode;
 		public bool PvpOnly;
 		public int? PvpDayCondition;
 		public bool UnknownCondition;
@@ -529,6 +589,9 @@ namespace SoulmaskDataMiner
 			AreaCondition = null;
 			ClanCondition = null;
 			CraftsmanOnly = false;
+			AllowedMaps = new();
+			GameMode = null;
+			NotGameMode = null;
 			PvpOnly = false;
 			PvpDayCondition = null;
 			UnknownCondition = false;
@@ -536,12 +599,15 @@ namespace SoulmaskDataMiner
 
 		public string? GetConditionsJson()
 		{
-			if (AreaCondition.HasValue || ClanCondition.HasValue || CraftsmanOnly || PvpOnly || PvpDayCondition.HasValue || UnknownCondition)
+			if (AreaCondition.HasValue || ClanCondition.HasValue || CraftsmanOnly || AllowedMaps.Count > 0 || GameMode.HasValue || NotGameMode.HasValue || PvpOnly || PvpDayCondition.HasValue || UnknownCondition)
 			{
 				StringBuilder builder = new("{");
 				if (AreaCondition.HasValue) builder.Append($"\"area\":{AreaCondition.Value},");
 				if (ClanCondition.HasValue) builder.Append($"\"clan\":{ClanCondition.Value},");
 				if (CraftsmanOnly) builder.Append($"\"craft\":1,");
+				if (AllowedMaps.Count > 0) builder.Append($"\"maps\":[\"{string.Join("\",\"", AllowedMaps)}\"],");
+				if (GameMode.HasValue) builder.Append($"\"mode\":{GameMode.Value},");
+				if (NotGameMode.HasValue) builder.Append($"\"notmode\":{NotGameMode.Value},");
 				if (PvpOnly) builder.Append($"\"pvp\":1,");
 				if (PvpDayCondition.HasValue) builder.Append($"\"pvpday\":{PvpDayCondition.Value},");
 				if (UnknownCondition) builder.Append($"\"unknown\":1,");

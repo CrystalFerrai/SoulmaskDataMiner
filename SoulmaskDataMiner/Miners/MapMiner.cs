@@ -143,12 +143,13 @@ namespace SoulmaskDataMiner.Miners
 				success = false;
 			}
 
-			UMaterial? mapMaskMaterial = mapLevelData.WorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("SlateBrushMapMiWu"))?.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Load() as UMaterial;
+			UMaterial? mapMaskMaterial = mapLevelData.WorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("SlateBrushMapMiWu"))?.Tag?.GetValue<FStructFallback>()?
+				.Properties.FirstOrDefault(p => p.Name.Text.Equals("ResourceObject"))?.Tag?.GetValue<FPackageIndex>()?.ResolvedObject?.Load() as UMaterial;
 			if (mapMaskMaterial is not null)
 			{
-				foreach (UTexture2D texture in mapMaskMaterial.ReferencedTextures)
+				foreach (UTexture2D? texture in mapMaskMaterial.ReferencedTextures)
 				{
-					if (texture.Name.Equals(mapTexture?.Name)) continue;
+					if (texture is null || texture.Name.Equals(mapTexture?.Name)) continue;
 
 					success &= TextureExporter.ExportTexture(texture, false, logger, outDir);
 				}
@@ -173,31 +174,38 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
-			UTexture2D lootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
+			UTexture2D? lootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
 			if (lootIcon is null)
 			{
 				logger.Error("Failed to load loot icon.");
 				return null;
 			}
 
-			UTexture2D respawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
+			UTexture2D? respawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
 			if (respawnIcon is null)
 			{
 				logger.Error("Failed to load respawn icon.");
 				return null;
 			}
 
-			UTexture2D bossIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/hud/dusuicon.uasset", logger)!;
+			UTexture2D? bossIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/hud/dusuicon.uasset", logger)!;
 			if (bossIcon is null)
 			{
 				logger.Error("Failed to load boss icon.");
 				return null;
 			}
 
-			UTexture2D minePlatformIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/MianJuJiNeng/xinban/kuangmaitance3.uasset", logger)!;
+			UTexture2D? minePlatformIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/MianJuJiNeng/xinban/kuangmaitance3.uasset", logger)!;
 			if (minePlatformIcon is null)
 			{
 				logger.Error("Failed to load mine platform icon.");
+				return null;
+			}
+
+			UTexture2D? eventIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/lueduo.uasset", logger)!;
+			if (eventIcon is null)
+			{
+				logger.Error("Failed to load event icon.");
 				return null;
 			}
 
@@ -208,7 +216,7 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
-			return new(providerManager.LootDatabase, mapIntel, mapIcons, spawnLayers, respawnIcon, lootIcon, bossIcon, minePlatformIcon);
+			return new(providerManager.LootDatabase, mapIntel, mapIcons, spawnLayers, respawnIcon, lootIcon, bossIcon, minePlatformIcon, eventIcon);
 		}
 
 		private MapInfo? ProcessMap(MapLevelData mapLevelData, MapPoiStaticData poiStaticData, IProviderManager providerManager, Logger logger, ISet<NpcData> allBabies)
@@ -248,7 +256,8 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? arenaObjects,
 				out IReadOnlyList<FObjectExport>? gamefunctionObjects,
 				out IReadOnlyList<FObjectExport>? minePlatformObjects,
-				out IReadOnlyList<FObjectExport>? mineralVeinObjects))
+				out IReadOnlyList<FObjectExport>? mineralVeinObjects,
+				out IReadOnlyList<FObjectExport>? eventManagerObjects))
 			{
 				logger.Error("Failed to find map objects.");
 				return null;
@@ -272,7 +281,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessPois(poiDatabase, poiObjects, logger);
 			ProcessTablets(poiDatabase, tabletObjects, logger);
 			ProcessRespawnPoints(poiDatabase, respawnObjects, logger);
-			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, logger, allBabies);
+			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, eventManagerObjects, logger, allBabies);
 			ProcessFireflies(poiDatabase, fireflyObjects, logger);
 			ProcessChests(poiDatabase, chestObjects, logger);
 			ProcessFoliage(poiDatabase, foliageData, logger);
@@ -803,7 +812,8 @@ namespace SoulmaskDataMiner.Miners
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? arenaObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? gamefunctionObjects,
 			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? minePlatformObjects,
-			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? mineralVeinObjects)
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? mineralVeinObjects,
+			[NotNullWhen(true)] out IReadOnlyList<FObjectExport>? eventManagerObjects)
 		{
 			poiObjects = null;
 			respawnObjects = null;
@@ -817,6 +827,7 @@ namespace SoulmaskDataMiner.Miners
 			gamefunctionObjects = null;
 			minePlatformObjects = null;
 			mineralVeinObjects = null;
+			eventManagerObjects = null;
 
 			const string poiClass = "HVolumeChuFaQi";
 
@@ -873,10 +884,13 @@ namespace SoulmaskDataMiner.Miners
 			const string mineralVeinBaseClass = "HJianZhuKuangMai";
 			HashSet<string> mineralVeinClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(mineralVeinBaseClass).Select(c => c.Name));
 
+			const string eventManagerClass = "BP_SpecialTriggerEventManager_C";
+
 			List<FObjectExport> poiObjectList = new();
 			List<FObjectExport> respawnObjectList = new();
 			List<FObjectExport> tabletObjectList = new();
 			List<SpawnerObject> spawnerObjectList = new();
+			List<FObjectExport> eventManagerObjectList = new();
 			List<FObjectExport> barracksObjectList = new();
 			List<ObjectWithDefaults> fireflyObjectList = new();
 			List<ObjectWithDefaults> chestObjectList = new();
@@ -886,9 +900,9 @@ namespace SoulmaskDataMiner.Miners
 			List<FObjectExport> minePlatformObjectList = new();
 			List<FObjectExport> mineralVeinObjectList = new();
 
-			Package[] gameplayPackages = [ mapLevelData.GameplayLevel1, mapLevelData.GameplayLevel2 ];
+			logger.Information("Searching for objects...");
 
-			logger.Information("Scanning for objects...");
+			Package[] gameplayPackages = [mapLevelData.GameplayLevel1, mapLevelData.GameplayLevel2];
 			foreach (Package package in gameplayPackages)
 			{
 				logger.Debug(package.Name);
@@ -925,6 +939,20 @@ namespace SoulmaskDataMiner.Miners
 					else if (mineralVeinClasses.Contains(export.ClassName))
 					{
 						mineralVeinObjectList.Add(export);
+					}
+				}
+			}
+			{
+				logger.Debug(mapLevelData.GameplayLevel3.Name);
+				foreach (FObjectExport export in mapLevelData.GameplayLevel3.ExportMap)
+				{
+					if (export.ClassName.Equals(eventManagerClass))
+					{
+						eventManagerObjectList.Add(export);
+					}
+					else if (spawnerClasses.TryGetValue(export.ClassName, out UObject? defaultScgObj))
+					{
+						spawnerObjectList.Add(new() { BaseClassName = export.ClassName, Object = new() { Export = export, DefaultsObject = defaultScgObj } });
 					}
 				}
 			}
@@ -974,6 +1002,7 @@ namespace SoulmaskDataMiner.Miners
 			gamefunctionObjects = gameFunctionObjectList;
 			minePlatformObjects = minePlatformObjectList;
 			mineralVeinObjects = mineralVeinObjectList;
+			eventManagerObjects = eventManagerObjectList;
 
 			return true;
 		}
@@ -1108,7 +1137,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void ProcessSpawners(MapPoiDatabase poiDatabase, IReadOnlyList<SpawnerObject> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, Logger logger, ISet<NpcData> allBabies)
+		private void ProcessSpawners(MapPoiDatabase poiDatabase, IReadOnlyList<SpawnerObject> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, IReadOnlyList<FObjectExport> eventManagerObjects, Logger logger, ISet<NpcData> allBabies)
 		{
 			// Process barracks
 
@@ -1147,6 +1176,75 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 
+			// Process event manaagers
+
+			Dictionary<ECustomGameMode, Dictionary<int, string>> eventsMap = new();
+			foreach (FObjectExport eventManagerObject in eventManagerObjects)
+			{
+				ECustomGameMode gameMode = ECustomGameMode.Survival;
+				Dictionary<int, string>? eventNameMap = null;
+
+				foreach (FPropertyTag property in eventManagerObject.ExportObject.Value.Properties)
+				{
+					switch (property.Name.Text)
+					{
+						case "SpecailEventMap":
+							{
+								UScriptMap? eventMap = property.Tag?.GetValue<UScriptMap>();
+								if (eventMap is null) break;
+
+								eventNameMap = new();
+								foreach (var pair in eventMap.Properties)
+								{
+									FStructFallback? eventStruct = pair.Value?.GetValue<FStructFallback>();
+									if (eventStruct is null) continue;
+
+									int eventId = -1;
+									string? eventName = null;
+									foreach (FPropertyTag eventProperty in eventStruct.Properties)
+									{
+										switch (eventProperty.Name.Text)
+										{
+											case "EventID":
+												eventId = eventProperty.Tag!.GetValue<int>();
+												break;
+											case "EventDescribeText":
+												eventName = GameUtil.ReadTextProperty(eventProperty);
+												break;
+										}
+									}
+
+									if (eventId < 0 || eventName is null)
+									{
+										logger.Warning($"Failed to parse event properties for event manager {eventManagerObject.ObjectName}");
+										continue;
+									}
+
+									eventNameMap.Add(eventId, eventName);
+								}
+							}
+							break;
+						case "EventCustomGameMode":
+							if (GameUtil.TryParseEnum(property, out ECustomGameMode mode))
+							{
+								gameMode = mode;
+							}
+							break;
+					}
+				}
+
+				if (eventNameMap is null)
+				{
+					logger.Warning($"Failed to parse event manager {eventManagerObject.ObjectName}");
+					continue;
+				}
+
+				if (!eventsMap.TryAdd(gameMode, eventNameMap))
+				{
+					logger.Warning($"Duplicate event manager game mode {gameMode} found");
+				}
+			}
+
 			// Process spawners
 
 			Dictionary<string, SpawnDataCollection?> spawnDataCache = new();
@@ -1161,6 +1259,9 @@ namespace SoulmaskDataMiner.Miners
 				USceneComponent? rootComponent = null;
 				float? spawnInterval = null, playerRadius = null, buildingRadius = null;
 				int? spawnCount = null;
+				bool isEventTrigger = false;
+				int triggerEventId = 0;
+				ECustomGameMode? gameMode = null;
 				void searchProperties(UObject searchObj)
 				{
 					foreach (FPropertyTag property in searchObj.Properties)
@@ -1226,6 +1327,18 @@ namespace SoulmaskDataMiner.Miners
 								if (rootComponent is null)
 								{
 									rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+								}
+								break;
+							case "IsTriggerEventSpawnMonster":
+								isEventTrigger = property.Tag!.GetValue<bool>();
+								break;
+							case "TriggetEventID":
+								triggerEventId = property.Tag!.GetValue<int>();
+								break;
+							case "SpawnedCustomGameMode":
+								if (GameUtil.TryParseEnum(property, out ECustomGameMode mode))
+								{
+									gameMode = mode;
 								}
 								break;
 						}
@@ -1309,25 +1422,63 @@ namespace SoulmaskDataMiner.Miners
 					findBabies(pair.Value);
 				}
 
-				if (spawnDataCollection.GameModeSpawnData.Count > 0)
+				if (isEventTrigger)
 				{
-					byte remainingModes = 0xff;
-					foreach (var pair in spawnDataCollection.GameModeSpawnData)
+					foreach (var pair in eventsMap)
 					{
+						string? eventName = null;
+						if (!pair.Value.TryGetValue(triggerEventId, out eventName) || gameMode.HasValue && gameMode.Value != pair.Key)
+						{
+							// Spawner does not exist in this game mode
+							continue;
+						}
+
 						byte modeMask = CreateGameModeMask(pair.Key);
-						remainingModes &= (byte)~modeMask;
-						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, pair.Value, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, logger);
+						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, eventName, logger);
 					}
-					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, remainingModes, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, logger);
 				}
 				else
 				{
-					CreateSpawnPoi(poiDatabase, export.ObjectName.Text, null, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, logger);
+					if (spawnDataCollection.GameModeSpawnData.Count > 0)
+					{
+						byte remainingModes = 0xff;
+						foreach (var pair in spawnDataCollection.GameModeSpawnData)
+						{
+							if (gameMode.HasValue && gameMode.Value != pair.Key)
+							{
+								// Spawner does not exist in this game mode
+								continue;
+							}
+
+							byte modeMask = CreateGameModeMask(pair.Key);
+							remainingModes &= (byte)~modeMask;
+							CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, pair.Value, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, null, logger);
+						}
+
+						if (gameMode.HasValue) remainingModes &= (byte)gameMode.Value;
+						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, remainingModes, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, null, logger);
+					}
+					else
+					{
+						byte? modeMask = gameMode.HasValue ? CreateGameModeMask(gameMode.Value) : null;
+						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, null, logger);
+					}
 				}
 			}
 		}
 
-		private void CreateSpawnPoi(MapPoiDatabase poiDatabase, string spawnerName, byte? modeMask, SpawnData spawnData, USceneComponent? rootComponent, float spawnInterval, int spawnCount, float playerRadius, float buildingRadius, Logger logger)
+		private void CreateSpawnPoi(
+			MapPoiDatabase poiDatabase,
+			string spawnerName,
+			byte? modeMask,
+			SpawnData spawnData,
+			USceneComponent? rootComponent,
+			float spawnInterval,
+			int spawnCount,
+			float playerRadius,
+			float buildingRadius,
+			string? eventName,
+			Logger logger)
 		{
 			string npcName = string.Join(", ", spawnData.NpcNames);
 			string babyNpcName = string.Join(", ", spawnData.BabyNames);
@@ -1350,6 +1501,8 @@ namespace SoulmaskDataMiner.Miners
 			SpawnLayerGroup group;
 			string type;
 			bool male, female;
+			bool isAnimal;
+			UTexture2D icon;
 
 			void applyLayerTypeAndSex(bool onlyBabies)
 			{
@@ -1358,11 +1511,14 @@ namespace SoulmaskDataMiner.Miners
 				type = layerInfo.Name;
 				male = false;
 				female = false;
+				isAnimal = false;
+				icon = layerInfo.Icon;
 
 				switch (layerType)
 				{
 					case NpcCategory.Animal:
 						group = SpawnLayerGroup.Animal;
+						isAnimal = true;
 						poiName = npcName;
 						if (npcName.Contains(','))
 						{
@@ -1371,6 +1527,11 @@ namespace SoulmaskDataMiner.Miners
 						else
 						{
 							type = npcName;
+						}
+						if (npcName.Length == 0)
+						{
+							type = "(No Name)";
+							poiName = type;
 						}
 						break;
 					case NpcCategory.Human:
@@ -1401,9 +1562,17 @@ namespace SoulmaskDataMiner.Miners
 					case NpcCategory.Tortoise:
 					case NpcCategory.Turkey:
 						group = SpawnLayerGroup.BabyAnimal;
+						isAnimal = true;
 						type = babyNpcName;
 						poiName = babyNpcName;
 						break;
+				}
+
+				if (eventName is not null)
+				{
+					group = SpawnLayerGroup.Event;
+					icon = poiDatabase.StaticData.EventIcon;
+					type = eventName;
 				}
 
 				foreach (WeightedValue<NpcData> npcData in spawnData.NpcData)
@@ -1519,7 +1688,7 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 
-			if (group == SpawnLayerGroup.Animal || group == SpawnLayerGroup.BabyAnimal)
+			if (isAnimal)
 			{
 				applyAnimalLoot(false);
 			}
@@ -1530,13 +1699,24 @@ namespace SoulmaskDataMiner.Miners
 				if (lootMap is not null) lootId = null;
 			}
 
+			string descriptionText;
+			if (eventName is null)
+			{
+				descriptionText = $"Level {levelText}";
+			}
+			else
+			{
+				descriptionText = $"Level {levelText}<br />Event: {eventName}";
+			}
+
 			MapPoi poi = new()
 			{
 				GroupIndex = group,
 				Type = type,
 				Title = poiName,
 				Name = layerInfo.Name,
-				Description = $"Level {levelText}",
+				Description = descriptionText,
+				NpcCategory = layerType,
 				Male = male,
 				Female = female,
 				TribeStatus = tribeStatus,
@@ -1552,7 +1732,7 @@ namespace SoulmaskDataMiner.Miners
 				BuildingExclusionRadius = buildingRadius,
 				Location = location,
 				MapLocation = WorldToMap(location),
-				Icon = layerInfo.Icon,
+				Icon = icon,
 				LootId = lootId,
 				LootMap = lootMap,
 				CollectMap = collectMap
@@ -2993,7 +3173,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,region,m,f,stat,occ,clantype,clanarea,clanocc,num,max,intr,player,building,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
+				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,region,npc,m,f,stat,occ,clantype,clanarea,clanocc,num,max,intr,player,building,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -3011,7 +3191,7 @@ namespace SoulmaskDataMiner.Miners
 					}
 					else
 					{
-						spawnerSegment = $"{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.ClanType},{CsvStr(poi.ClanAreas)},{poi.ClanOccupations},{poi.SpawnCount},{poi.SpawnCountMax},{poi.SpawnInterval},{poi.PlayerExclusionRadius},{poi.BuildingExclusionRadius}";
+						spawnerSegment = $"{(int?)poi.NpcCategory},{poi.Male},{poi.Female},{CsvStr(poi.TribeStatus)},{CsvStr(poi.Occupation)},{poi.ClanType},{CsvStr(poi.ClanAreas)},{poi.ClanOccupations},{poi.SpawnCount},{poi.SpawnCountMax},{poi.SpawnInterval},{poi.PlayerExclusionRadius},{poi.BuildingExclusionRadius}";
 					}
 
 					string lootSegment = $"{CsvStr(poi.LootId)},{CsvStr(poi.LootItem)},{CsvStr(poi.LootMap)},{CsvStr(poi.Equipment)},{CsvStr(poi.CollectMap)}";
@@ -3053,6 +3233,7 @@ namespace SoulmaskDataMiner.Miners
 			//   `desc` varchar(511),
 			//   `extra` varchar(511),
 			//   `region` varchar(63),
+			//   `npc` int,
 			//   `m` bool,
 			//   `f` bool,
 			//   `stat` varchar(63),
@@ -3097,7 +3278,7 @@ namespace SoulmaskDataMiner.Miners
 						// This is because some ancient tablets come from dungeons or pyramids instead of spawning in the world.
 						if (poi.Location == FVector.ZeroVector) continue;
 
-						string spawnerSegment = "null, null, null, null, null, null, null, null, null, null, null, null";
+						string spawnerSegment = "null, null, null, null, null, null, null, null, null, null, null, null, null";
 						string poiSegment = "null, null, null";
 						if (poi.GroupIndex == SpawnLayerGroup.PointOfInterest)
 						{
@@ -3105,7 +3286,7 @@ namespace SoulmaskDataMiner.Miners
 						}
 						else
 						{
-							spawnerSegment = $"{DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbStr(poi.ClanAreas)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnCountMax}, {poi.SpawnInterval}, {poi.PlayerExclusionRadius}, {poi.BuildingExclusionRadius}";
+							spawnerSegment = $"{DbVal((int?)poi.NpcCategory)}, {DbBool(poi.Male)}, {DbBool(poi.Female)}, {DbStr(poi.TribeStatus)}, {DbStr(poi.Occupation)}, {DbVal(poi.ClanType)}, {DbStr(poi.ClanAreas)}, {DbStr(poi.ClanOccupations)}, {poi.SpawnCount}, {poi.SpawnCountMax}, {poi.SpawnInterval}, {poi.PlayerExclusionRadius}, {poi.BuildingExclusionRadius}";
 						}
 
 						string lootSegment = $"{DbStr(poi.LootId)}, {DbStr(poi.LootItem)}, {DbStr(poi.LootMap)}, {DbStr(poi.Equipment)}, {DbStr(poi.CollectMap)}";
@@ -3364,6 +3545,8 @@ namespace SoulmaskDataMiner.Miners
 
 			public UTexture2D MinePlatformIcon { get; set; }
 
+			public UTexture2D EventIcon { get; set; }
+
 			public MapPoiStaticData(
 				LootDatabase loot,
 				IReadOnlyDictionary<string, UObject> mapIntel,
@@ -3372,7 +3555,8 @@ namespace SoulmaskDataMiner.Miners
 				UTexture2D respawnIcon,
 				UTexture2D lootIcon,
 				UTexture2D bossIcon,
-				UTexture2D minePlatformIcon)
+				UTexture2D minePlatformIcon,
+				UTexture2D eventIcon)
 			{
 				Loot = loot;
 				MapIntel = mapIntel;
@@ -3382,6 +3566,7 @@ namespace SoulmaskDataMiner.Miners
 				LootIcon = lootIcon;
 				BossIcon = bossIcon;
 				MinePlatformIcon = minePlatformIcon;
+				EventIcon = eventIcon;
 			}
 		}
 
@@ -3481,6 +3666,7 @@ namespace SoulmaskDataMiner.Miners
 			public string? Description { get; set; }
 			public string? Extra { get; set; }
 			public string? Region { get; set; }
+			public NpcCategory? NpcCategory { get; set; }
 			public bool Male { get; set; }
 			public bool Female { get; set; }
 			public string? TribeStatus { get; set; }
@@ -3524,6 +3710,7 @@ namespace SoulmaskDataMiner.Miners
 				Description = other.Description;
 				Extra = other.Extra;
 				Region = other.Region;
+				NpcCategory = other.NpcCategory;
 				Male = other.Male;
 				Female = other.Female;
 				TribeStatus = other.TribeStatus;
@@ -3582,6 +3769,7 @@ namespace SoulmaskDataMiner.Miners
 			BabyAnimal,
 			Animal,
 			Human,
+			Event,
 			Npc,
 			Chest,
 			Pickup,
@@ -3658,6 +3846,7 @@ namespace SoulmaskDataMiner.Miners
 				SpawnLayerGroup.BabyAnimal => "Baby Animal Spawn",
 				SpawnLayerGroup.Animal => "Animal Spawn",
 				SpawnLayerGroup.Human => "Human Spawn",
+				SpawnLayerGroup.Event => "Event Spawn",
 				SpawnLayerGroup.Npc => "Other Spawn",
 				SpawnLayerGroup.Pickup => "Collectible Objects",
 				SpawnLayerGroup.Chest => "Lootable Objects",

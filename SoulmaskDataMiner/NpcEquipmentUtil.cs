@@ -473,7 +473,14 @@ namespace SoulmaskDataMiner
 						{
 							continue;
 						}
-						mItems.Add(value.Name, new(0, 1));
+
+						Range<int> amount;
+						if (!mItems.TryGetValue(value.Name, out amount))
+						{
+							amount = new(0, 0);
+						}
+						amount += new Range<int>(0, 1);
+						mItems[value.Name] = amount;
 					}
 				}
 
@@ -491,7 +498,14 @@ namespace SoulmaskDataMiner
 						{
 							continue;
 						}
-						mItems.Add(value.Name, new(0, ammoMax));
+
+						Range<int> amount;
+						if (!mItems.TryGetValue(value.Name, out amount))
+						{
+							amount = new(0, 0);
+						}
+						amount += new Range<int>(0, ammoMax);
+						mItems[value.Name] = amount;
 					}
 				}
 			}

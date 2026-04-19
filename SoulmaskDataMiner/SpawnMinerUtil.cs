@@ -466,6 +466,7 @@ namespace SoulmaskDataMiner
 				string? npcName = null;
 				EXingBieType? sex = null;
 				string? extraLoot = null;
+				FPackageIndex? shopTableIndex = null;
 				BlueprintHeirarchy.SearchInheritance(npc.Value.CharacterClass, (current =>
 				{
 					UObject? npcObj = current?.ClassDefaultObject.Load();
@@ -502,10 +503,16 @@ namespace SoulmaskDataMiner
 									extraLoot = prop.Tag?.GetValue<FName>().Text;
 								}
 								break;
+							case "DT_Shop":
+								if (shopTableIndex is null)
+								{
+									shopTableIndex = property.Tag?.GetValue<FPackageIndex>();
+								}
+								break;
 						}
 					}
 
-					return npcName is not null && sex.HasValue && extraLoot is not null;
+					return npcName is not null && sex.HasValue && extraLoot is not null && shopTableIndex is not null;
 				}));
 
 				if (npcName is not null)
@@ -526,6 +533,8 @@ namespace SoulmaskDataMiner
 
 				npc.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
 				npc.Value.CharacterLoot = extraLoot;
+
+				// TODO: Process shop data table
 			}
 
 			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
