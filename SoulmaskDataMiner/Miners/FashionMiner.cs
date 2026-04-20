@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,9 @@ using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
+using SoulmaskDataMiner.IO;
 using System.Text;
 
 namespace SoulmaskDataMiner.Miners
@@ -148,19 +151,19 @@ namespace SoulmaskDataMiner.Miners
 					switch (property.Name.Text)
 					{
 						case "FashionName":
-							name = GameUtil.ReadTextProperty(property);
+							name = DataUtil.ReadTextProperty(property);
 							break;
 						case "FashionDesc":
-							desc = GameUtil.ReadTextProperty(property);
+							desc = DataUtil.ReadTextProperty(property);
 							break;
 						case "XingBie":
-							if (GameUtil.TryParseEnum<EXingBieType>(property, out EXingBieType xingBie))
+							if (DataUtil.TryParseEnum<EXingBieType>(property, out EXingBieType xingBie))
 							{
 								gender = xingBie;
 							}
 							break;
 						case "FashionIcon":
-							icon = GameUtil.ReadTextureProperty(property);
+							icon = DataUtil.ReadTextureProperty(property);
 							break;
 					}
 				}

@@ -1,4 +1,4 @@
-﻿// Copyright 2025 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,9 @@ using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.MapUtil
 {
 	/// <summary>
 	/// Utility for gathering data about the game's battle arenas
@@ -67,7 +68,7 @@ namespace SoulmaskDataMiner
 							lootId = property.Tag?.GetValue<FName>().Text;
 							break;
 						case "DescText":
-							description = GameUtil.ReadTextProperty(property);
+							description = DataUtil.ReadTextProperty(property);
 							break;
 						case "RewardPreviewList":
 							{

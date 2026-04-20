@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
-using System.Collections.Generic;
-using System.Text;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
+using SoulmaskDataMiner.IO;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -54,7 +55,7 @@ namespace SoulmaskDataMiner.Miners
 				return false;
 			}
 
-			UTexture2D? testIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/Characters/Mannequin/Character/Textures/T_UE4Logo_Mask.uasset", logger);
+			UTexture2D? testIcon = DataUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/Characters/Mannequin/Character/Textures/T_UE4Logo_Mask.uasset", logger);
 			if (testIcon is null)
 			{
 				logger.Error("Unable to load test icon texture");
@@ -79,7 +80,7 @@ namespace SoulmaskDataMiner.Miners
 			Dictionary<EDaoJuCaiLiaoType, ItemCategoryData> result = new();
 			foreach (var pair in typeInfoList.Properties)
 			{
-				if (!GameUtil.TryParseEnum(pair.Key, out EDaoJuCaiLiaoType key))
+				if (!DataUtil.TryParseEnum(pair.Key, out EDaoJuCaiLiaoType key))
 				{
 					key = EDaoJuCaiLiaoType.EDJCL_QiTa; // Other
 				}
@@ -91,10 +92,10 @@ namespace SoulmaskDataMiner.Miners
 					switch (property.Name.Text)
 					{
 						case "CaiLiaoTypeText":
-							value.Name = GameUtil.ReadTextProperty(property)!;
+							value.Name = DataUtil.ReadTextProperty(property)!;
 							break;
 						case "CaiLiaoTypeIcon":
-							value.Icon = GameUtil.ReadTextureProperty(property)!;
+							value.Icon = DataUtil.ReadTextureProperty(property)!;
 							break;
 					}
 				}
@@ -118,7 +119,7 @@ namespace SoulmaskDataMiner.Miners
 				EDaoJuCaiLiaoType categoryId = EDaoJuCaiLiaoType.EDJCL_QiTa;
 				if (itemInfo.AdditionalProperties!.TryGetValue("CaiLiaoType", out FPropertyTag? categoryProp))
 				{
-					if (GameUtil.TryParseEnum(categoryProp, out EDaoJuCaiLiaoType result))
+					if (DataUtil.TryParseEnum(categoryProp, out EDaoJuCaiLiaoType result))
 					{
 						categoryId = result;
 					}
@@ -132,7 +133,7 @@ namespace SoulmaskDataMiner.Miners
 						if (secondaryCategoriesList is not null)
 						{
 							FPropertyTagType? firstItem = secondaryCategoriesList.Properties.FirstOrDefault();
-							if (firstItem is not null && GameUtil.TryParseEnum(firstItem, out EDaoJuCaiLiaoType result))
+							if (firstItem is not null && DataUtil.TryParseEnum(firstItem, out EDaoJuCaiLiaoType result))
 							{
 								categoryId = result;
 							}

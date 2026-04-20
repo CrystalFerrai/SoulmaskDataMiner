@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@ using CUE4Parse.FileProvider;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse_Conversion.Textures;
 using SkiaSharp;
+using SoulmaskDataMiner.Data;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.IO
 {
 	/// <summary>
 	/// Helper for exporting texture assets
@@ -35,7 +36,7 @@ namespace SoulmaskDataMiner
 		/// <returns>True if the export succeeded, false on failure or if no texture was found</returns>
 		public static bool ExportFirstTexture(IFileProvider provider, string assetPath, bool includePath, Logger logger, string outDir)
 		{
-			UTexture2D? texture = GameUtil.LoadFirstTexture(provider, assetPath, logger);
+			UTexture2D? texture = DataUtil.LoadFirstTexture(provider, assetPath, logger);
 			if (texture is null) return false;
 
 			return ExportTexture(texture, includePath, logger, outDir);

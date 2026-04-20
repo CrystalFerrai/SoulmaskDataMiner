@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.MapUtil
 {
 	/// <summary>
 	/// Helper for extracting data from NPC spawner classes
@@ -107,7 +109,7 @@ namespace SoulmaskDataMiner
 										foreach (var pair in map.Properties)
 										{
 											ECustomGameMode gameMode;
-											if (!GameUtil.TryParseEnum(pair.Key, out gameMode)) continue;
+											if (!DataUtil.TryParseEnum(pair.Key, out gameMode)) continue;
 
 											List<FStructFallback>? npcInfoList = pair.Value?.GetValue<UScriptArray>()?.Properties.Select(p => p.GetValue<FStructFallback>()!).ToList();
 											if (npcInfoList is null) continue;
@@ -120,7 +122,7 @@ namespace SoulmaskDataMiner
 							case "ManRenMingZi":
 								if (scgData.HumanName is null)
 								{
-									scgData.HumanName = GameUtil.ReadTextProperty(property);
+									scgData.HumanName = DataUtil.ReadTextProperty(property);
 								}
 								break;
 							case "DiWeiQuanZhong":
@@ -138,7 +140,7 @@ namespace SoulmaskDataMiner
 							case "ClanType":
 								if (!scgData.ClanType.HasValue)
 								{
-									if (GameUtil.TryParseEnum(property, out EClanType value))
+									if (DataUtil.TryParseEnum(property, out EClanType value))
 									{
 										scgData.ClanType = value;
 									}
@@ -180,7 +182,7 @@ namespace SoulmaskDataMiner
 										foreach (var pair in map.Properties)
 										{
 											ECustomGameMode gameMode;
-											if (!GameUtil.TryParseEnum(pair.Key, out gameMode)) continue;
+											if (!DataUtil.TryParseEnum(pair.Key, out gameMode)) continue;
 
 											FStructFallback? structFallback = pair.Value?.GetValue<FStructFallback>();
 											if (structFallback is null) continue;
@@ -311,7 +313,7 @@ namespace SoulmaskDataMiner
 					foreach (var pair in scgData.TribeStatusMap.Properties)
 					{
 						EClanDiWei status;
-						if (!GameUtil.TryParseEnum(pair.Key, out status)) continue;
+						if (!DataUtil.TryParseEnum(pair.Key, out status)) continue;
 
 						int weight = pair.Value!.GetValue<int>();
 						tribeStatuses.Add(new(status, weight));
@@ -325,7 +327,7 @@ namespace SoulmaskDataMiner
 					foreach (var pair in scgData.OccupationMap.Properties)
 					{
 						EClanZhiYe status;
-						if (!GameUtil.TryParseEnum(pair.Key, out status)) continue;
+						if (!DataUtil.TryParseEnum(pair.Key, out status)) continue;
 
 						int weight = 0;
 						FStructFallback? value = pair.Value?.GetValue<FStructFallback>();
@@ -467,7 +469,7 @@ namespace SoulmaskDataMiner
 				EXingBieType? sex = null;
 				string? extraLoot = null;
 				FPackageIndex? shopTableIndex = null;
-				BlueprintHeirarchy.SearchInheritance(npc.Value.CharacterClass, (current =>
+				BlueprintHeirarchy.SearchInheritance(npc.Value.CharacterClass, current =>
 				{
 					UObject? npcObj = current?.ClassDefaultObject.Load();
 					if (npcObj is null)
@@ -482,11 +484,11 @@ namespace SoulmaskDataMiner
 							case "MoRenMingZi":
 								if (npcName is null)
 								{
-									npcName = GameUtil.ReadTextProperty(property);
+									npcName = DataUtil.ReadTextProperty(property);
 								}
 								break;
 							case "XingBie":
-								if (!sex.HasValue && GameUtil.TryParseEnum(property, out EXingBieType xingBie))
+								if (!sex.HasValue && DataUtil.TryParseEnum(property, out EXingBieType xingBie))
 								{
 									sex = xingBie;
 								}
@@ -513,7 +515,7 @@ namespace SoulmaskDataMiner
 					}
 
 					return npcName is not null && sex.HasValue && extraLoot is not null && shopTableIndex is not null;
-				}));
+				});
 
 				if (npcName is not null)
 				{
@@ -537,7 +539,7 @@ namespace SoulmaskDataMiner
 				// TODO: Process shop data table
 			}
 
-			HashSet<String> outNames = isHumanSpawner ? humanNames : npcNames;
+			HashSet<string> outNames = isHumanSpawner ? humanNames : npcNames;
 			if (outNames.Count == 0 && babyNames.Count == 0)
 			{
 				logger.Warning($"[{spawnerNameForLogging}] Failed to locate NPC name for spawn point");
@@ -571,11 +573,11 @@ namespace SoulmaskDataMiner
 
 			if (minLevel == int.MaxValue)
 			{
-				minLevel = (maxLevel == int.MinValue) ? 0 : maxLevel;
+				minLevel = maxLevel == int.MinValue ? 0 : maxLevel;
 			}
 			if (maxLevel == int.MinValue)
 			{
-				maxLevel = (minLevel == int.MaxValue) ? 0 : minLevel;
+				maxLevel = minLevel == int.MaxValue ? 0 : minLevel;
 			}
 		}
 

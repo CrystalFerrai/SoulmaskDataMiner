@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,12 +25,12 @@ using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Runtime.CompilerServices;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.Data
 {
 	/// <summary>
 	/// Utility functions for working with game objects
 	/// </summary>
-	internal static class GameUtil
+	internal static class DataUtil
 	{
 		/// <summary>
 		/// Parse an enum value from a game enum
@@ -71,7 +71,7 @@ namespace SoulmaskDataMiner
 		public static bool TryParseEnum<T>(FName value, out T result) where T : struct
 		{
 			string name = value.Text.Substring(value.Text.LastIndexOf(':') + 1);
-			return Enum.TryParse<T>(name, out result);
+			return Enum.TryParse(name, out result);
 		}
 
 		/// Attempts to read a property value as text

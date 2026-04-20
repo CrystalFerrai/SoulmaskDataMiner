@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using System.Linq;
+using SoulmaskDataMiner.Data;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.GameData
 {
 	/// <summary>
 	/// Contains data about all achievements, aka trip milestones, from the game
@@ -98,7 +98,7 @@ namespace SoulmaskDataMiner
 			Dictionary<EChengJiuBigType, IReadOnlyDictionary<EChengJiuType, IReadOnlyList<AchievementData>>> bigAchievementMap = new();
 			foreach (var sourcePair in sourceMap.Properties)
 			{
-				if (!GameUtil.TryParseEnum(sourcePair.Key, out EChengJiuBigType bigType))
+				if (!DataUtil.TryParseEnum(sourcePair.Key, out EChengJiuBigType bigType))
 				{
 					logger.Warning($"Failed to parse \"{sourcePair.Key.GetValue<FText>()?.Text}\" as {nameof(EChengJiuBigType)}");
 					continue;
@@ -121,7 +121,7 @@ namespace SoulmaskDataMiner
 
 				foreach (var subPair in sourceSubMap.Properties)
 				{
-					if (!GameUtil.TryParseEnum(subPair.Key, out EChengJiuType type))
+					if (!DataUtil.TryParseEnum(subPair.Key, out EChengJiuType type))
 					{
 						logger.Warning($"Failed to parse \"{subPair.Key.GetValue<FText>()?.Text}\" as {nameof(EChengJiuType)}");
 						continue;
@@ -200,7 +200,7 @@ namespace SoulmaskDataMiner
 			}
 
 			Package package = (Package)provider.LoadPackage(file);
-			return GameUtil.FindBlueprintDefaultsObject(package);
+			return DataUtil.FindBlueprintDefaultsObject(package);
 		}
 	}
 
@@ -247,7 +247,7 @@ namespace SoulmaskDataMiner
 				{
 					case "ChengJiuBigType":
 						{
-							if (GameUtil.TryParseEnum(property, out EChengJiuBigType value))
+							if (DataUtil.TryParseEnum(property, out EChengJiuBigType value))
 							{
 								BigAchievementType = value;
 							}
@@ -255,7 +255,7 @@ namespace SoulmaskDataMiner
 						break;
 					case "ChengJiuType":
 						{
-							if (GameUtil.TryParseEnum(property, out EChengJiuType value))
+							if (DataUtil.TryParseEnum(property, out EChengJiuType value))
 							{
 								AchievementType = value;
 							}
@@ -308,13 +308,13 @@ namespace SoulmaskDataMiner
 						}
 						break;
 					case "ChengJiuName":
-						Name = GameUtil.ReadTextProperty(property);
+						Name = DataUtil.ReadTextProperty(property);
 						break;
 					case "ChengJiuTiaoJian":
-						Description = GameUtil.ReadTextProperty(property);
+						Description = DataUtil.ReadTextProperty(property);
 						break;
 					case "TextureIcon":
-						Icon = GameUtil.ReadTextureProperty(property);
+						Icon = DataUtil.ReadTextureProperty(property);
 						break;
 					case "SteamChengJiuID":
 						SteamAchievementId = property.Tag?.GetValue<string>();

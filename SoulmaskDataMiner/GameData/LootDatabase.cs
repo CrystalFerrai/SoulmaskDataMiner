@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,10 +20,12 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.IO;
 using System.Diagnostics;
 using System.Text;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.GameData
 {
 	/// <summary>
 	/// Utility for gather loot table data
@@ -69,7 +71,7 @@ namespace SoulmaskDataMiner
 
 			timer.Stop();
 
-			logger.Information($"Loot database load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0):0.##}ms");
+			logger.Information($"Loot database load completed in {timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0:0.##}ms");
 
 			mIsLoaded = true;
 			return true;
@@ -309,12 +311,12 @@ namespace SoulmaskDataMiner
 										break;
 									case "DaoJuMagnitude":
 										{
-											TRange<float>? value = GameUtil.ReadRangeProperty<float>(property);
+											TRange<float>? value = DataUtil.ReadRangeProperty<float>(property);
 											if (value.HasValue) item.Amount = value.Value;
 										}
 										break;
 									case "DaoJuPinZhi":
-										if (GameUtil.TryParseEnum(property, out EDaoJuPinZhi pinZhi))
+										if (DataUtil.TryParseEnum(property, out EDaoJuPinZhi pinZhi))
 										{
 											item.Quality = pinZhi;
 										}
@@ -368,7 +370,7 @@ namespace SoulmaskDataMiner
 			}
 
 			Package package = (Package)provider.LoadPackage(file);
-			UScriptMap? configMap = GameUtil.FindBlueprintDefaultsObject(package)?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ShengWuPropConfigSoftMap"))?.Tag?.GetValue<UScriptMap>();
+			UScriptMap? configMap = DataUtil.FindBlueprintDefaultsObject(package)?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ShengWuPropConfigSoftMap"))?.Tag?.GetValue<UScriptMap>();
 			if (configMap == null)
 			{
 				logger.Error("Unable to load ShengWuPropConfigSoftMap from BP_ShengWuCollectData");
@@ -493,7 +495,7 @@ namespace SoulmaskDataMiner
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						writer.WriteLine($"{SqlUtil.CsvStr(pair.Key)},{e},{i},{entry.Probability},{SqlUtil.CsvStr(conditions)},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{SqlUtil.CsvStr(item.Asset.Name)}");
+						writer.WriteLine($"{SerializationUtil.CsvStr(pair.Key)},{e},{i},{entry.Probability},{SerializationUtil.CsvStr(conditions)},{item.Weight},{item.Amount.LowerBound.Value},{item.Amount.UpperBound.Value},{(int)item.Quality},{SerializationUtil.CsvStr(item.Asset.Name)}");
 					}
 				}
 			}
@@ -526,7 +528,7 @@ namespace SoulmaskDataMiner
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
 						LootItem item = entry.Items[i];
-						sqlWriter.WriteRow($"{SqlUtil.DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {SqlUtil.DbStr(conditions)}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {SqlUtil.DbStr(item.Asset.Name)}");
+						sqlWriter.WriteRow($"{SerializationUtil.DbStr(pair.Key)}, {e}, {i}, {entry.Probability}, {SerializationUtil.DbStr(conditions)}, {item.Weight}, {item.Amount.LowerBound.Value}, {item.Amount.UpperBound.Value}, {(int)item.Quality}, {SerializationUtil.DbStr(item.Asset.Name)}");
 					}
 				}
 			}

@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
-using CUE4Parse.UE4.CriWare.Readers;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.MapUtil
 {
 	internal class FoliageUtil
 	{
@@ -91,7 +91,7 @@ namespace SoulmaskDataMiner
 					logger.Warning("Null entry found in AllZhiBeiConfigClass array");
 					continue;
 				}
-				UObject? configClass = GameUtil.FindBlueprintDefaultsObject(configClassIndex);
+				UObject? configClass = DataUtil.FindBlueprintDefaultsObject(configClassIndex);
 
 				UScriptMap? foliageMap = configClass?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ZhiBeiPropConfigMap"))?.Tag?.GetValue<UScriptMap>();
 				if (foliageMap is null)
@@ -124,7 +124,7 @@ namespace SoulmaskDataMiner
 								toolMap = property.Tag?.GetValue<UScriptMap>();
 								break;
 							case "ZhiBeiProficiencyType":
-								if (GameUtil.TryParseEnum(property, out EProficiency profValue))
+								if (DataUtil.TryParseEnum(property, out EProficiency profValue))
 								{
 									proficiency = profValue;
 								}
@@ -175,7 +175,7 @@ namespace SoulmaskDataMiner
 									currentFinalHitLootName = property.Tag!.GetValue<FName>().Text;
 									break;
 								case "ToolSuggestType":
-									if (GameUtil.TryParseEnum(property, out EFoliageCollectSuggestToolType tsValue))
+									if (DataUtil.TryParseEnum(property, out EFoliageCollectSuggestToolType tsValue))
 									{
 										toolSuggestion = tsValue;
 									}
@@ -287,10 +287,10 @@ namespace SoulmaskDataMiner
 								switch (property.Name.Text)
 								{
 									case "Name":
-										resultName = GameUtil.ReadTextProperty(property);
+										resultName = DataUtil.ReadTextProperty(property);
 										break;
 									case "Icon":
-										resultIcon = GameUtil.ReadTextureProperty(property);
+										resultIcon = DataUtil.ReadTextureProperty(property);
 										break;
 								}
 							}

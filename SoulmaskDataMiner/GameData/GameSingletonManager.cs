@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,9 +17,10 @@ using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Objects;
+using SoulmaskDataMiner.Data;
 using System.Diagnostics.CodeAnalysis;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.GameData
 {
 	/// <summary>
 	/// Utility for accessing the game's resource manager asset
@@ -111,14 +112,14 @@ namespace SoulmaskDataMiner
 				return null;
 			}
 			Package package = (Package)provider.LoadPackage(file);
-			UObject? defaultsObj = GameUtil.FindBlueprintDefaultsObject(package);
+			UObject? defaultsObj = DataUtil.FindBlueprintDefaultsObject(package);
 			if (defaultsObj is null)
 			{
 				logger.Error($"Unable to load asset {Path.GetFileNameWithoutExtension(assetPath)}.");
 				return null;
 			}
 
-			return (T?)Activator.CreateInstance(typeof(T), package, (IReadOnlyList<FPropertyTag>)defaultsObj.Properties);
+			return (T?)Activator.CreateInstance(typeof(T), package, defaultsObj.Properties);
 		}
 	}
 

@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
 using System.Diagnostics.CodeAnalysis;
 
 namespace SoulmaskDataMiner.Miners
@@ -91,15 +93,15 @@ namespace SoulmaskDataMiner.Miners
 				{
 					if (obj.Name is null && string.Equals(property.Name.Text, NameProperty, StringComparison.OrdinalIgnoreCase))
 					{
-						obj.Name = GameUtil.ReadTextProperty(property);
+						obj.Name = DataUtil.ReadTextProperty(property);
 					}
 					else if (obj.Description is null && string.Equals(property.Name.Text, DescriptionProperty, StringComparison.OrdinalIgnoreCase))
 					{
-						obj.Description = GameUtil.ReadTextProperty(property);
+						obj.Description = DataUtil.ReadTextProperty(property);
 					}
 					else if (obj.Icon is null && string.Equals(property.Name.Text, IconProperty, StringComparison.OrdinalIgnoreCase))
 					{
-						obj.Icon = GameUtil.ReadTextureProperty(property);
+						obj.Icon = DataUtil.ReadTextureProperty(property);
 					}
 					else if (AdditionalPropertyNames?.Contains(property.Name.Text) ?? false)
 					{

@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@ using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
+using SoulmaskDataMiner.IO;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -73,16 +76,16 @@ namespace SoulmaskDataMiner.Miners
 					switch (property.Name.Text)
 					{
 						case "ShuLianDuType":
-							if (GameUtil.TryParseEnum(property, out EProficiency p))
+							if (DataUtil.TryParseEnum(property, out EProficiency p))
 							{
 								proficiency = p;
 							}
 							break;
 						case "SLDText":
-							name = GameUtil.ReadTextProperty(property);
+							name = DataUtil.ReadTextProperty(property);
 							break;
 						case "SLDImage":
-							icon = GameUtil.ReadTextureProperty(property);
+							icon = DataUtil.ReadTextureProperty(property);
 							break;
 					}
 				}

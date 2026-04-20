@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@ using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
-using CUE4Parse.UE4.Objects.Core.i18N;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.IO;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -90,13 +91,13 @@ namespace SoulmaskDataMiner.Miners
 							source = ParseSource(property.Tag!.GetValue<FName>()!.Text, id, logger);
 							break;
 						case "Title":
-							title = GameUtil.ReadTextProperty(property);
+							title = DataUtil.ReadTextProperty(property);
 							break;
 						case "Desc":
-							description = GameUtil.ReadTextProperty(property);
+							description = DataUtil.ReadTextProperty(property);
 							break;
 						case "Pic":
-							icon = GameUtil.ReadTextureProperty(property);
+							icon = DataUtil.ReadTextureProperty(property);
 							break;
 					}
 				}

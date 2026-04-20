@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
 using CUE4Parse.UE4.Objects.UObject;
 using System.Diagnostics;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.GameData
 {
 	/// <summary>
 	/// Utility for gathering information about blueprint inheritance
@@ -185,7 +185,7 @@ namespace SoulmaskDataMiner
 			}
 
 			timer.Stop();
-			logger.Information($"Blueprint hierarchy load completed in {((double)timer.ElapsedTicks / (double)Stopwatch.Frequency):0.###}s");
+			logger.Information($"Blueprint hierarchy load completed in {timer.ElapsedTicks / (double)Stopwatch.Frequency:0.###}s");
 		}
 
 		/// <summary>

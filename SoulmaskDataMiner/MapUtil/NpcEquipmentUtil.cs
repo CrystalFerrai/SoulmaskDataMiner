@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,10 @@ using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.MapUtil
 {
 	/// <summary>
 	/// Utility for loading NPC equipment tables
@@ -145,7 +147,7 @@ namespace SoulmaskDataMiner
 					switch (property.Name.Text)
 					{
 						case "DiWei":
-							if (GameUtil.TryParseEnum(property, out EClanDiWei value))
+							if (DataUtil.TryParseEnum(property, out EClanDiWei value))
 							{
 								clanStatus = value;
 							}
@@ -198,7 +200,7 @@ namespace SoulmaskDataMiner
 					switch (property.Name.Text)
 					{
 						case "DiWei":
-							if (GameUtil.TryParseEnum(property, out EClanDiWei value))
+							if (DataUtil.TryParseEnum(property, out EClanDiWei value))
 							{
 								clanStatus = value;
 							}
@@ -290,7 +292,7 @@ namespace SoulmaskDataMiner
 
 			foreach (FPropertyTagType item in occupationArray.Properties)
 			{
-				if (GameUtil.TryParseEnum(item, out EClanZhiYe value))
+				if (DataUtil.TryParseEnum(item, out EClanZhiYe value))
 				{
 					mOccupations.Add(value);
 				}
@@ -351,7 +353,7 @@ namespace SoulmaskDataMiner
 
 			foreach (FPropertyTagType item in occupationArray.Properties)
 			{
-				if (GameUtil.TryParseEnum(item, out EClanZhiYe value))
+				if (DataUtil.TryParseEnum(item, out EClanZhiYe value))
 				{
 					mOccupations.Add(value);
 				}

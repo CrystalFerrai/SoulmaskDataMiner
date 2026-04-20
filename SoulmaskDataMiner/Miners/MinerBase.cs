@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+using SoulmaskDataMiner.IO;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -28,7 +30,7 @@ namespace SoulmaskDataMiner.Miners
 		/// </summary>
 		protected static string? CsvStr(string? value)
 		{
-			return SqlUtil.CsvStr(value);
+			return SerializationUtil.CsvStr(value);
 		}
 
 		/// <summary>
@@ -36,7 +38,7 @@ namespace SoulmaskDataMiner.Miners
 		/// </summary>
 		protected static string DbStr(string? value, bool treatNullAsEmpty = false)
 		{
-			return SqlUtil.DbStr(value, treatNullAsEmpty);
+			return SerializationUtil.DbStr(value, treatNullAsEmpty);
 		}
 
 		/// <summary>
@@ -44,7 +46,7 @@ namespace SoulmaskDataMiner.Miners
 		/// </summary>
 		protected static string DbBool(bool value)
 		{
-			return SqlUtil.DbBool(value);
+			return SerializationUtil.DbBool(value);
 		}
 
 		/// <summary>
@@ -52,7 +54,7 @@ namespace SoulmaskDataMiner.Miners
 		/// </summary>
 		protected static string DbVal<T>(Nullable<T> value) where T : struct
 		{
-			return SqlUtil.DbVal(value);
+			return SerializationUtil.DbVal(value);
 		}
 	}
 }

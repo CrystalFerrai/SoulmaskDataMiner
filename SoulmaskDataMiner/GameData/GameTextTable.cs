@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,11 @@ using CUE4Parse.FileProvider;
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Engine;
+using SoulmaskDataMiner.Data;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.GameData
 {
 	/// <summary>
 	/// Provides access to data from the common game text asset DT_YiWenText
@@ -61,7 +62,7 @@ namespace SoulmaskDataMiner
 			Dictionary<string, string> data = new(StringComparer.OrdinalIgnoreCase);
 			foreach (var pair in table.RowMap)
 			{
-				data.Add(pair.Key.Text, GameUtil.ReadTextProperty(pair.Value.Properties[0])!);
+				data.Add(pair.Key.Text, DataUtil.ReadTextProperty(pair.Value.Properties[0])!);
 			}
 
 			return new(data);

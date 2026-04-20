@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.IO
 {
 	/// <summary>
-	/// Utility to assist with creating SQL statements
+	/// Utility to assist with sanitizing strings for serializtion
 	/// </summary>
-	internal static class SqlUtil
+	internal static class SerializationUtil
 	{
 		/// <summary>
 		/// Formats a string so that it is safe to insert into a CSV cell
@@ -48,7 +48,7 @@ namespace SoulmaskDataMiner
 		/// <summary>
 		/// Formats a nullable value to be inserted into a SQL database cell
 		/// </summary>
-		public static string DbVal<T>(Nullable<T> value) where T : struct
+		public static string DbVal<T>(T? value) where T : struct
 		{
 			if (!value.HasValue) return "null";
 

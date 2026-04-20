@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,10 @@ using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
+using SoulmaskDataMiner.IO;
+using SoulmaskDataMiner.MapUtil;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -108,7 +112,7 @@ namespace SoulmaskDataMiner.Miners
 							specifiedMan.Quality = property.Tag!.GetValue<int>();
 							break;
 						case "ZhiDingDiWei":
-							if (GameUtil.TryParseEnum<EClanDiWei>(property, out EClanDiWei result))
+							if (DataUtil.TryParseEnum<EClanDiWei>(property, out EClanDiWei result))
 							{
 								specifiedMan.ClanStatus = result;
 							}
@@ -163,7 +167,7 @@ namespace SoulmaskDataMiner.Miners
 							switch (property.Name.Text)
 							{
 								case "ShuLianDuType":
-									if (GameUtil.TryParseEnum(property, out EProficiency result))
+									if (DataUtil.TryParseEnum(property, out EProficiency result))
 									{
 										proficiency = result;
 									}
@@ -241,10 +245,10 @@ namespace SoulmaskDataMiner.Miners
 							level = property.Tag!.GetValue<int>();
 							break;
 						case "Title":
-							title = GameUtil.ReadTextProperty(property);
+							title = DataUtil.ReadTextProperty(property);
 							break;
 						case "Desc":
-							description = GameUtil.ReadTextProperty(property);
+							description = DataUtil.ReadTextProperty(property);
 							break;
 					}
 				}

@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@ using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
+using SoulmaskDataMiner.IO;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
@@ -85,7 +88,7 @@ namespace SoulmaskDataMiner.Miners
 					FName xishuTip;
 					if (assetsData.TipsNameMap.TryGetValue(xishuData.Name, out xishuTip))
 					{
-						xishuData.Tip = GameUtil.ReadTextProperty(assetsData.TipsTable.RowMap[xishuTip].Properties[0]);
+						xishuData.Tip = DataUtil.ReadTextProperty(assetsData.TipsTable.RowMap[xishuTip].Properties[0]);
 					}
 
 					list.Add(xishuData);

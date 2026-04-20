@@ -17,8 +17,11 @@ using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Objects.UObject;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.MapUtil
 {
+	/// <summary>
+	/// Data related to the levels associated with a game map
+	/// </summary>
 	internal class MapLevelData
 	{
 		public string MapName { get; }

@@ -16,10 +16,11 @@ using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
-using CUE4Parse.UE4.Assets.Utils;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using System.Linq.Expressions;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
+using SoulmaskDataMiner.IO;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -216,7 +217,7 @@ namespace SoulmaskDataMiner.Miners
 							expGain = pair.Value.Tag!.GetValue<int>();
 							break;
 						case "MakeProficiencyType":
-							GameUtil.TryParseEnum(pair.Value, out proficiencyType);
+							DataUtil.TryParseEnum(pair.Value, out proficiencyType);
 							break;
 						case "MakeAddProficiencyExp":
 							proficiencyExpGain = pair.Value.Tag!.GetValue<float>();
@@ -283,7 +284,7 @@ namespace SoulmaskDataMiner.Miners
 								{
 									foreach (FPropertyTagType hiddenModeItem in hiddenModeArray.Properties)
 									{
-										if (GameUtil.TryParseEnum(hiddenModeItem, out ECustomGameMode mode))
+										if (DataUtil.TryParseEnum(hiddenModeItem, out ECustomGameMode mode))
 										{
 											hiddenInGameModes.Add(mode);
 										}
@@ -410,10 +411,10 @@ namespace SoulmaskDataMiner.Miners
 					switch (property.Name.Text)
 					{
 						case "JianZhuDisplayName":
-							name = GameUtil.ReadTextProperty(property);
+							name = DataUtil.ReadTextProperty(property);
 							break;
 						case "JianZhuIcon":
-							icon = GameUtil.ReadTextureProperty(property);
+							icon = DataUtil.ReadTextureProperty(property);
 							break;
 					}
 				}

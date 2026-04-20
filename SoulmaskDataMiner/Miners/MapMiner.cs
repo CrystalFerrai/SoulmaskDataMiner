@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,10 @@ using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
+using SoulmaskDataMiner.IO;
+using SoulmaskDataMiner.MapUtil;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -174,35 +178,35 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
-			UTexture2D? lootIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
+			UTexture2D? lootIcon = DataUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/ChuShenTianFu/ChengHao/ChengHao_poxiangren.uasset", logger)!;
 			if (lootIcon is null)
 			{
 				logger.Error("Failed to load loot icon.");
 				return null;
 			}
 
-			UTexture2D? respawnIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
+			UTexture2D? respawnIcon = DataUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/fuhuodian.uasset", logger)!;
 			if (respawnIcon is null)
 			{
 				logger.Error("Failed to load respawn icon.");
 				return null;
 			}
 
-			UTexture2D? bossIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/hud/dusuicon.uasset", logger)!;
+			UTexture2D? bossIcon = DataUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/hud/dusuicon.uasset", logger)!;
 			if (bossIcon is null)
 			{
 				logger.Error("Failed to load boss icon.");
 				return null;
 			}
 
-			UTexture2D? minePlatformIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/MianJuJiNeng/xinban/kuangmaitance3.uasset", logger)!;
+			UTexture2D? minePlatformIcon = DataUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/MianJuJiNeng/xinban/kuangmaitance3.uasset", logger)!;
 			if (minePlatformIcon is null)
 			{
 				logger.Error("Failed to load mine platform icon.");
 				return null;
 			}
 
-			UTexture2D? eventIcon = GameUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/lueduo.uasset", logger)!;
+			UTexture2D? eventIcon = DataUtil.LoadFirstTexture(providerManager.Provider, "WS/Content/UI/resource/JianYingIcon/DiTuBiaoJiIcon/lueduo.uasset", logger)!;
 			if (eventIcon is null)
 			{
 				logger.Error("Failed to load event icon.");
@@ -332,13 +336,13 @@ namespace SoulmaskDataMiner.Miners
 					foreach (var pair in iconMap.Properties)
 					{
 						ETanSuoDianType iconType;
-						if (!GameUtil.TryParseEnum<ETanSuoDianType>(pair.Key.GetValue<FName>(), out iconType))
+						if (!DataUtil.TryParseEnum<ETanSuoDianType>(pair.Key.GetValue<FName>(), out iconType))
 						{
 							logger.Warning($"Unable to parse icon type {pair.Key.GetValue<FName>().Text}");
 							continue;
 						}
 
-						UTexture2D? icon = GameUtil.ReadTextureProperty(pair.Value);
+						UTexture2D? icon = DataUtil.ReadTextureProperty(pair.Value);
 						if (icon is null)
 						{
 							logger.Warning($"Unable to load icon for type {iconType}");
@@ -386,7 +390,7 @@ namespace SoulmaskDataMiner.Miners
 						switch (valueProperty.Name.Text)
 						{
 							case "AreaName":
-								areaName = GameUtil.ReadTextProperty(valueProperty);
+								areaName = DataUtil.ReadTextProperty(valueProperty);
 								break;
 							case "TanSuoPointMap":
 								pointMap = valueProperty.Tag?.GetValue<UScriptMap>();
@@ -442,22 +446,22 @@ namespace SoulmaskDataMiner.Miners
 					switch (poiProperty.Name.Text)
 					{
 						case "TSDType":
-							if (GameUtil.TryParseEnum(poiProperty, out ETanSuoDianType value))
+							if (DataUtil.TryParseEnum(poiProperty, out ETanSuoDianType value))
 							{
 								poiType = value;
 							}
 							break;
 						case "TSDName":
-							poi.Title = GameUtil.ReadTextProperty(poiProperty);
+							poi.Title = DataUtil.ReadTextProperty(poiProperty);
 							break;
 						case "TSDBossName":
-							poi.Name = GameUtil.ReadTextProperty(poiProperty);
+							poi.Name = DataUtil.ReadTextProperty(poiProperty);
 							break;
 						case "TSDDesc":
-							poi.Description = GameUtil.ReadTextProperty(poiProperty);
+							poi.Description = DataUtil.ReadTextProperty(poiProperty);
 							break;
 						case "TSDDesc1":
-							poi.Extra = GameUtil.ReadTextProperty(poiProperty);
+							poi.Extra = DataUtil.ReadTextProperty(poiProperty);
 							break;
 							// The game displays either Desc1 or Desc2 depending on a game setting regarding barracks respawns.
 							// I am choosing to use the Desc1 version in my data, but leaving this here as a note in case
@@ -526,7 +530,7 @@ namespace SoulmaskDataMiner.Miners
 
 				string className = $"{Path.GetFileNameWithoutExtension(pair.Key)}_C";
 
-				UObject? classDefaults = GameUtil.FindBlueprintDefaultsObject(package);
+				UObject? classDefaults = DataUtil.FindBlueprintDefaultsObject(package);
 				if (classDefaults is null)
 				{
 					logger.Warning($"Could not find data for tablet POI {className}");
@@ -604,13 +608,13 @@ namespace SoulmaskDataMiner.Miners
 							tabletData.Name = $"Points: {property.Tag!.GetValue<int>()}";
 							break;
 						case "ChengJiuName":
-							tabletData.Description = GameUtil.ReadTextProperty(property)!;
+							tabletData.Description = DataUtil.ReadTextProperty(property)!;
 							break;
 						case "ChengJiuTiaoJian":
-							tabletData.Extra = GameUtil.ReadTextProperty(property)!;
+							tabletData.Extra = DataUtil.ReadTextProperty(property)!;
 							break;
 						case "TextureIcon":
-							tabletData.Icon = GameUtil.ReadTextureProperty(property)!;
+							tabletData.Icon = DataUtil.ReadTextureProperty(property)!;
 							break;
 						case "NumberParam1":
 							if (property.Tag!.GetValue<int>() == 1)
@@ -679,7 +683,7 @@ namespace SoulmaskDataMiner.Miners
 
 			for (int i = 0; i < texturePaths.Length; ++i)
 			{
-				UTexture2D? icon = GameUtil.LoadFirstTexture(providerManager.Provider, texturePaths[i], logger);
+				UTexture2D? icon = DataUtil.LoadFirstTexture(providerManager.Provider, texturePaths[i], logger);
 				if (icon is null)
 				{
 					logger.Error("Failed to load spawner icon texture.");
@@ -719,7 +723,7 @@ namespace SoulmaskDataMiner.Miners
 					iconPath = iconPath.Substring(0, iconPath.LastIndexOf('.'));
 					iconPath += ".uasset";
 
-					return GameUtil.LoadFirstTexture(providerManager.Provider, iconPath, logger);
+					return DataUtil.LoadFirstTexture(providerManager.Provider, iconPath, logger);
 				}
 				return null;
 			}
@@ -860,7 +864,7 @@ namespace SoulmaskDataMiner.Miners
 			HashSet<string> barracksClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(barracksBaseClass).Select(c => c.Name));
 
 			const string fireflyBaseClass = "BP_CrowdNPC_Firefly_C";
-			UObject fireflyDefaults = GameUtil.FindBlueprintDefaultsObject(providerManager.Provider, "WS/Content/Blueprints/CrowdNPC/BP_CrowdNPC_Firefly.uasset")!;
+			UObject fireflyDefaults = DataUtil.FindBlueprintDefaultsObject(providerManager.Provider, "WS/Content/Blueprints/CrowdNPC/BP_CrowdNPC_Firefly.uasset")!;
 
 			const string chestBaseClass = "HJianZhuBaoXiang";
 
@@ -869,7 +873,7 @@ namespace SoulmaskDataMiner.Miners
 			Dictionary<string, UObject?> chestClasses = new();
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
 			{
-				chestClasses.Add(bpClass.Name, GameUtil.FindBlueprintDefaultsObject(bpClass.Export));
+				chestClasses.Add(bpClass.Name, DataUtil.FindBlueprintDefaultsObject(bpClass.Export));
 			}
 
 			const string arenaBaseClass = "HJianZhuJingJiChang";
@@ -1069,7 +1073,7 @@ namespace SoulmaskDataMiner.Miners
 					switch (property.Name.Text)
 					{
 						case "Name":
-							name = GameUtil.ReadTextProperty(property);
+							name = DataUtil.ReadTextProperty(property);
 							break;
 						case "Radius":
 							radius = property.Tag!.GetValue<float>();
@@ -1209,7 +1213,7 @@ namespace SoulmaskDataMiner.Miners
 												eventId = eventProperty.Tag!.GetValue<int>();
 												break;
 											case "EventDescribeText":
-												eventName = GameUtil.ReadTextProperty(eventProperty);
+												eventName = DataUtil.ReadTextProperty(eventProperty);
 												break;
 										}
 									}
@@ -1225,7 +1229,7 @@ namespace SoulmaskDataMiner.Miners
 							}
 							break;
 						case "EventCustomGameMode":
-							if (GameUtil.TryParseEnum(property, out ECustomGameMode mode))
+							if (DataUtil.TryParseEnum(property, out ECustomGameMode mode))
 							{
 								gameMode = mode;
 							}
@@ -1336,7 +1340,7 @@ namespace SoulmaskDataMiner.Miners
 								triggerEventId = property.Tag!.GetValue<int>();
 								break;
 							case "SpawnedCustomGameMode":
-								if (GameUtil.TryParseEnum(property, out ECustomGameMode mode))
+								if (DataUtil.TryParseEnum(property, out ECustomGameMode mode))
 								{
 									gameMode = mode;
 								}
@@ -1935,7 +1939,7 @@ namespace SoulmaskDataMiner.Miners
 									{
 										foreach (FPropertyTagType item in gameModeArray.Properties)
 										{
-											if (GameUtil.TryParseEnum(item, out ECustomGameMode gameMode))
+											if (DataUtil.TryParseEnum(item, out ECustomGameMode gameMode))
 											{
 												availableGameModes.Add(gameMode);
 											}
@@ -1956,7 +1960,7 @@ namespace SoulmaskDataMiner.Miners
 										{
 											ECustomGameMode mode;
 											string loot;
-											if (GameUtil.TryParseEnum(lootPair.Key, out mode))
+											if (DataUtil.TryParseEnum(lootPair.Key, out mode))
 											{
 												loot = lootPair.Value!.GetValue<FName>().Text;
 												gameModeLootIds.Add(mode, loot);
@@ -1978,7 +1982,7 @@ namespace SoulmaskDataMiner.Miners
 							case "JianZhuDisplayName":
 								if (poiName is null)
 								{
-									poiName = GameUtil.ReadTextProperty(property);
+									poiName = DataUtil.ReadTextProperty(property);
 								}
 								break;
 							case "OpenCheckDaoJuData":
@@ -2013,7 +2017,7 @@ namespace SoulmaskDataMiner.Miners
 							FPropertyTag? openTipProperty = openCheckObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("NotOpenTips"));
 							if (openTipProperty is null) continue;
 
-							openTips.Add(GameUtil.ReadTextProperty(openTipProperty)!);
+							openTips.Add(DataUtil.ReadTextProperty(openTipProperty)!);
 						}
 						openTip = string.Join("<br />", openTips);
 					}
@@ -2323,7 +2327,7 @@ namespace SoulmaskDataMiner.Miners
 						switch (property.Name.Text)
 						{
 							case "FunctionType":
-								if (GameUtil.TryParseEnum(property, out EJianZhuGameFunctionType value))
+								if (DataUtil.TryParseEnum(property, out EJianZhuGameFunctionType value))
 								{
 									funcType = value;
 								}
@@ -2364,7 +2368,7 @@ namespace SoulmaskDataMiner.Miners
 								case "MoRenMingZi":
 									if (npcName is null)
 									{
-										npcName = GameUtil.ReadTextProperty(property);
+										npcName = DataUtil.ReadTextProperty(property);
 									}
 									break;
 								case "ChengZhangComponent":
@@ -2446,7 +2450,7 @@ namespace SoulmaskDataMiner.Miners
 						switch (property.Name.Text)
 						{
 							case "PeiFangIcon":
-								recipeIcon = GameUtil.ReadTextureProperty(property);
+								recipeIcon = DataUtil.ReadTextureProperty(property);
 								break;
 							case "PeiFangDengJi":
 								requiredLevel = property.Tag!.GetValue<int>();
@@ -2652,7 +2656,7 @@ namespace SoulmaskDataMiner.Miners
 													spawnData = SpawnMinerUtil.LoadSpawnData(spawnerItemProperty, logger, "Arena Spawner");
 													break;
 												case "NpcNameTxt":
-													npcName = GameUtil.ReadTextProperty(spawnerItemProperty);
+													npcName = DataUtil.ReadTextProperty(spawnerItemProperty);
 													break;
 												case "RewardID":
 													rewardId = spawnerItemProperty.Tag?.GetValue<int>();
@@ -2961,7 +2965,7 @@ namespace SoulmaskDataMiner.Miners
 							case "KuangMaiType":
 								if (mineralType == EKuangMaiType.KMT_None)
 								{
-									if (GameUtil.TryParseEnum(property, out EKuangMaiType type))
+									if (DataUtil.TryParseEnum(property, out EKuangMaiType type))
 									{
 										mineralType = type;
 									}
@@ -3098,7 +3102,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 			Package package = (Package)providerManager.Provider.LoadPackage(file);
 
-			UObject? itemObject = GameUtil.FindBlueprintDefaultsObject(package);
+			UObject? itemObject = DataUtil.FindBlueprintDefaultsObject(package);
 			if (itemObject is null)
 			{
 				logger.Warning($"Unable to load {assetPath}");
@@ -3111,7 +3115,7 @@ namespace SoulmaskDataMiner.Miners
 				logger.Warning($"Unable to find Icon property in {assetPath}");
 				return null;
 			}
-			return GameUtil.ReadTextureProperty(iconProperty);
+			return DataUtil.ReadTextureProperty(iconProperty);
 		}
 
 		private void FindPoiTextures(MapPoiDatabase poiDatabase, Logger logger)

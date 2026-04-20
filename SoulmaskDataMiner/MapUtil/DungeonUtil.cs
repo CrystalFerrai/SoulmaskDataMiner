@@ -1,4 +1,4 @@
-﻿// Copyright 2024 Crystal Ferrai
+﻿// Copyright 2026 Crystal Ferrai
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,10 +18,11 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
-using SoulmaskDataMiner.Miners;
+using SoulmaskDataMiner.Data;
+using SoulmaskDataMiner.GameData;
 using System.Diagnostics.CodeAnalysis;
 
-namespace SoulmaskDataMiner
+namespace SoulmaskDataMiner.MapUtil
 {
 	/// <summary>
 	/// Utility for gathering data about the game's procedural dungeons
@@ -82,10 +83,10 @@ namespace SoulmaskDataMiner
 							name = property.Tag!.GetValue<string>()!;
 							break;
 						case "Title":
-							config.Title = GameUtil.ReadTextProperty(property)!;
+							config.Title = DataUtil.ReadTextProperty(property)!;
 							break;
 						case "Desc":
-							config.Description = GameUtil.ReadTextProperty(property)!;
+							config.Description = DataUtil.ReadTextProperty(property)!;
 							break;
 						case "MaxCount":
 							config.MaxCount = property.Tag!.GetValue<int>();
@@ -278,7 +279,7 @@ namespace SoulmaskDataMiner
 								case "JianZhuDisplayName":
 									if (name is null)
 									{
-										name = GameUtil.ReadTextProperty(property);
+										name = DataUtil.ReadTextProperty(property);
 									}
 									break;
 								case "KaiQiJiaoHuDaoJuClass":
@@ -360,7 +361,7 @@ namespace SoulmaskDataMiner
 					switch (property.Name.Text)
 					{
 						case "FunctionType":
-							if (GameUtil.TryParseEnum(property, out EJianZhuGameFunctionType value))
+							if (DataUtil.TryParseEnum(property, out EJianZhuGameFunctionType value))
 							{
 								funcType = value;
 							}
