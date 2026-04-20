@@ -71,6 +71,14 @@ namespace SoulmaskDataMiner.MapUtil
 		{
 			if (sCachedFoliageData is not null)
 			{
+				foreach (var pair in sCachedFoliageData)
+				{
+					foreach (var pair2 in pair.Value)
+					{
+						// Locations are map specific, so clear them each time
+						pair2.Value.Locations = null;
+					}
+				}
 				return sCachedFoliageData;
 			}
 
@@ -213,7 +221,7 @@ namespace SoulmaskDataMiner.MapUtil
 
 					if (hitLootName is null || finalHitLootName is null)
 					{
-						logger.Warning($"Foliage data missing for entry {name}");
+						logger.Debug($"Foliage data missing for entry {name}");
 						continue;
 					}
 
