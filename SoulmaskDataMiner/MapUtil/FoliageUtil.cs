@@ -389,10 +389,6 @@ namespace SoulmaskDataMiner.MapUtil
 				UInstancedStaticMeshComponent component = (UInstancedStaticMeshComponent)export.ExportObject.Value;
 				if (component.PerInstanceSMData is null || !component.PerInstanceSMData.Any()) continue;
 
-				UObject root = component.Outer!.Load()!.Properties.First(p => p.Name.Text.Equals("RootComponent")).Tag!.GetValue<FPackageIndex>()!.Load()!;
-				FPropertyTag? rootLocationProperty = root.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
-				FVector rootLocation = rootLocationProperty?.Tag!.GetValue<FVector>() ?? FVector.ZeroVector;
-
 				List<FVector> locations;
 				if (result.TryGetValue(export.ClassName, out IReadOnlyList<FVector>? roLocations))
 				{
@@ -406,7 +402,8 @@ namespace SoulmaskDataMiner.MapUtil
 
 				foreach (FInstancedStaticMeshInstanceData instanceData in component.PerInstanceSMData)
 				{
-					locations.Add(rootLocation + instanceData.TransformData.Translation);
+					// Translations appear to always be in world space regardless of the location of the parent actor
+					locations.Add(instanceData.TransformData.Translation);
 				}
 			}
 		}
