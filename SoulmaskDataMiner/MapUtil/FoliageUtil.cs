@@ -463,7 +463,7 @@ namespace SoulmaskDataMiner.MapUtil
 
 		public override string ToString()
 		{
-			return $"{Amount} {HitLootName} + {FinalHitLootName}";
+			return $"{Amount} {Name}";
 		}
 	}
 }
