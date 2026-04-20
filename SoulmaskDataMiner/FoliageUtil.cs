@@ -18,6 +18,8 @@ using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Exports.Component.StaticMesh;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Assets.Objects;
+using CUE4Parse.UE4.Assets.Objects.Properties;
+using CUE4Parse.UE4.CriWare.Readers;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
@@ -26,7 +28,7 @@ namespace SoulmaskDataMiner
 {
 	internal class FoliageUtil
 	{
-		// Type of ore related foliage to skip
+		// Types of ore related foliage to skip
 		private static readonly HashSet<string> sFoliageBlackList = new()
 		{
 			"CommonRockSmall",
@@ -44,7 +46,7 @@ namespace SoulmaskDataMiner
 			mMapData = mapData;
 		}
 
-		public IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? LoadFoliage(IProviderManager providerManager, string searchDir, Logger logger)
+		public IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? LoadFoliage(IProviderManager providerManager, MapLevelData mapLevelData, Logger logger)
 		{
 			IReadOnlyDictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>>? foliageData = LoadFoliageData(providerManager, logger);
 			if (foliageData is null)
@@ -53,7 +55,7 @@ namespace SoulmaskDataMiner
 			}
 			Dictionary<string, FoliageData> allFoliage = new(foliageData.SelectMany(d => d.Value));
 
-			IReadOnlyDictionary<string, IReadOnlyList<FVector>> foliage = FindFoliage(providerManager, searchDir, allFoliage, logger);
+			IReadOnlyDictionary<string, IReadOnlyList<FVector>> foliage = FindFoliage(providerManager, mapLevelData, allFoliage, logger);
 
 			IReadOnlyDictionary<string, IReadOnlyList<Cluster>> clusters = BuildClusters(foliage, logger);
 
@@ -72,300 +74,333 @@ namespace SoulmaskDataMiner
 				return sCachedFoliageData;
 			}
 
-			if (!providerManager.Provider.TryGetGameFile("WS/Content/Blueprints/ZhiBei/BP_ZhiBeiConfig.uasset", out GameFile? file))
+			UScriptArray? foliageConfigClassArray = providerManager.SingletonManager.ResourceManager.Properties.FirstOrDefault(p => p.Name.Text.Equals("AllZhiBeiConfigClass"))?.Tag?.GetValue<UScriptArray>();
+			if (foliageConfigClassArray is null)
 			{
-				logger.Error("Unable to find BP_ZhiBeiConfig");
-				return null;
-			}
-
-			Package package = (Package)providerManager.Provider.LoadPackage(file);
-			UObject? obj = GameUtil.FindBlueprintDefaultsObject(package);
-			UScriptMap? foliageMap = obj?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ZhiBeiPropConfigMap"))?.Tag?.GetValue<UScriptMap>();
-			if (foliageMap is null)
-			{
-				logger.Error("Unable to load foliage data from BP_ZhiBeiConfig");
+				logger.Error("Unable to load AllZhiBeiConfigClass in resource manager");
 				return null;
 			}
 
 			Dictionary<EProficiency, IReadOnlyDictionary<string, FoliageData>> result = new();
 
-			foreach (var pair in foliageMap.Properties)
+			foreach (FPropertyTagType configClassProperty in foliageConfigClassArray.Properties)
 			{
-				string name = pair.Key.GetValue<FPackageIndex>()!.Name;
-				if (!BlueprintHeirarchy.Instance.FoliageComponentClasses.Contains(name))
+				FPackageIndex? configClassIndex = configClassProperty.GetValue<FPackageIndex>();
+				if (configClassIndex is null)
 				{
-					logger.Warning($"BP_ZhiBeiConfig references {name} which does not appear to be a foliage component type");
+					logger.Warning("Null entry found in AllZhiBeiConfigClass array");
 					continue;
 				}
+				UObject? configClass = GameUtil.FindBlueprintDefaultsObject(configClassIndex);
 
-				FStructFallback foliageObj = pair.Value!.GetValue<FStructFallback>()!;
-
-				UScriptMap? toolMap = null;
-				EProficiency proficiency = EProficiency.FaMu;
-				float respawnTime = 0.0f;
-				float totalDamage = 0.0f, damagePerReward = 0.0f;
-
-				foreach (FPropertyTag property in foliageObj.Properties)
+				UScriptMap? foliageMap = configClass?.Properties.FirstOrDefault(p => p.Name.Text.Equals("ZhiBeiPropConfigMap"))?.Tag?.GetValue<UScriptMap>();
+				if (foliageMap is null)
 				{
-					switch (property.Name.Text)
-					{
-						case "GongJuCaiJiDaoJuMap":
-							toolMap = property.Tag?.GetValue<UScriptMap>();
-							break;
-						case "ZhiBeiProficiencyType":
-							if (GameUtil.TryParseEnum(property, out EProficiency profValue))
-							{
-								proficiency = profValue;
-							}
-							break;
-						case "ZhiBeiRebornTimeAfterCollect":
-							respawnTime = property.Tag!.GetValue<float>();
-							break;
-						case "ZhiBeiCollectableTotalAmount":
-							totalDamage = property.Tag!.GetValue<float>();
-							break;
-						case "ZhiBeiCollectGainDaojuDamage":
-							damagePerReward = property.Tag!.GetValue<float>();
-							break;
-					}
+					logger.Error("Unable to load foliage data from BP_ZhiBeiConfig");
+					return null;
 				}
 
-				if (toolMap is null)
+				foreach (var pair in foliageMap.Properties)
 				{
-					logger.Warning($"Foliage data missing for entry {name}");
-					continue;
-				}
-
-				float amount = 0.0f;
-				if (totalDamage > 0.0f && damagePerReward > 0.0f)
-				{
-					amount = totalDamage / damagePerReward;
-				}
-
-				string? suggestedToolClass = null;
-				string? hitLootName = null;
-				string? finalHitLootName = null;
-
-				foreach (var toolPair in toolMap.Properties)
-				{
-					string? currentHitLootName = null;
-					string? currentFinalHitLootName = null;
-					EFoliageCollectSuggestToolType? toolSuggestion = null;
-
-					FStructFallback toolObj = toolPair.Value!.GetValue<FStructFallback>()!;
-					foreach (FPropertyTag property in toolObj.Properties)
+					string name = pair.Key.GetValue<FPackageIndex>()!.Name;
+					if (!BlueprintHeirarchy.Instance.FoliageComponentClasses.Contains(name))
 					{
-						switch (property.Name.Text)
-						{
-							case "CaiJiDaoJuBaoName":
-								currentHitLootName = property.Tag!.GetValue<FName>().Text;
-								break;
-							case "FinalCaiJiDaoJuBaoName":
-								currentFinalHitLootName = property.Tag!.GetValue<FName>().Text;
-								break;
-							case "ToolSuggestType":
-								if (GameUtil.TryParseEnum(property, out EFoliageCollectSuggestToolType tsValue))
-								{
-									toolSuggestion = tsValue;
-								}
-								break;
-						}
-					}
-
-					if (currentHitLootName is null || currentFinalHitLootName is null || !toolSuggestion.HasValue)
-					{
-						logger.Warning($"Foliage tool data missing for entry {name}");
+						logger.Warning($"BP_ZhiBeiConfig references {name} which does not appear to be a foliage component type");
 						continue;
 					}
 
-					bool missingHitLoot = hitLootName is null || sFoliageBlackList.Contains(hitLootName) || hitLootName.Equals("None");
-					if (missingHitLoot && toolSuggestion.Value != EFoliageCollectSuggestToolType.EFCSTT_NotSuggestUse)
+					FStructFallback foliageObj = pair.Value!.GetValue<FStructFallback>()!;
+
+					UScriptMap? toolMap = null;
+					EProficiency proficiency = EProficiency.FaMu;
+					float respawnTime = 0.0f;
+					float totalDamage = 0.0f, damagePerReward = 0.0f;
+
+					foreach (FPropertyTag property in foliageObj.Properties)
 					{
-						hitLootName = currentHitLootName;
-					}
-
-					bool missingFinalHitLoot = finalHitLootName is null || sFoliageBlackList.Contains(finalHitLootName) || finalHitLootName.Equals("None");
-					if (missingFinalHitLoot && toolSuggestion.Value != EFoliageCollectSuggestToolType.EFCSTT_NotSuggestUse)
-					{
-						finalHitLootName = currentFinalHitLootName;
-					}
-
-					if (toolSuggestion.Value == EFoliageCollectSuggestToolType.EFCSTT_SuggestLowest)
-					{
-						suggestedToolClass = toolPair.Key.GetValue<FPackageIndex>()!.Name;
-					}
-					else if (toolSuggestion.Value == EFoliageCollectSuggestToolType.EFCSTT_SuggestUse && missingHitLoot && missingFinalHitLoot)
-					{
-						suggestedToolClass = toolPair.Key.GetValue<FPackageIndex>()!.Name;
-					}
-				}
-
-				if (hitLootName is null || finalHitLootName is null)
-				{
-					logger.Warning($"Foliage data missing for entry {name}");
-					continue;
-				}
-
-				if (hitLootName.Equals("None"))
-				{
-					hitLootName = null;
-				}
-				else if (sFoliageBlackList.Contains(hitLootName))
-				{
-					continue;
-				}
-
-				if (finalHitLootName.Equals("None"))
-				{
-					finalHitLootName = null;
-				}
-				else if (sFoliageBlackList.Contains(finalHitLootName))
-				{
-					continue;
-				}
-
-				if (hitLootName is null && finalHitLootName is null)
-				{
-					logger.Debug($"No loot found for foliage entry {name}");
-				}
-
-				string? foliageName = null;
-				UTexture2D? foliageIcon = null;
-				void getFoliageNameAndIcon(string lootId)
-				{
-					if (!providerManager.LootDatabase.LootMap.TryGetValue(lootId, out LootTable? table))
-					{
-						logger.Warning($"Foliage entry {name} references loot table entry {hitLootName} which could not be found.");
-						return;
-					}
-
-					LootEntry topEntry = new() { Probability = 0 };
-					foreach (LootEntry entry in table.Entries)
-					{
-						if (entry.Probability > topEntry.Probability)
+						switch (property.Name.Text)
 						{
-							topEntry = entry;
+							case "GongJuCaiJiDaoJuMap":
+								toolMap = property.Tag?.GetValue<UScriptMap>();
+								break;
+							case "ZhiBeiProficiencyType":
+								if (GameUtil.TryParseEnum(property, out EProficiency profValue))
+								{
+									proficiency = profValue;
+								}
+								break;
+							case "ZhiBeiRebornTimeAfterCollect":
+								respawnTime = property.Tag!.GetValue<float>();
+								break;
+							case "ZhiBeiCollectableTotalAmount":
+								totalDamage = property.Tag!.GetValue<float>();
+								break;
+							case "ZhiBeiCollectGainDaojuDamage":
+								damagePerReward = property.Tag!.GetValue<float>();
+								break;
 						}
 					}
 
-					LootItem topItem = new() { Weight = 0 };
-					foreach (LootItem item in topEntry.Items)
+					if (toolMap is null)
 					{
-						if (item.Weight > topItem.Weight)
-						{
-							topItem = item;
-						}
+						logger.Debug($"Foliage data missing for entry {name}");
+						continue;
 					}
 
-					UBlueprintGeneratedClass? itemObj = topItem.Asset.Load() as UBlueprintGeneratedClass;
-					if (itemObj is null)
+					float amount = 0.0f;
+					if (totalDamage > 0.0f && damagePerReward > 0.0f)
 					{
-						logger.Warning($"Foliage entry {name} references loot table entry {hitLootName} which references item {topItem.Asset.Name} which could not be loaded.");
-						return;
+						amount = totalDamage / damagePerReward;
 					}
 
-					string? resultName = null;
-					UTexture2D? resultIcon = null;
-					BlueprintHeirarchy.SearchInheritance(itemObj, current =>
-					{
-						UObject? itemObj = current.ClassDefaultObject.Load();
-						if (itemObj is null) return false;
+					string? suggestedToolClass = null;
+					string? hitLootName = null;
+					string? finalHitLootName = null;
 
-						foreach (FPropertyTag property in itemObj.Properties)
+					foreach (var toolPair in toolMap.Properties)
+					{
+						string? currentHitLootName = null;
+						string? currentFinalHitLootName = null;
+						EFoliageCollectSuggestToolType? toolSuggestion = null;
+
+						FStructFallback toolObj = toolPair.Value!.GetValue<FStructFallback>()!;
+						foreach (FPropertyTag property in toolObj.Properties)
 						{
 							switch (property.Name.Text)
 							{
-								case "Name":
-									resultName = GameUtil.ReadTextProperty(property);
+								case "CaiJiDaoJuBaoName":
+									currentHitLootName = property.Tag!.GetValue<FName>().Text;
 									break;
-								case "Icon":
-									resultIcon = GameUtil.ReadTextureProperty(property);
+								case "FinalCaiJiDaoJuBaoName":
+									currentFinalHitLootName = property.Tag!.GetValue<FName>().Text;
+									break;
+								case "ToolSuggestType":
+									if (GameUtil.TryParseEnum(property, out EFoliageCollectSuggestToolType tsValue))
+									{
+										toolSuggestion = tsValue;
+									}
 									break;
 							}
 						}
 
-						return resultName is not null && resultIcon is not null;
-					});
+						if (currentHitLootName is null || currentFinalHitLootName is null || !toolSuggestion.HasValue)
+						{
+							logger.Warning($"Foliage tool data missing for entry {name}");
+							continue;
+						}
 
-					if (resultName is null || resultIcon is null)
-					{
-						logger.Warning($"Foliage entry {name} failed to load properties from {topItem.Asset.Name} which is referenced from table entry {hitLootName}.");
+						bool missingHitLoot = hitLootName is null || sFoliageBlackList.Contains(hitLootName) || hitLootName.Equals("None");
+						if (missingHitLoot && toolSuggestion.Value != EFoliageCollectSuggestToolType.EFCSTT_NotSuggestUse)
+						{
+							hitLootName = currentHitLootName;
+						}
+
+						bool missingFinalHitLoot = finalHitLootName is null || sFoliageBlackList.Contains(finalHitLootName) || finalHitLootName.Equals("None");
+						if (missingFinalHitLoot && toolSuggestion.Value != EFoliageCollectSuggestToolType.EFCSTT_NotSuggestUse)
+						{
+							finalHitLootName = currentFinalHitLootName;
+						}
+
+						if (toolSuggestion.Value == EFoliageCollectSuggestToolType.EFCSTT_SuggestLowest)
+						{
+							suggestedToolClass = toolPair.Key.GetValue<FPackageIndex>()!.Name;
+						}
+						else if (toolSuggestion.Value == EFoliageCollectSuggestToolType.EFCSTT_SuggestUse && missingHitLoot && missingFinalHitLoot)
+						{
+							suggestedToolClass = toolPair.Key.GetValue<FPackageIndex>()!.Name;
+						}
 					}
 
-					foliageName = resultName;
-					foliageIcon = resultIcon;
-				}
+					if (hitLootName is null || finalHitLootName is null)
+					{
+						logger.Warning($"Foliage data missing for entry {name}");
+						continue;
+					}
 
-				if (hitLootName is not null)
-				{
-					getFoliageNameAndIcon(hitLootName);
-				}
-				else if (finalHitLootName is not null)
-				{
-					getFoliageNameAndIcon(finalHitLootName);
-				}
+					if (hitLootName.Equals("None"))
+					{
+						hitLootName = null;
+					}
+					else if (sFoliageBlackList.Contains(hitLootName))
+					{
+						continue;
+					}
 
-				if (foliageName is null || foliageIcon is null)
-				{
-					continue;
-				}
+					if (finalHitLootName.Equals("None"))
+					{
+						finalHitLootName = null;
+					}
+					else if (sFoliageBlackList.Contains(finalHitLootName))
+					{
+						continue;
+					}
 
-				if (!result.TryGetValue(proficiency, out IReadOnlyDictionary<string, FoliageData>? entry))
-				{
-					entry = new Dictionary<string, FoliageData>();
-					result.Add(proficiency, entry);
-				}
+					if (hitLootName is null && finalHitLootName is null)
+					{
+						logger.Debug($"No loot found for foliage entry {name}");
+					}
 
-				((Dictionary<string, FoliageData>)entry).Add(name, new(foliageName, hitLootName, finalHitLootName, suggestedToolClass, amount, respawnTime, foliageIcon));
+					string? foliageName = null;
+					UTexture2D? foliageIcon = null;
+					void getFoliageNameAndIcon(string lootId)
+					{
+						if (!providerManager.LootDatabase.LootMap.TryGetValue(lootId, out LootTable? table))
+						{
+							logger.Warning($"Foliage entry {name} references loot table entry {hitLootName} which could not be found.");
+							return;
+						}
+
+						LootEntry topEntry = new() { Probability = 0 };
+						foreach (LootEntry entry in table.Entries)
+						{
+							if (entry.Probability > topEntry.Probability)
+							{
+								topEntry = entry;
+							}
+						}
+
+						LootItem topItem = new() { Weight = 0 };
+						foreach (LootItem item in topEntry.Items)
+						{
+							if (item.Weight > topItem.Weight)
+							{
+								topItem = item;
+							}
+						}
+
+						UBlueprintGeneratedClass? itemObj = topItem.Asset.Load() as UBlueprintGeneratedClass;
+						if (itemObj is null)
+						{
+							logger.Warning($"Foliage entry {name} references loot table entry {hitLootName} which references item {topItem.Asset.Name} which could not be loaded.");
+							return;
+						}
+
+						string? resultName = null;
+						UTexture2D? resultIcon = null;
+						BlueprintHeirarchy.SearchInheritance(itemObj, current =>
+						{
+							UObject? itemObj = current.ClassDefaultObject.Load();
+							if (itemObj is null) return false;
+
+							foreach (FPropertyTag property in itemObj.Properties)
+							{
+								switch (property.Name.Text)
+								{
+									case "Name":
+										resultName = GameUtil.ReadTextProperty(property);
+										break;
+									case "Icon":
+										resultIcon = GameUtil.ReadTextureProperty(property);
+										break;
+								}
+							}
+
+							return resultName is not null && resultIcon is not null;
+						});
+
+						if (resultName is null || resultIcon is null)
+						{
+							logger.Warning($"Foliage entry {name} failed to load properties from {topItem.Asset.Name} which is referenced from table entry {hitLootName}.");
+						}
+
+						foliageName = resultName;
+						foliageIcon = resultIcon;
+					}
+
+					if (hitLootName is not null)
+					{
+						getFoliageNameAndIcon(hitLootName);
+					}
+					else if (finalHitLootName is not null)
+					{
+						getFoliageNameAndIcon(finalHitLootName);
+					}
+
+					if (foliageName is null || foliageIcon is null)
+					{
+						continue;
+					}
+
+					if (!result.TryGetValue(proficiency, out IReadOnlyDictionary<string, FoliageData>? entry))
+					{
+						entry = new Dictionary<string, FoliageData>();
+						result.Add(proficiency, entry);
+					}
+
+					((Dictionary<string, FoliageData>)entry).Add(name, new(foliageName, hitLootName, finalHitLootName, suggestedToolClass, amount, respawnTime, foliageIcon));
+				}
 			}
 
 			sCachedFoliageData = result;
 			return result;
 		}
 
-		private IReadOnlyDictionary<string, IReadOnlyList<FVector>> FindFoliage(IProviderManager providerManager, string searchDir, IReadOnlyDictionary<string, FoliageData> foliageData, Logger logger)
+		private IReadOnlyDictionary<string, IReadOnlyList<FVector>> FindFoliage(IProviderManager providerManager, MapLevelData mapLevelData, IReadOnlyDictionary<string, FoliageData> foliageData, Logger logger)
 		{
 			Dictionary<string, IReadOnlyList<FVector>> result = new();
 
-			searchDir = searchDir.Replace("/Game/", "WS/Content/");
+			FindFoliageInLevel(mapLevelData.MainLevel, foliageData, result, logger);
+			FindFoliageInLevel(mapLevelData.GameplayLevel1, foliageData, result, logger);
+			FindFoliageInLevel(mapLevelData.GameplayLevel2, foliageData, result, logger);
+			FindFoliageInLevel(mapLevelData.GameplayLevel3, foliageData, result, logger);
 
-			foreach (var filePair in providerManager.Provider.Files)
+			UScriptArray ? subLevelArray = mapLevelData.WorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("SubLevelNameList"))?.Tag?.GetValue<UScriptArray>();
+			if (subLevelArray is null)
 			{
-				if (!filePair.Key.StartsWith(searchDir)) continue;
-				if (!filePair.Key.EndsWith(".umap")) continue;
-
-				Package package = (Package)providerManager.Provider.LoadPackage(filePair.Value);
-
-				foreach (FObjectExport export in package.ExportMap)
+				logger.Warning("Unable to read SubLevelNameList from world settings. Foliage will be missing.");
+				return result;
+			}
+			foreach (FPropertyTagType subLevelItem in subLevelArray.Properties)
+			{
+				string? levelName = subLevelItem.GetValue<FStructFallback>()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("SubLevelName"))?.Tag?.GetValue<FName>().Text; ;
+				if (levelName is null)
 				{
-					if (!foliageData.ContainsKey(export.ClassName)) continue;
+					logger.Warning("Unable to read level name from SubLevelNameList");
+					continue;
+				}
 
-					UInstancedStaticMeshComponent component = (UInstancedStaticMeshComponent)export.ExportObject.Value;
-					if (component.PerInstanceSMData is null || !component.PerInstanceSMData.Any()) continue;
-
-					UObject root = component.Outer!.Load()!.Properties.First(p => p.Name.Text.Equals("RootComponent")).Tag!.GetValue<FPackageIndex>()!.Load()!;
-					FPropertyTag? rootLocationProperty = root.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
-					FVector rootLocation = rootLocationProperty?.Tag!.GetValue<FVector>() ?? FVector.ZeroVector;
-
-					List<FVector> locations;
-					if (result.TryGetValue(export.ClassName, out IReadOnlyList<FVector>? roLocations))
-					{
-						locations = (List<FVector>)roLocations;
-					}
-					else
-					{
-						locations = new();
-						result.Add(export.ClassName, locations);
-					}
-
-					foreach (FInstancedStaticMeshInstanceData instanceData in component.PerInstanceSMData)
-					{
-						locations.Add(rootLocation + instanceData.TransformData.Translation);
-					}
+				if (providerManager.Provider.TryLoadPackage($"{levelName}.umap", out IPackage? level))
+				{
+					FindFoliageInLevel((Package)level, foliageData, result, logger);
+				}
+				else
+				{
+					logger.Warning($"Unable to load sublevel {levelName} from SubLevelNameList");
 				}
 			}
 
 			return result;
+		}
+
+		private void FindFoliageInLevel(Package level, IReadOnlyDictionary<string, FoliageData> foliageData, Dictionary<string, IReadOnlyList<FVector>> result, Logger logger)
+		{
+			foreach (FObjectExport export in level.ExportMap)
+			{
+				if (!foliageData.ContainsKey(export.ClassName)) continue;
+
+				UInstancedStaticMeshComponent component = (UInstancedStaticMeshComponent)export.ExportObject.Value;
+				if (component.PerInstanceSMData is null || !component.PerInstanceSMData.Any()) continue;
+
+				UObject root = component.Outer!.Load()!.Properties.First(p => p.Name.Text.Equals("RootComponent")).Tag!.GetValue<FPackageIndex>()!.Load()!;
+				FPropertyTag? rootLocationProperty = root.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
+				FVector rootLocation = rootLocationProperty?.Tag!.GetValue<FVector>() ?? FVector.ZeroVector;
+
+				List<FVector> locations;
+				if (result.TryGetValue(export.ClassName, out IReadOnlyList<FVector>? roLocations))
+				{
+					locations = (List<FVector>)roLocations;
+				}
+				else
+				{
+					locations = new();
+					result.Add(export.ClassName, locations);
+				}
+
+				foreach (FInstancedStaticMeshInstanceData instanceData in component.PerInstanceSMData)
+				{
+					locations.Add(rootLocation + instanceData.TransformData.Translation);
+				}
+			}
 		}
 
 		private IReadOnlyDictionary<string, IReadOnlyList<Cluster>> BuildClusters(IReadOnlyDictionary<string, IReadOnlyList<FVector>> foliage, Logger logger)
