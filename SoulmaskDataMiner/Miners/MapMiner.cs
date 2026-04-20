@@ -1401,7 +1401,7 @@ namespace SoulmaskDataMiner.Miners
 				SpawnDataCollection? spawnDataCollection = null;
 				if (!spawnDataCache.TryGetValue(spawnDataKey, out spawnDataCollection))
 				{
-					spawnDataCollection = SpawnMinerUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, spawnerObject.Object.DefaultsObject);
+					spawnDataCollection = SpawnDataUtil.LoadSpawnData(scgClasses, logger, export.ObjectName.Text, spawnerObject.Object.DefaultsObject);
 					spawnDataCache.Add(spawnDataKey, spawnDataCollection);
 				}
 				if (spawnDataCollection is null)
@@ -1499,7 +1499,7 @@ namespace SoulmaskDataMiner.Miners
 			FVector location = locationProperty.Tag!.GetValue<FVector>();
 
 			NpcData firstNpc = spawnData.NpcData.First().Value;
-			NpcCategory layerType = SpawnMinerUtil.GetNpcCategory(firstNpc);
+			NpcCategory layerType = SpawnDataUtil.GetNpcCategory(firstNpc);
 
 			SpawnLayerInfo layerInfo;
 			SpawnLayerGroup group;
@@ -1752,10 +1752,10 @@ namespace SoulmaskDataMiner.Miners
 			{
 				WeightedValue<NpcData>[] babyData = spawnData.NpcData.Where(d => d.Value.IsBaby).ToArray();
 
-				layerType = SpawnMinerUtil.GetNpcCategory(babyData[0].Value);
+				layerType = SpawnDataUtil.GetNpcCategory(babyData[0].Value);
 				applyLayerTypeAndSex(true);
 
-				SpawnMinerUtil.CalculateLevels(babyData, false, out int minLevel, out int maxLevel);
+				SpawnDataUtil.CalculateLevels(babyData, false, out int minLevel, out int maxLevel);
 
 				levelText = (minLevel == maxLevel) ? minLevel.ToString() : $"{minLevel} - {maxLevel}";
 
@@ -2229,7 +2229,7 @@ namespace SoulmaskDataMiner.Miners
 							foreach (SpawnData spawner in dungeonData.Spawners)
 							{
 								NpcData firstNpc = spawner.NpcData.First().Value;
-								NpcCategory category = SpawnMinerUtil.GetNpcCategory(firstNpc);
+								NpcCategory category = SpawnDataUtil.GetNpcCategory(firstNpc);
 								if (category != NpcCategory.Mechanical)
 								{
 									logger.Warning($"Unhandled NPC type {category}");
@@ -2653,7 +2653,7 @@ namespace SoulmaskDataMiner.Miners
 											switch (spawnerItemProperty.Name.Text)
 											{
 												case "SGQClass":
-													spawnData = SpawnMinerUtil.LoadSpawnData(spawnerItemProperty, logger, "Arena Spawner");
+													spawnData = SpawnDataUtil.LoadSpawnData(spawnerItemProperty, logger, "Arena Spawner");
 													break;
 												case "NpcNameTxt":
 													npcName = DataUtil.ReadTextProperty(spawnerItemProperty);

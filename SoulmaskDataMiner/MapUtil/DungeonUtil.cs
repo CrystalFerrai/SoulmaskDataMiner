@@ -185,7 +185,7 @@ namespace SoulmaskDataMiner.MapUtil
 										break;
 									case "SCGClass":
 										spawnerName = property.Tag?.GetValue<FPackageIndex>()?.Name;
-										spawnerData = SpawnMinerUtil.LoadSpawnData(property, logger, export.ObjectName.Text);
+										spawnerData = SpawnDataUtil.LoadSpawnData(property, logger, export.ObjectName.Text);
 										break;
 								}
 

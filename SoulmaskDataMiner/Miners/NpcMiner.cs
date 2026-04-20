@@ -118,7 +118,7 @@ namespace SoulmaskDataMiner.Miners
 							}
 							break;
 						case "SCGClass":
-							spawnData = SpawnMinerUtil.LoadSpawnData(property, logger, null)?.DefaultSpawnData;
+							spawnData = SpawnDataUtil.LoadSpawnData(property, logger, null)?.DefaultSpawnData;
 							break;
 						case "ShuLianDu":
 							profArray = property.Tag?.GetValue<UScriptArray>();

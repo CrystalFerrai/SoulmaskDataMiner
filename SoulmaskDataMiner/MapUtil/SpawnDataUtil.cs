@@ -26,7 +26,7 @@ namespace SoulmaskDataMiner.MapUtil
 	/// <summary>
 	/// Helper for extracting data from NPC spawner classes
 	/// </summary>
-	internal static class SpawnMinerUtil
+	internal static class SpawnDataUtil
 	{
 		/// <summary>
 		/// Load spawn data from an npc spawner class
