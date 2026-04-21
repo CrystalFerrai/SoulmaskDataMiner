@@ -261,6 +261,7 @@ namespace SoulmaskDataMiner.GameData
 		Management,
 		Action,
 		PVP,
+		Creative,
 		Max,
 	}
 
