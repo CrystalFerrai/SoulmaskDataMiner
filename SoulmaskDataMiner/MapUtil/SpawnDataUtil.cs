@@ -20,6 +20,7 @@ using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using SoulmaskDataMiner.Data;
 using SoulmaskDataMiner.GameData;
+using System.Text;
 
 namespace SoulmaskDataMiner.MapUtil
 {
@@ -264,6 +265,95 @@ namespace SoulmaskDataMiner.MapUtil
 			}
 
 			return new(defaultSpawnData, spawnDataMap);
+		}
+
+		public static string? SerializeLootMap(SpawnData spawner, string? firstLootId)
+		{
+			if (spawner.NpcData.Skip(1).Any(d => (d.Value.SpawnerLoot ?? d.Value.CharacterLoot) != firstLootId))
+			{
+				// Multiple loot tables referenced
+
+				// If there are multiple NPCs with the same name, append a suffix so that the resulting JSON is valid
+				Dictionary<string, EXingBieType> classGenderMap = new();
+				HashSet<string> separateGenderNames = new();
+				Dictionary<string, int> sameNames = new();
+				foreach (NpcData npc in spawner.NpcData.Select(d => d.Value))
+				{
+					if (classGenderMap.TryGetValue(npc.Name, out EXingBieType sex))
+					{
+						if (sex != npc.Sex)
+						{
+							separateGenderNames.Add(npc.Name);
+						}
+						else
+						{
+							sameNames.TryAdd(npc.Name, 1);
+						}
+					}
+					else
+					{
+						classGenderMap.Add(npc.Name, npc.Sex);
+					}
+				}
+
+				StringBuilder lootMapBuilder = new("{");
+				foreach (NpcData npc in spawner.NpcData.Select(d => d.Value))
+				{
+					string? loot = npc.SpawnerLoot ?? npc.CharacterLoot;
+					if (separateGenderNames.Contains(npc.Name))
+					{
+						lootMapBuilder.Append($"\"{npc.Name} ({(npc.Sex == EXingBieType.CHARACTER_XINGBIE_NV ? "F" : "M")})\": \"{loot}\",");
+					}
+					else if (sameNames.TryGetValue(npc.Name, out int count))
+					{
+						lootMapBuilder.Append($"\"{npc.Name} ({count})\": \"{loot}\",");
+						sameNames[npc.Name] = count + 1;
+					}
+					else
+					{
+						lootMapBuilder.Append($"\"{npc.Name}\": \"{loot}\",");
+					}
+				}
+				lootMapBuilder.Length -= 1; // Remove trailing comma
+				lootMapBuilder.Append("}");
+
+				return lootMapBuilder.ToString();
+			}
+			return null;
+		}
+
+		public static string? SerializeEquipment(SpawnData spawnData)
+		{
+			if (spawnData.EquipmentClasses is null && spawnData.WeaponClasses is null)
+			{
+				return null;
+			}
+
+			StringBuilder equipBuilder = new("{");
+
+			if (spawnData.EquipmentClasses is not null)
+			{
+				foreach (var pair in spawnData.EquipmentClasses)
+				{
+					equipBuilder.Append($"\"{pair.Key}\":\"{pair.Value}\",");
+				}
+			}
+
+			if (spawnData.WeaponClasses is not null)
+			{
+				foreach (var pair in spawnData.WeaponClasses)
+				{
+					equipBuilder.Append($"\"{pair.Key}\":\"{pair.Value}\",");
+				}
+			}
+
+			if (equipBuilder.Length > 1)
+			{
+				equipBuilder.Length -= 1; // Remove trailing comma
+			}
+			equipBuilder.Append("}");
+
+			return equipBuilder.ToString();
 		}
 
 		private static SpawnData? CreateSpawnData(IReadOnlyList<ScgData> scgDataList, Logger logger, string? spawnerNameForLogging, UObject? defaultScgObj = null)

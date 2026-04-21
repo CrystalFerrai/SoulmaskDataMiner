@@ -582,6 +582,14 @@ namespace SoulmaskDataMiner.GameData
 	internal static class GameEnumExtensions
 	{
 		/// <summary>
+		/// Return a bitmask for a game mode
+		/// </summary>
+		public static byte CreateMask(this ECustomGameMode mode)
+		{
+			return (byte)(1 << (byte)mode);
+		}
+
+		/// <summary>
 		/// Return an English representation of the value
 		/// </summary>
 		public static string ToEn(this EClanDiWei value)
