@@ -29,42 +29,38 @@ namespace SoulmaskDataMiner.MapUtil
 	/// </summary>
 	internal class DungeonUtil
 	{
-		private static Dictionary<string, DungeonEntrance>? sEntranceMap;
+		private Dictionary<string, DungeonEntrance>? mEntranceMap;
 
-		private readonly UObject mWorldSettings;
+		private readonly MapLevelData mMapLevelData;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="worldSettings">The world settings for the level to load dungeon data for</param>
-		public DungeonUtil(UObject worldSettings)
+		/// <param name="mapLevelData">The level data for the map to load dungeon data for</param>
+		public DungeonUtil(MapLevelData mapLevelData)
 		{
-			mWorldSettings = worldSettings;
+			mMapLevelData = mapLevelData;
 		}
 
 		/// <summary>
 		/// Loads data about procedural dungeons
 		/// </summary>
 		/// <returns>Dungeon data, mapped by entrance actor class names</returns>
-		public IReadOnlyDictionary<string, DungeonData>? LoadDungeonData(IProviderManager providerManager, Logger logger)
+		public IReadOnlyDictionary<string, DungeonData>? LoadDungeonData(Logger logger)
 		{
-			IReadOnlyDictionary<string, DungeonConfig>? configMap = LoadDungeonConfig(providerManager, logger);
+			IReadOnlyDictionary<string, DungeonConfig>? configMap = LoadDungeonConfig(logger);
 			if (configMap is null) return null;
 
-			FindEntrances(providerManager, configMap, logger);
-			FindLevelObjects(providerManager, configMap, logger);
-			FindThemeObjects(providerManager, configMap, logger);
+			FindEntrances(configMap, logger);
+			FindLevelObjects(configMap, logger);
+			FindThemeObjects(configMap, logger);
 
 			return configMap.ToDictionary(p => p.Value.Entrance.AssetName, p => CreateDungeonData(p.Value));
 		}
 
-		private IReadOnlyDictionary<string, DungeonConfig>? LoadDungeonConfig(IProviderManager providerManager, Logger logger)
+		private IReadOnlyDictionary<string, DungeonConfig>? LoadDungeonConfig(Logger logger)
 		{
-			UBlueprintGeneratedClass? configClass = mWorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("ConfigDataClass"))?.Tag?.GetValue<FPackageIndex>()?.Load() as UBlueprintGeneratedClass;
-			UObject? configData = configClass?.ClassDefaultObject.Load();
-			if (configData is null) return null;
-
-			UScriptArray? dungeonArray = configData.Properties.FirstOrDefault(p => p.Name.Text.Equals("DiXiaChengConfigList"))?.Tag?.GetValue<UScriptArray>();
+			UScriptArray? dungeonArray = mMapLevelData.ConfigData.Properties.FirstOrDefault(p => p.Name.Text.Equals("DiXiaChengConfigList"))?.Tag?.GetValue<UScriptArray>();
 			if (dungeonArray is null || dungeonArray.Properties.Count == 0) return null;
 
 			Dictionary<string, DungeonConfig> result = new();
@@ -121,9 +117,9 @@ namespace SoulmaskDataMiner.MapUtil
 			return result;
 		}
 
-		private void FindEntrances(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
+		private void FindEntrances(IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
 		{
-			IReadOnlyDictionary<string, DungeonEntrance> entranceMap = BuildEntranceMap(providerManager, logger);
+			IReadOnlyDictionary<string, DungeonEntrance> entranceMap = BuildEntranceMap(logger);
 			foreach (var pair in configMap)
 			{
 				if (entranceMap.TryGetValue(pair.Key, out DungeonEntrance entrance))
@@ -137,7 +133,7 @@ namespace SoulmaskDataMiner.MapUtil
 			}
 		}
 
-		private void FindLevelObjects(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
+		private void FindLevelObjects(IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
 		{
 			foreach (var pair in configMap)
 			{
@@ -228,7 +224,7 @@ namespace SoulmaskDataMiner.MapUtil
 			}
 		}
 
-		private void FindThemeObjects(IProviderManager providerManager, IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
+		private void FindThemeObjects(IReadOnlyDictionary<string, DungeonConfig> configMap, Logger logger)
 		{
 			const string chestBaseClass = "HJianZhuBaoXiang";
 
@@ -333,11 +329,11 @@ namespace SoulmaskDataMiner.MapUtil
 				dungeonConfig.Chests.Values.ToArray());
 		}
 
-		private IReadOnlyDictionary<string, DungeonEntrance> BuildEntranceMap(IProviderManager providerManager, Logger logger)
+		private IReadOnlyDictionary<string, DungeonEntrance> BuildEntranceMap(Logger logger)
 		{
-			if (sEntranceMap is not null) return sEntranceMap;
+			if (mEntranceMap is not null) return mEntranceMap;
 
-			sEntranceMap = new();
+			mEntranceMap = new();
 
 			foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Instance.GetDerivedClasses("HJianZhuGameFunction"))
 			{
@@ -440,10 +436,10 @@ namespace SoulmaskDataMiner.MapUtil
 					}
 				}
 
-				sEntranceMap.Add(name, entrance);
+				mEntranceMap.Add(name, entrance);
 			}
 
-			return sEntranceMap;
+			return mEntranceMap;
 		}
 
 		private class DungeonConfig

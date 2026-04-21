@@ -352,29 +352,9 @@ namespace SoulmaskDataMiner.MapUtil
 			FindFoliageInLevel(mapLevelData.GameplayLevel2, foliageData, result, logger);
 			FindFoliageInLevel(mapLevelData.GameplayLevel3, foliageData, result, logger);
 
-			UScriptArray ? subLevelArray = mapLevelData.WorldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("SubLevelNameList"))?.Tag?.GetValue<UScriptArray>();
-			if (subLevelArray is null)
+			foreach (Package sublevel in mapLevelData.Sublevels)
 			{
-				logger.Warning("Unable to read SubLevelNameList from world settings. Foliage will be missing.");
-				return result;
-			}
-			foreach (FPropertyTagType subLevelItem in subLevelArray.Properties)
-			{
-				string? levelName = subLevelItem.GetValue<FStructFallback>()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("SubLevelName"))?.Tag?.GetValue<FName>().Text; ;
-				if (levelName is null)
-				{
-					logger.Warning("Unable to read level name from SubLevelNameList");
-					continue;
-				}
-
-				if (providerManager.Provider.TryLoadPackage($"{levelName}.umap", out IPackage? level))
-				{
-					FindFoliageInLevel((Package)level, foliageData, result, logger);
-				}
-				else
-				{
-					logger.Warning($"Unable to load sublevel {levelName} from SubLevelNameList");
-				}
+				FindFoliageInLevel(sublevel, foliageData, result, logger);
 			}
 
 			return result;

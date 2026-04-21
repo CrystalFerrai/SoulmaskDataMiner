@@ -251,6 +251,9 @@ namespace SoulmaskDataMiner.GameData
 										case "TJ_DL_IsActionMode_C":
 											entry.GameMode = (int)ECustomGameMode.Action;
 											break;
+										case "TJ_DL_IsCreativeMode_C":
+											entry.GameMode = (int)ECustomGameMode.Creative;
+											break;
 										case "TJ_DL_IsManagementMode_C":
 											entry.GameMode = (int)ECustomGameMode.Management;
 											break;

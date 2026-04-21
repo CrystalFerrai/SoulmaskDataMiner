@@ -15,6 +15,10 @@
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Objects;
+using CUE4Parse.UE4.Assets.Objects.Properties;
+using CUE4Parse.UE4.CriWare.Readers;
+using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 
 namespace SoulmaskDataMiner.MapUtil
@@ -38,9 +42,42 @@ namespace SoulmaskDataMiner.MapUtil
 
 		public IReadOnlyList<Package> CrowdNpcLevels { get; }
 
+		public IReadOnlyList<Package> Sublevels { get; }
+
 		public UObject WorldSettings { get; }
 
-		private MapLevelData(string mapName, string mapMainDirectory, Package mainLevel, Package gameplayLevel1, Package gameplayLevel2, Package gameplayLevel3, IReadOnlyList<Package> crowdNpcLevels, UObject worldSettings)
+		public UObject ConfigData { get; }
+
+		public IEnumerable<Package> AllLevels
+		{
+			get
+			{
+				yield return MainLevel;
+				yield return GameplayLevel1;
+				yield return GameplayLevel2;
+				yield return GameplayLevel3;
+				foreach (Package crowdNpcLevel in CrowdNpcLevels)
+				{
+					yield return crowdNpcLevel;
+				}
+				foreach (Package subLevel in Sublevels)
+				{
+					yield return subLevel;
+				}
+			}
+		}
+
+		private MapLevelData(
+			string mapName,
+			string mapMainDirectory,
+			Package mainLevel,
+			Package gameplayLevel1,
+			Package gameplayLevel2,
+			Package gameplayLevel3,
+			IReadOnlyList<Package> crowdNpcLevels,
+			IReadOnlyList<Package> subLevels,
+			UObject worldSettings,
+			UObject configData)
 		{
 			MapName = mapName;
 			MapMainDirectory = mapMainDirectory;
@@ -49,7 +86,9 @@ namespace SoulmaskDataMiner.MapUtil
 			GameplayLevel2 = gameplayLevel2;
 			GameplayLevel3 = gameplayLevel3;
 			CrowdNpcLevels = crowdNpcLevels;
+			Sublevels = subLevels;
 			WorldSettings = worldSettings;
+			ConfigData = configData;
 		}
 
 		public static MapLevelData? Load(string mapName, string mainLevelPath, IProviderManager providerManager, Logger logger)
@@ -91,7 +130,42 @@ namespace SoulmaskDataMiner.MapUtil
 				return null;
 			}
 
-			return new(mapName, mapDir, mainLevel, gameplayLevel1, gameplayLevel2, gameplayLevel3, crowdNpcLevels, worldSettings);
+			UBlueprintGeneratedClass? configClass = worldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("ConfigDataClass"))?.Tag?.GetValue<FPackageIndex>()?.Load() as UBlueprintGeneratedClass;
+			UObject? configData = configClass?.ClassDefaultObject.Load();
+			if (configData is null)
+			{
+				logger.Warning($"Failed to read config data from world settings in {mainLevelPath}");
+				return null;
+			}
+
+			List<Package> subLevels = new();
+
+			UScriptArray? subLevelArray = worldSettings.Properties.FirstOrDefault(p => p.Name.Text.Equals("SubLevelNameList"))?.Tag?.GetValue<UScriptArray>();
+			if (subLevelArray is null)
+			{
+				logger.Warning($"Unable to read SubLevelNameList from world settings in {mainLevelPath}.");
+				return null;
+			}
+			foreach (FPropertyTagType subLevelItem in subLevelArray.Properties)
+			{
+				string? levelName = subLevelItem.GetValue<FStructFallback>()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("SubLevelName"))?.Tag?.GetValue<FName>().Text; ;
+				if (levelName is null)
+				{
+					logger.Warning("Unable to read level name from SubLevelNameList");
+					continue;
+				}
+
+				if (providerManager.Provider.TryLoadPackage($"{levelName}.umap", out IPackage? level))
+				{
+					subLevels.Add((Package)level);
+				}
+				else
+				{
+					logger.Warning($"Unable to load sublevel {levelName} from SubLevelNameList");
+				}
+			}
+
+			return new(mapName, mapDir, mainLevel, gameplayLevel1, gameplayLevel2, gameplayLevel3, crowdNpcLevels, subLevels, worldSettings, configData);
 		}
 
 		private static Package? LoadLevel(string path, IProviderManager providerManager, Logger logger)

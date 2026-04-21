@@ -381,7 +381,7 @@ namespace SoulmaskDataMiner.MapUtil
 
 			if (sgbLists.Count == 0)
 			{
-				logger.Warning($"[{spawnerNameForLogging}] Failed to load spawn point data");
+				logger.Debug($"[{spawnerNameForLogging}] Spawner contains no SGB list");
 				return null;
 			}
 

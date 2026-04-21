@@ -15,6 +15,7 @@
 using CUE4Parse.FileProvider.Objects;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports;
+using CUE4Parse.UE4.Assets.Exports.Actor;
 using CUE4Parse.UE4.Assets.Exports.Component;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Material;
@@ -234,8 +235,8 @@ namespace SoulmaskDataMiner.Miners
 				return null;
 			}
 
-			DungeonUtil dungeonUtil = new(mapLevelData.WorldSettings);
-			poiDatabase.DungeonMap = dungeonUtil.LoadDungeonData(providerManager, logger)!;
+			DungeonUtil dungeonUtil = new(mapLevelData);
+			poiDatabase.DungeonMap = dungeonUtil.LoadDungeonData(logger)!;
 			if (poiDatabase.DungeonMap is null)
 			{
 				logger.Error("Failed to load dungeons.");
@@ -245,6 +246,14 @@ namespace SoulmaskDataMiner.Miners
 			if (!FindTabletData(providerManager, poiDatabase, providerManager.Achievements, logger))
 			{
 				logger.Error("Failed to load tablets.");
+				return null;
+			}
+
+			ChestDistributionMap chestDistributionMap = new(mapLevelData);
+			IReadOnlyList<ChestData>? distributedChests = chestDistributionMap.Load(logger);
+			if (distributedChests is null)
+			{
+				logger.Error("Failed to load chest distribution data.");
 				return null;
 			}
 
@@ -287,7 +296,7 @@ namespace SoulmaskDataMiner.Miners
 			ProcessRespawnPoints(poiDatabase, respawnObjects, logger);
 			ProcessSpawners(poiDatabase, spawnerObjects, barracksObjects, eventManagerObjects, logger, allBabies);
 			ProcessFireflies(poiDatabase, fireflyObjects, logger);
-			ProcessChests(poiDatabase, chestObjects, logger);
+			ProcessChests(poiDatabase, chestObjects, distributedChests, logger);
 			ProcessFoliage(poiDatabase, foliageData, logger);
 			ProcessDungeons(poiDatabase, dungeonObjects, logger);
 			ProcessWorldBosses(poiDatabase, gamefunctionObjects, logger);
@@ -906,8 +915,7 @@ namespace SoulmaskDataMiner.Miners
 
 			logger.Information("Searching for objects...");
 
-			Package[] gameplayPackages = [mapLevelData.GameplayLevel1, mapLevelData.GameplayLevel2];
-			foreach (Package package in gameplayPackages)
+			foreach (Package package in mapLevelData.AllLevels)
 			{
 				logger.Debug(package.Name);
 				foreach (FObjectExport export in package.ExportMap)
@@ -944,27 +952,11 @@ namespace SoulmaskDataMiner.Miners
 					{
 						mineralVeinObjectList.Add(export);
 					}
-				}
-			}
-			{
-				logger.Debug(mapLevelData.GameplayLevel3.Name);
-				foreach (FObjectExport export in mapLevelData.GameplayLevel3.ExportMap)
-				{
-					if (export.ClassName.Equals(eventManagerClass))
+					else if (export.ClassName.Equals(eventManagerClass))
 					{
 						eventManagerObjectList.Add(export);
 					}
-					else if (spawnerClasses.TryGetValue(export.ClassName, out UObject? defaultScgObj))
-					{
-						spawnerObjectList.Add(new() { BaseClassName = export.ClassName, Object = new() { Export = export, DefaultsObject = defaultScgObj } });
-					}
-				}
-			}
-			{
-				logger.Debug(mapLevelData.MainLevel.Name);
-				foreach (FObjectExport export in mapLevelData.MainLevel.ExportMap)
-				{
-					if (export.ClassName.Equals(respawnClass))
+					else if (export.ClassName.Equals(respawnClass))
 					{
 						respawnObjectList.Add(export);
 					}
@@ -976,18 +968,7 @@ namespace SoulmaskDataMiner.Miners
 					{
 						minePlatformObjectList.Add(export);
 					}
-					else if (mineralVeinClasses.Contains(export.ClassName))
-					{
-						mineralVeinObjectList.Add(export);
-					}
-				}
-			}
-			foreach (Package package in mapLevelData.CrowdNpcLevels)
-			{
-				logger.Debug(package.Name);
-				foreach (FObjectExport export in package.ExportMap)
-				{
-					if (export.ClassName.Equals(fireflyBaseClass))
+					else if (export.ClassName.Equals(fireflyBaseClass))
 					{
 						fireflyObjectList.Add(new() { Export = export, DefaultsObject = fireflyDefaults });
 					}
@@ -1894,171 +1875,211 @@ namespace SoulmaskDataMiner.Miners
 			}
 		}
 
-		private void ProcessChests(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> chestObjects, Logger logger)
+		private void ProcessChests(MapPoiDatabase poiDatabase, IReadOnlyList<ObjectWithDefaults> chestObjects, IReadOnlyList<ChestData> distributedChests, Logger logger)
 		{
 			logger.Information($"Processing {chestObjects.Count} chests...");
 
+			HashSet<ChestCompareData> seenChests = new();
+
 			foreach (ObjectWithDefaults chestObject in chestObjects)
 			{
+				HashSet<ChestCompareData> currentChests = new();
+
 				FObjectExport export = chestObject.Export;
 				UObject obj = export.ExportObject.Value;
+				AddPoisForChest(poiDatabase, export.ObjectName.Text, obj, null, currentChests, logger);
 
-				int respawnTime = -1;
-				float respawnExclusionRadius = -1.0f;
-				string? lootId = null;
-				string? poiName = null;
-				string? openTip = null;
-				FPackageIndex? lootItem = null;
-				USceneComponent? rootComponent = null;
-				List<ECustomGameMode> availableGameModes = new();
-				Dictionary<ECustomGameMode, string> gameModeLootIds = new();
-				void searchProperties(UObject searchObj)
+				seenChests.UnionWith(currentChests);
+			}
+
+			// These chests are either duplicates of existing chests or chests that are not currently in the game.
+			// They may be added in the future, so this can be uncommented for testing.
+			//foreach (ChestData chestData in distributedChests)
+			//{
+			//	AddPoisForChest(poiDatabase, chestData.ChestObject.Name, chestData.ChestObject, chestData.SpawnLocations, seenChests, logger);
+			//}
+		}
+
+		private void AddPoisForChest(MapPoiDatabase poiDatabase, string objectName, UObject chestObject, List<FVector>? locations, HashSet<ChestCompareData> seenChests, Logger logger)
+		{
+			HashSet<ChestCompareData> currentChests = new();
+
+			int respawnTime = -1;
+			float respawnExclusionRadius = -1.0f;
+			string? lootId = null;
+			string? poiName = null;
+			string? openTip = null;
+			FPackageIndex? lootItem = null;
+			USceneComponent? rootComponent = null;
+			HashSet<ECustomGameMode> availableGameModes = new();
+			Dictionary<ECustomGameMode, string> gameModeLootIds = new();
+			void searchProperties(UObject searchObj)
+			{
+				UScriptArray? openCheckList = null;
+
+				foreach (FPropertyTag property in searchObj.Properties)
 				{
-					UScriptArray? openCheckList = null;
-
-					foreach (FPropertyTag property in searchObj.Properties)
+					switch (property.Name.Text)
 					{
-						switch (property.Name.Text)
-						{
-							case "ShuaXinTime":
-								if (respawnTime < 0)
+						case "ShuaXinTime":
+							if (respawnTime < 0)
+							{
+								respawnTime = property.Tag!.GetValue<int>();
+							}
+							break;
+						case "CheckNearlyPlayerFanWei":
+							if (respawnExclusionRadius < 0.0f)
+							{
+								respawnExclusionRadius = property.Tag!.GetValue<float>();
+							}
+							break;
+						case "AliveCustomeGameMode":
+							{
+								UScriptArray? gameModeArray = property.Tag?.GetValue<UScriptArray>();
+								if (gameModeArray is not null)
 								{
-									respawnTime = property.Tag!.GetValue<int>();
-								}
-								break;
-							case "CheckNearlyPlayerFanWei":
-								if (respawnExclusionRadius < 0.0f)
-								{
-									respawnExclusionRadius = property.Tag!.GetValue<float>();
-								}
-								break;
-							case "AliveCustomeGameMode":
-								{
-									UScriptArray? gameModeArray = property.Tag?.GetValue<UScriptArray>();
-									if (gameModeArray is not null)
+									foreach (FPropertyTagType item in gameModeArray.Properties)
 									{
-										foreach (FPropertyTagType item in gameModeArray.Properties)
+										if (DataUtil.TryParseEnum(item, out ECustomGameMode gameMode))
 										{
-											if (DataUtil.TryParseEnum(item, out ECustomGameMode gameMode))
-											{
-												availableGameModes.Add(gameMode);
-											}
-											else
-											{
-												logger.Warning($"[{export.ObjectName}] Chest specifies unrecognized game mode: {item.GetValue<FName>().Text}");
-											}
+											availableGameModes.Add(gameMode);
+										}
+										else
+										{
+											logger.Warning($"[{objectName}] Chest specifies unrecognized game mode: {item.GetValue<FName>().Text}");
 										}
 									}
 								}
-								break;
-							case "DifferentGameModeDropID":
+							}
+							break;
+						case "DifferentGameModeDropID":
+							{
+								UScriptMap? gameModeLootMap = property.Tag?.GetValue<UScriptMap>();
+								if (gameModeLootMap is not null)
 								{
-									UScriptMap? gameModeLootMap = property.Tag?.GetValue<UScriptMap>();
-									if (gameModeLootMap is not null)
+									foreach (var lootPair in gameModeLootMap.Properties)
 									{
-										foreach (var lootPair in gameModeLootMap.Properties)
+										ECustomGameMode mode;
+										string loot;
+										if (DataUtil.TryParseEnum(lootPair.Key, out mode))
 										{
-											ECustomGameMode mode;
-											string loot;
-											if (DataUtil.TryParseEnum(lootPair.Key, out mode))
-											{
-												loot = lootPair.Value!.GetValue<FName>().Text;
-												gameModeLootIds.Add(mode, loot);
-											}
-											else
-											{
-												logger.Warning($"[{export.ObjectName}] Chest specifies unrecognized game mode: {lootPair.Key.GetValue<FName>().Text}");
-											}
+											loot = lootPair.Value!.GetValue<FName>().Text;
+											gameModeLootIds.TryAdd(mode, loot);
+										}
+										else
+										{
+											logger.Warning($"[{objectName}] Chest specifies unrecognized game mode: {lootPair.Key.GetValue<FName>().Text}");
 										}
 									}
 								}
-								break;
-							case "BaoXiangDiaoLuoID":
-								if (lootId is null)
-								{
-									lootId = property.Tag!.GetValue<FName>().Text;
-								}
-								break;
-							case "JianZhuDisplayName":
-								if (poiName is null)
-								{
-									poiName = DataUtil.ReadTextProperty(property);
-								}
-								break;
-							case "OpenCheckDaoJuData":
-								if (openTip is null)
-								{
-									openCheckList = property.Tag?.GetValue<UScriptArray>();
-								}
-								break;
-							case "KaiQiJiaoHuDaoJuClass":
-								if (lootItem is null)
-								{
-									lootItem = property.Tag?.GetValue<FPackageIndex>();
-								}
-								break;
-							case "RootComponent":
-								if (rootComponent is null)
-								{
-									rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
-								}
-								break;
-						}
-					}
-
-					if (openCheckList is not null)
-					{
-						List<string> openTips = new();
-						foreach (FPropertyTagType property in openCheckList.Properties)
-						{
-							FStructFallback? openCheckObj = property.GetValue<FStructFallback>();
-							if (openCheckObj is null) continue;
-
-							FPropertyTag? openTipProperty = openCheckObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("NotOpenTips"));
-							if (openTipProperty is null) continue;
-
-							openTips.Add(DataUtil.ReadTextProperty(openTipProperty)!);
-						}
-						openTip = string.Join("<br />", openTips);
+							}
+							break;
+						case "BaoXiangDiaoLuoID":
+							if (lootId is null)
+							{
+								lootId = property.Tag!.GetValue<FName>().Text;
+							}
+							break;
+						case "JianZhuDisplayName":
+							if (poiName is null)
+							{
+								poiName = DataUtil.ReadTextProperty(property);
+							}
+							break;
+						case "OpenCheckDaoJuData":
+							if (openTip is null)
+							{
+								openCheckList = property.Tag?.GetValue<UScriptArray>();
+							}
+							break;
+						case "KaiQiJiaoHuDaoJuClass":
+							if (lootItem is null)
+							{
+								lootItem = property.Tag?.GetValue<FPackageIndex>();
+							}
+							break;
+						case "RootComponent":
+							if (rootComponent is null)
+							{
+								rootComponent = property.Tag?.GetValue<FPackageIndex>()?.Load<USceneComponent>();
+							}
+							break;
 					}
 				}
 
-				searchProperties(obj);
-				if ((respawnTime < 0 || respawnExclusionRadius < 0.0f || lootId is null || poiName is null || openTip is null || rootComponent is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
+				if (openCheckList is not null)
 				{
-					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+					List<string> openTips = new();
+					foreach (FPropertyTagType property in openCheckList.Properties)
 					{
-						UObject? currentObj = current.ClassDefaultObject.Load();
-						if (currentObj is null) return true;
+						FStructFallback? openCheckObj = property.GetValue<FStructFallback>();
+						if (openCheckObj is null) continue;
 
-						searchProperties(currentObj);
-						return respawnTime >= 0 && respawnExclusionRadius >= 0.0f && lootId is not null && poiName is not null && openTip is not null && rootComponent is not null;
-					});
+						FPropertyTag? openTipProperty = openCheckObj.Properties.FirstOrDefault(p => p.Name.Text.Equals("NotOpenTips"));
+						if (openTipProperty is null) continue;
+
+						openTips.Add(DataUtil.ReadTextProperty(openTipProperty)!);
+					}
+					openTip = string.Join("<br />", openTips);
 				}
+			}
 
-				if (respawnTime < 0)
+			searchProperties(chestObject);
+			if ((respawnTime < 0 || respawnExclusionRadius < 0.0f || lootId is null || poiName is null || openTip is null || rootComponent is null) && chestObject.Class?.Load() is UBlueprintGeneratedClass objClass)
+			{
+				BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
 				{
-					respawnTime = 0; // Default from HJianZhuBaoXiang
-				}
-				if (respawnExclusionRadius < 0.0f)
-				{
-					respawnExclusionRadius = 2000.0f; // Default from HJianZhuBaoXiang
-				}
+					UObject? currentObj = current.ClassDefaultObject.Load();
+					if (currentObj is null) return true;
 
-				if (lootId is null && lootItem is null || poiName is null || rootComponent is null)
-				{
-					logger.Warning($"[{export.ObjectName}] Unable to load data for chest");
-					continue;
-				}
+					searchProperties(currentObj);
+					return respawnTime >= 0 && respawnExclusionRadius >= 0.0f && lootId is not null && poiName is not null && openTip is not null && rootComponent is not null;
+				});
+			}
 
+			if (respawnTime < 0)
+			{
+				respawnTime = 0; // Default from HJianZhuBaoXiang
+			}
+			if (respawnExclusionRadius < 0.0f)
+			{
+				respawnExclusionRadius = 2000.0f; // Default from HJianZhuBaoXiang
+			}
+
+			if (lootId is null && lootItem is null || poiName is null)
+			{
+				logger.Warning($"[{objectName}] Unable to load data for chest");
+				return;
+			}
+
+			if (locations is null)
+			{
 				FPropertyTag? locationProperty = rootComponent?.Properties.FirstOrDefault(p => p.Name.Text.Equals("RelativeLocation"));
 				if (locationProperty is null)
 				{
-					logger.Warning($"[{export.ObjectName}] Failed to find location for chest");
-					continue;
+					logger.Warning($"[{objectName}] Failed to find location for chest");
+					return;
 				}
 
-				FVector location = locationProperty.Tag!.GetValue<FVector>();
+				locations = new() { locationProperty.Tag!.GetValue<FVector>() };
+			}
+
+			foreach (FVector location in locations)
+			{
+				ChestCompareData currentChestData = new(poiName, lootId, lootItem?.Name, location);
+				if (seenChests.Count > 0)
+				{
+					if (seenChests.Contains(currentChestData))
+					{
+						continue;
+					}
+					else
+					{
+						logger.Debug($"Chest not found in levels: {currentChestData}");
+					}
+				}
+
+				currentChests.Add(currentChestData);
 
 				MapPoi poi = new()
 				{
@@ -2112,6 +2133,44 @@ namespace SoulmaskDataMiner.Miners
 					};
 					poiDatabase.Lootables.Add(remainingModesPoi);
 				}
+			}
+
+			seenChests.UnionWith(currentChests);
+		}
+
+		private class ChestCompareData
+		{
+			private readonly string mChestName;
+			private readonly string? mLootId;
+			private readonly string? mLootItem;
+			private readonly FVector mLocation;
+
+			public ChestCompareData(string chestName, string? lootId, string? lootItem, FVector location)
+			{
+				mChestName = chestName;
+				mLootId = lootId;
+				mLootItem = lootItem;
+				mLocation = location;
+			}
+
+			public override int GetHashCode()
+			{
+				// Intentionally not including location here to prevent false mismatches
+				return HashCode.Combine(mChestName, mLootId, mLootItem);
+			}
+
+			public override bool Equals(object? obj)
+			{
+				return obj is ChestCompareData other
+					&& mChestName.Equals(other.mChestName)
+					&& mLootId == other.mLootId
+					&& mLootItem == other.mLootItem
+					&& mLocation.Equals(other.mLocation, 1.0f);
+			}
+
+			public override string ToString()
+			{
+				return $"{mChestName} at {mLocation}";
 			}
 		}
 
