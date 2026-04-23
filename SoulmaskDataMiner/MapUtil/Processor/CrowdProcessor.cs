@@ -106,7 +106,7 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 				searchProperties(obj);
 				if (obj.Class?.Load() is UBlueprintGeneratedClass objClass)
 				{
-					BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+					GameClassHeirarchy.SearchInheritance(objClass, (current) =>
 					{
 						UObject? currentObj = current.ClassDefaultObject.Load();
 						if (currentObj is null) return true;

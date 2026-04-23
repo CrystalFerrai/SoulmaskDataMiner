@@ -63,7 +63,7 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 				UObject worldObj = minePlatformObject.ExportObject.Value;
 				searchObj(worldObj);
 
-				BlueprintHeirarchy.SearchInheritance((UClass)worldObj.Class!.Load()!, (current) =>
+				GameClassHeirarchy.SearchInheritance((UClass)worldObj.Class!.Load()!, (current) =>
 				{
 					UObject? curObj = current.ClassDefaultObject.Load();
 					if (curObj is null) return false;

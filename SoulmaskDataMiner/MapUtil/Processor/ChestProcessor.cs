@@ -186,7 +186,7 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 			searchProperties(chestObject);
 			if ((respawnTime < 0 || respawnExclusionRadius < 0.0f || lootId is null || poiName is null || openTip is null || rootComponent is null) && chestObject.Class?.Load() is UBlueprintGeneratedClass objClass)
 			{
-				BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+				GameClassHeirarchy.SearchInheritance(objClass, (current) =>
 				{
 					UObject? currentObj = current.ClassDefaultObject.Load();
 					if (currentObj is null) return true;

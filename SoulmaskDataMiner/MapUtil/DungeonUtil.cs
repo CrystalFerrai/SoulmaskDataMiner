@@ -228,7 +228,7 @@ namespace SoulmaskDataMiner.MapUtil
 		{
 			const string chestBaseClass = "HJianZhuBaoXiang";
 
-			List<BlueprintClassInfo> chestBpClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(chestBaseClass));
+			List<BlueprintClassInfo> chestBpClasses = new(GameClassHeirarchy.Instance.GetDerivedBlueprintClasses(chestBaseClass));
 
 			Dictionary<string, UObject?> chestClasses = new();
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
@@ -291,7 +291,7 @@ namespace SoulmaskDataMiner.MapUtil
 					searchProperties(obj);
 					if ((lootItem is null && lootId is null || name is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
 					{
-						BlueprintHeirarchy.SearchInheritance(objClass, (current) =>
+						GameClassHeirarchy.SearchInheritance(objClass, (current) =>
 						{
 							UObject? currentObj = current.ClassDefaultObject.Load();
 							if (currentObj is null) return true;
@@ -335,7 +335,7 @@ namespace SoulmaskDataMiner.MapUtil
 
 			mEntranceMap = new();
 
-			foreach (BlueprintClassInfo classInfo in BlueprintHeirarchy.Instance.GetDerivedClasses("HJianZhuGameFunction"))
+			foreach (BlueprintClassInfo classInfo in GameClassHeirarchy.Instance.GetDerivedBlueprintClasses("HJianZhuGameFunction"))
 			{
 				UBlueprintGeneratedClass? bpClass = (UBlueprintGeneratedClass?)classInfo.Export.ExportObject.Value;
 				UObject? defaultsObj = bpClass?.ClassDefaultObject.Load();

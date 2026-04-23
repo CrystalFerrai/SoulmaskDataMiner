@@ -226,16 +226,16 @@ namespace SoulmaskDataMiner.MapUtil
 				"HTanChaActor" // Foootprint tracking event spawners for baby animals
 			};
 
-			List<BlueprintClassInfo> spawnerBpClasses = new();
+			List<GameClassInfo> spawnerBpClasses = new();
 			foreach (String searchClass in spawnerBaseClasses)
 			{
-				spawnerBpClasses.AddRange(BlueprintHeirarchy.Instance.GetDerivedClasses(searchClass));
+				spawnerBpClasses.AddRange(GameClassHeirarchy.Instance.GetDerivedClasses(searchClass));
 			}
 
 			Dictionary<string, UObject?> spawnerClasses = spawnerBaseClasses.ToDictionary(c => c, c => (UObject?)null);
-			foreach (BlueprintClassInfo bpClass in spawnerBpClasses)
+			foreach (GameClassInfo bpClass in spawnerBpClasses)
 			{
-				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export.ExportObject.Value;
+				UBlueprintGeneratedClass? exportObj = (UBlueprintGeneratedClass?)bpClass.Export?.ExportObject.Value;
 				FPropertyTag? scgClassProperty = exportObj?.ClassDefaultObject.Load()?.Properties.FirstOrDefault(p => p.Name.Text.Equals("SCGClass"));
 				UObject? defaultScgObj = scgClassProperty?.Tag?.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
 				spawnerClasses.Add(bpClass.Name, defaultScgObj);
@@ -243,14 +243,14 @@ namespace SoulmaskDataMiner.MapUtil
 
 			const string barracksBaseClass = "HBuLuoGuanLiQi";
 
-			HashSet<string> barracksClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(barracksBaseClass).Select(c => c.Name));
+			HashSet<string> barracksClasses = new(GameClassHeirarchy.Instance.GetDerivedBlueprintClasses(barracksBaseClass).Select(c => c.Name));
 
 			const string fireflyBaseClass = "BP_CrowdNPC_Firefly_C";
 			UObject fireflyDefaults = DataUtil.FindBlueprintDefaultsObject(providerManager.Provider, "WS/Content/Blueprints/CrowdNPC/BP_CrowdNPC_Firefly.uasset")!;
 
 			const string chestBaseClass = "HJianZhuBaoXiang";
 
-			List<BlueprintClassInfo> chestBpClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(chestBaseClass));
+			List<BlueprintClassInfo> chestBpClasses = new(GameClassHeirarchy.Instance.GetDerivedBlueprintClasses(chestBaseClass));
 
 			Dictionary<string, UObject?> chestClasses = new();
 			foreach (BlueprintClassInfo bpClass in chestBpClasses)
@@ -259,16 +259,16 @@ namespace SoulmaskDataMiner.MapUtil
 			}
 
 			const string arenaBaseClass = "HJianZhuJingJiChang";
-			HashSet<string> arenaClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(arenaBaseClass).Select(c => c.Name));
+			HashSet<string> arenaClasses = new(GameClassHeirarchy.Instance.GetDerivedBlueprintClasses(arenaBaseClass).Select(c => c.Name));
 
 			const string gameFunctionBaseClass = "HJianZhuGameFunction";
-			HashSet<string> gameFunctionClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(gameFunctionBaseClass).Select(c => c.Name));
+			HashSet<string> gameFunctionClasses = new(GameClassHeirarchy.Instance.GetDerivedBlueprintClasses(gameFunctionBaseClass).Select(c => c.Name));
 
 			const string minePlatformBaseClass = "HJianZhuKaiCaiPingTai";
-			HashSet<string> minePlatformClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(minePlatformBaseClass).Select(c => c.Name));
+			HashSet<string> minePlatformClasses = new(GameClassHeirarchy.Instance.GetDerivedBlueprintClasses(minePlatformBaseClass).Select(c => c.Name));
 
 			const string mineralVeinBaseClass = "HJianZhuKuangMai";
-			HashSet<string> mineralVeinClasses = new(BlueprintHeirarchy.Instance.GetDerivedClasses(mineralVeinBaseClass).Select(c => c.Name));
+			HashSet<string> mineralVeinClasses = new(GameClassHeirarchy.Instance.GetDerivedBlueprintClasses(mineralVeinBaseClass).Select(c => c.Name));
 
 			const string eventManagerClass = "BP_SpecialTriggerEventManager_C";
 

@@ -21,46 +21,54 @@ using System.Diagnostics;
 namespace SoulmaskDataMiner.GameData
 {
 	/// <summary>
-	/// Utility for gathering information about blueprint inheritance
+	/// Utility for gathering information about game object inheritance
 	/// </summary>
-	internal class BlueprintHeirarchy
+	internal class GameClassHeirarchy
 	{
-		private static BlueprintHeirarchy? sInstance;
+		private static GameClassHeirarchy? sInstance;
 
 		private readonly Dictionary<string, InternalClassInfo> mSuperMap;
 
 		public IReadOnlySet<string> FoliageComponentClasses { get; private set; }
 
 		/// <summary>
-		/// Gets the loaded blueprint heiarchy.
+		/// Gets the loaded class heiarchy.
 		/// </summary>
 		/// <exception cref="InvalidOperationException">The hierarchy has not been loaded</exception>
-		public static BlueprintHeirarchy Instance
+		public static GameClassHeirarchy Instance
 		{
 			get
 			{
-				if (sInstance is null) throw new InvalidOperationException("BluePrintHierarchy has not been loaded. Any miner needing this resource should declare so by adding the RequireHierarchy attribute to the class.");
+				if (sInstance is null) throw new InvalidOperationException("GameClassHeirarchy has not been loaded. Any miner needing this resource should declare so by adding the RequireHierarchy attribute to the class.");
 				return sInstance;
 			}
 		}
 
-		private BlueprintHeirarchy(Dictionary<string, InternalClassInfo> superMap)
+		private GameClassHeirarchy(Dictionary<string, InternalClassInfo> superMap)
 		{
 			mSuperMap = superMap;
 			FoliageComponentClasses = null!;
 		}
 
 		/// <summary>
-		/// Loads the blueprint heirarchy, making it ready for miners to make use of
+		/// Loads the class heirarchy, making it ready for miners to make use of
 		/// </summary>
 		public static void Load(IProviderManager providerManager, Logger logger)
 		{
-			logger.Information("Loading blueprint heirarchy...");
+			logger.Information("Loading class heirarchy...");
 
 			Stopwatch timer = new Stopwatch();
 			timer.Start();
 
 			Dictionary<string, InternalClassInfo> superMap = new();
+
+			if (providerManager.ClassMetadata is not null)
+			{
+				foreach (var pair in providerManager.ClassMetadata)
+				{
+					superMap.Add(pair.Key, new() { SuperName = pair.Value.Super });
+				}
+			}
 
 			foreach (var pair in providerManager.Provider.Files)
 			{
@@ -99,81 +107,26 @@ namespace SoulmaskDataMiner.GameData
 				}
 			}
 
-			Dictionary<string, InternalClassInfo> addToSuperMap = new();
-			HashSet<string> scriptClasses = new();
 			foreach (var pair in superMap)
 			{
+				if (pair.Value.SuperName is null) continue;
+
 				InternalClassInfo superClassInfo;
-				if (superMap.TryGetValue(pair.Value.SuperName!, out superClassInfo))
+				if (superMap.TryGetValue(pair.Value.SuperName, out superClassInfo))
 				{
 					superClassInfo.DerivedNames.Add(pair.Key);
-					superMap[pair.Value.SuperName!] = superClassInfo;
+					superMap[pair.Value.SuperName] = superClassInfo;
 				}
-				else if (addToSuperMap.TryGetValue(pair.Value.SuperName!, out superClassInfo))
-				{
-					superClassInfo.DerivedNames.Add(pair.Key);
-					addToSuperMap[pair.Value.SuperName!] = superClassInfo;
-				}
-				else
-				{
-					superClassInfo = new();
-					superClassInfo.DerivedNames.Add(pair.Key);
-					addToSuperMap.Add(pair.Value.SuperName!, superClassInfo);
-					scriptClasses.Add(pair.Value.SuperName!);
-				}
-			}
-
-			if (providerManager.ClassMetadata is not null)
-			{
-				foreach (string className in scriptClasses)
-				{
-					if (providerManager.ClassMetadata.TryGetValue(className, out MetaClass metaClass))
-					{
-						InternalClassInfo classInfo = addToSuperMap[className];
-						classInfo.SuperName = metaClass.Super;
-						addToSuperMap[className] = classInfo;
-
-						string currentName = className;
-						while (metaClass.Super is not null)
-						{
-							if (addToSuperMap.TryGetValue(metaClass.Super, out InternalClassInfo superClass))
-							{
-								superClass.DerivedNames.Add(currentName);
-								break;
-							}
-
-							if (providerManager.ClassMetadata.TryGetValue(metaClass.Super, out MetaClass superMetaClass))
-							{
-								InternalClassInfo superClassInfo = new() { SuperName = superMetaClass.Super };
-								superClassInfo.DerivedNames.Add(currentName);
-								addToSuperMap.Add(metaClass.Super, superClassInfo);
-
-								currentName = metaClass.Super;
-								metaClass = superMetaClass;
-							}
-							else
-							{
-								logger.Debug($"Unable to find super class {metaClass.Super}");
-								break;
-							}
-						}
-					}
-				}
-			}
-
-			foreach (var pair in addToSuperMap)
-			{
-				superMap.Add(pair.Key, pair.Value);
 			}
 
 			sInstance = new(superMap);
 
 			HashSet<string> foliageComponents = new();
-			foreach (BlueprintClassInfo zhiBeiComponent in sInstance.GetDerivedClasses("HZhiBeiComponent"))
+			foreach (GameClassInfo zhiBeiComponent in sInstance.GetDerivedClasses("HZhiBeiComponent"))
 			{
 				foliageComponents.Add(zhiBeiComponent.Name);
 			}
-			foreach (BlueprintClassInfo zhiBeiComponent in sInstance.GetDerivedClasses("HBuLuoZhiBeiComponent"))
+			foreach (GameClassInfo zhiBeiComponent in sInstance.GetDerivedClasses("HBuLuoZhiBeiComponent"))
 			{
 				foliageComponents.Add(zhiBeiComponent.Name);
 			}
@@ -189,13 +142,25 @@ namespace SoulmaskDataMiner.GameData
 		}
 
 		/// <summary>
-		/// Returns all blueprint classes derived from the specified class.
+		/// Returns all classes derived from the specified class.
 		/// </summary>
-		public IEnumerable<BlueprintClassInfo> GetDerivedClasses(string className)
+		public IEnumerable<GameClassInfo> GetDerivedClasses(string className)
 		{
 			if (mSuperMap.TryGetValue(className, out InternalClassInfo classInfo))
 			{
 				return InternalGetDerivedClasses(classInfo);
+			}
+			return Enumerable.Empty<GameClassInfo>();
+		}
+
+		/// <summary>
+		/// Returns all blueprint classes derived from the specified class.
+		/// </summary>
+		public IEnumerable<BlueprintClassInfo> GetDerivedBlueprintClasses(string className)
+		{
+			if (mSuperMap.TryGetValue(className, out InternalClassInfo classInfo))
+			{
+				return InternalGetDerivedBlueprintClasses(classInfo);
 			}
 			return Enumerable.Empty<BlueprintClassInfo>();
 		}
@@ -238,7 +203,22 @@ namespace SoulmaskDataMiner.GameData
 			}
 		}
 
-		private IEnumerable<BlueprintClassInfo> InternalGetDerivedClasses(InternalClassInfo classInfo)
+		private IEnumerable<GameClassInfo> InternalGetDerivedClasses(InternalClassInfo classInfo)
+		{
+			foreach (string name in classInfo.DerivedNames)
+			{
+				if (mSuperMap.TryGetValue(name, out InternalClassInfo derivedInfo))
+				{
+					yield return new() { Name = name, SuperName = classInfo.SuperName, Export = derivedInfo.Export, Super = classInfo.Export };
+					foreach (GameClassInfo derived in InternalGetDerivedClasses(derivedInfo))
+					{
+						yield return derived;
+					}
+				}
+			}
+		}
+
+		private IEnumerable<BlueprintClassInfo> InternalGetDerivedBlueprintClasses(InternalClassInfo classInfo)
 		{
 			foreach (string name in classInfo.DerivedNames)
 			{
@@ -246,9 +226,9 @@ namespace SoulmaskDataMiner.GameData
 				{
 					if (derivedInfo.Export is not null)
 					{
-						yield return new() { Name = name, Export = derivedInfo.Export, Super = classInfo.Export };
+						yield return new() { Name = name, SuperName = derivedInfo.SuperName, Export = derivedInfo.Export, Super = classInfo.Export };
 					}
-					foreach (BlueprintClassInfo derived in InternalGetDerivedClasses(derivedInfo))
+					foreach (BlueprintClassInfo derived in InternalGetDerivedBlueprintClasses(derivedInfo))
 					{
 						yield return derived;
 					}
@@ -280,9 +260,23 @@ namespace SoulmaskDataMiner.GameData
 		}
 	}
 
+	internal struct GameClassInfo
+	{
+		public string Name;
+		public string? SuperName;
+		public FObjectExport? Export;
+		public FObjectExport? Super;
+
+		public override string ToString()
+		{
+			return Name;
+		}
+	}
+
 	internal struct BlueprintClassInfo
 	{
 		public string Name;
+		public string? SuperName;
 		public FObjectExport Export;
 		public FObjectExport? Super;
 

@@ -102,7 +102,7 @@ namespace SoulmaskDataMiner
 		{
 			if (mRequireHeirarchy)
 			{
-				BlueprintHeirarchy.Load(mProviderManager, mLogger);
+				GameClassHeirarchy.Load(mProviderManager, mLogger);
 			}
 
 			if (mRequireLootDatabase)

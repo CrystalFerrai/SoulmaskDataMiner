@@ -77,7 +77,7 @@ namespace SoulmaskDataMiner.MapUtil
 				ScgData scgData = new();
 				ScgGameModeData scgGameModeData = new();
 
-				BlueprintHeirarchy.SearchInheritance(scgClass, (current) =>
+				GameClassHeirarchy.SearchInheritance(scgClass, (current) =>
 				{
 					UObject? scgObj = current.ClassDefaultObject.Load();
 					if (scgObj is null)
@@ -559,7 +559,7 @@ namespace SoulmaskDataMiner.MapUtil
 				EXingBieType? sex = null;
 				string? extraLoot = null;
 				FPackageIndex? shopTableIndex = null;
-				BlueprintHeirarchy.SearchInheritance(npc.Value.CharacterClass, current =>
+				GameClassHeirarchy.SearchInheritance(npc.Value.CharacterClass, current =>
 				{
 					UObject? npcObj = current?.ClassDefaultObject.Load();
 					if (npcObj is null)
@@ -679,7 +679,7 @@ namespace SoulmaskDataMiner.MapUtil
 		{
 			string fistNpcClass = npcData.CharacterClass.Name;
 
-			BlueprintHeirarchy bph = BlueprintHeirarchy.Instance;
+			GameClassHeirarchy bph = GameClassHeirarchy.Instance;
 
 			if (bph.IsDerivedFrom(fistNpcClass, "BP_JiXie_Base_C"))
 			{
