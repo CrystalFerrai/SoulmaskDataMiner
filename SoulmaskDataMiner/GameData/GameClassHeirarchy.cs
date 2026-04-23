@@ -97,6 +97,11 @@ namespace SoulmaskDataMiner.GameData
 						{
 							logger.Warning($"Class {export.ObjectName.Text} found multiple times with different super classes");
 						}
+						else if (classInfo.Export is null)
+						{
+							classInfo.Export = export;
+							superMap[export.ObjectName.Text] = classInfo;
+						}
 					}
 					else
 					{
