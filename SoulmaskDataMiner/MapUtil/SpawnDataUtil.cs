@@ -553,9 +553,11 @@ namespace SoulmaskDataMiner.MapUtil
 			HashSet<string> npcNames = new(npcData.Count);
 			HashSet<string> babyNames = new();
 			EXingBieType defaultSex = isHumanSpawner ? EXingBieType.CHARACTER_XINGBIE_NAN : EXingBieType.CHARACTER_XINGBIE_WEIZHI;
+			ECharacterType defaultCharacterType = ECharacterType.CHARACTER_PUTONG;
 			foreach (WeightedValue<NpcData> npc in npcData)
 			{
 				string? npcName = null;
+				ECharacterType? characterType = null;
 				EXingBieType? sex = null;
 				string? extraLoot = null;
 				FPackageIndex? shopTableIndex = null;
@@ -575,6 +577,12 @@ namespace SoulmaskDataMiner.MapUtil
 								if (npcName is null)
 								{
 									npcName = DataUtil.ReadTextProperty(property);
+								}
+								break;
+							case "CharacterType":
+								if (!characterType.HasValue && DataUtil.TryParseEnum(property, out ECharacterType type))
+								{
+									characterType = type;
 								}
 								break;
 							case "XingBie":
@@ -623,6 +631,7 @@ namespace SoulmaskDataMiner.MapUtil
 					}
 				}
 
+				npc.Value.CharacterType = characterType.HasValue ? characterType.Value : defaultCharacterType;
 				npc.Value.Sex = sex.HasValue ? sex.Value : defaultSex;
 				npc.Value.CharacterLoot = extraLoot;
 
@@ -889,6 +898,11 @@ namespace SoulmaskDataMiner.MapUtil
 		/// The NPC display name
 		/// </summary>
 		public string Name { get; set; }
+
+		/// <summary>
+		/// The NPC category
+		/// </summary>
+		public ECharacterType CharacterType { get; set; }
 
 		/// <summary>
 		/// The sex of the NPC

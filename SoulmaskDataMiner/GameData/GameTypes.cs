@@ -169,6 +169,19 @@ namespace SoulmaskDataMiner.GameData
 	};
 
 	/// <summary>
+	/// NPC categories
+	/// </summary>
+	internal enum ECharacterType
+	{
+		CHARACTER_PUTONG,
+		CHARACTER_JINGYING,
+		CHARACTER_BOSS,
+		CHARACTER_PYRAMID_BOSS,
+		CHARACTER_GIANTBOSS,
+		MAX
+	};
+
+	/// <summary>
 	/// "Big achievement" categories
 	/// </summary>
 	internal enum EChengJiuBigType

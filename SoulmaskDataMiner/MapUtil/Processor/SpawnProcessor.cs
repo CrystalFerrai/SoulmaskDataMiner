@@ -395,6 +395,7 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 
 			NpcData firstNpc = spawnData.NpcData.First().Value;
 			NpcCategory layerType = SpawnDataUtil.GetNpcCategory(firstNpc);
+			ECharacterType characterType = firstNpc.CharacterType;
 
 			SpawnLayerInfo layerInfo;
 			SpawnLayerGroup group;
@@ -608,40 +609,66 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 				descriptionText = $"Level {levelText}<br />Event: {eventName}";
 			}
 
-			MapPoi poi = new()
+			bool isWorldBoss = false;
+
+			MapPoi? poi = null;
+			if (characterType == ECharacterType.CHARACTER_GIANTBOSS && poiDatabase.TypeLookup.TryGetValue(ETanSuoDianType.ETSD_TYPE_WORLDBOSS, out List<MapPoi>? bossPois))
 			{
-				GroupIndex = group,
-				Type = type,
-				Title = poiName,
-				Name = layerInfo.Name,
-				Description = descriptionText,
-				NpcCategory = layerType,
-				Male = male,
-				Female = female,
-				TribeStatus = tribeStatus,
-				Occupation = occupation,
-				ClanType = clanType,
-				ClanAreas = clanAreas,
-				ClanOccupations = clanOccupations,
-				Equipment = equipment,
-				SpawnCount = spawnCount,
-				SpawnCountMax = spawnData.SpawnCount,
-				SpawnInterval = spawnInterval,
-				PlayerExclusionRadius = playerRadius,
-				BuildingExclusionRadius = buildingRadius,
-				Location = location,
-				MapLocation = WorldToMap(location),
-				Icon = icon,
-				LootId = lootId,
-				LootMap = lootMap,
-				CollectMap = collectMap
-			};
+				foreach (MapPoi bossPoi in bossPois)
+				{
+					if (!bossPoi.Location.HasValue) continue;
+
+					FVector distance = location - bossPoi.Location.Value;
+					if (distance.SizeSquared() < 400000000.0f) // 200 meters
+					{
+						poi = bossPoi;
+						isWorldBoss = true;
+						break;
+					}
+				}
+			}
+
+			if (poi is null)
+			{
+				poi = new()
+				{
+					GroupIndex = group,
+					Type = type,
+					Title = poiName,
+					Name = layerInfo.Name,
+					Description = descriptionText,
+					Location = location,
+					MapLocation = WorldToMap(location)
+				};
+			}
+
+			poi.NpcCategory = layerType;
+			poi.Male = male;
+			poi.Female = female;
+			poi.TribeStatus = tribeStatus;
+			poi.Occupation = occupation;
+			poi.ClanType = clanType;
+			poi.ClanAreas = clanAreas;
+			poi.ClanOccupations = clanOccupations;
+			poi.Equipment = equipment;
+			poi.SpawnCount = spawnCount;
+			poi.SpawnCountMax = spawnData.SpawnCount;
+			poi.SpawnInterval = spawnInterval;
+			poi.PlayerExclusionRadius = playerRadius;
+			poi.BuildingExclusionRadius = buildingRadius;
+			poi.Icon = icon;
+			poi.LootId = lootId;
+			poi.LootMap = lootMap;
+			poi.CollectMap = collectMap;
+
 			if (modeMask.HasValue)
 			{
 				poi.GameModeMask = modeMask.Value;
 			}
 
 			poiDatabase.Spawners.Add(poi);
+
+			if (isWorldBoss) return;
 
 			if (spawnData.IsMixedAge)
 			{
