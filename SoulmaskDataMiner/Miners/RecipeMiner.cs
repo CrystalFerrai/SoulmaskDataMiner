@@ -21,6 +21,7 @@ using CUE4Parse.UE4.Objects.UObject;
 using SoulmaskDataMiner.Data;
 using SoulmaskDataMiner.GameData;
 using SoulmaskDataMiner.IO;
+using System.Text;
 
 namespace SoulmaskDataMiner.Miners
 {
@@ -60,7 +61,7 @@ namespace SoulmaskDataMiner.Miners
 		public override bool Run(IProviderManager providerManager, Config config, Logger logger, ISqlWriter sqlWriter)
 		{
 			IEnumerable<ObjectInfo> formulaObjects = FindObjects(BaseClassName_Formula.AsEnumerable());
-			Dictionary<EProficiency, Dictionary<WorkbenchInfo, List<RecipeInfo>>> recipeMap = new();
+			Dictionary<EProficiency, List<RecipeInfo>> recipeMap = new();
 			foreach (ObjectInfo formulaObject in formulaObjects)
 			{
 				RecipeInfo? recipe = RecipeInfo.Create(formulaObject, logger);
@@ -69,74 +70,177 @@ namespace SoulmaskDataMiner.Miners
 					continue;
 				}
 
-				Dictionary<WorkbenchInfo, List<RecipeInfo>>? wbMap;
-				if (!recipeMap.TryGetValue(recipe.ProficiencyType, out wbMap))
+				List<RecipeInfo>? recipes;
+				if (!recipeMap.TryGetValue(recipe.ProficiencyType, out recipes))
 				{
-					wbMap = new();
-					recipeMap.Add(recipe.ProficiencyType, wbMap);
+					recipes = new();
+					recipeMap.Add(recipe.ProficiencyType, recipes);
 				}
-
-				foreach (WorkbenchInfo workbench in recipe.Workbenches)
-				{
-					List<RecipeInfo>? recipes;
-					if (!wbMap.TryGetValue(workbench, out recipes))
-					{
-						recipes = new();
-						wbMap.Add(workbench, recipes);
-					}
-					recipes.Add(recipe);
-				}
+				recipes.Add(recipe);
 			}
 
-			foreach (List<RecipeInfo> recipes in recipeMap.Values.SelectMany(m => m.Values))
+			HashSet<EquatablePackageIndex> workbenchPackageIndices = new();
+
+			foreach (List<RecipeInfo> recipes in recipeMap.Values)
 			{
 				recipes.Sort();
+				foreach (RecipeInfo recipe in recipes)
+				{
+					foreach (FPackageIndex workbenchIndex in recipe.Workbenches)
+					{
+						workbenchPackageIndices.Add(new(workbenchIndex));
+					}
+				}
 			}
 
-			WriteCsv(recipeMap, config, logger);
-			//WriteSql(recipeMap, sqlWriter, logger);
+			Dictionary<string, WorkbenchInfo> workbenchMap = new();
+			foreach (EquatablePackageIndex workbenchIndex in workbenchPackageIndices)
+			{
+				UObject? workbenchObject = workbenchIndex.Value.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
+				if (workbenchObject is null)
+				{
+					logger.Warning($"Unable to load workbench {workbenchIndex.Value.Name}");
+					continue;
+				}
+				WorkbenchInfo? workbenchInfo = WorkbenchInfo.Load(workbenchObject);
+				if (workbenchInfo is null)
+				{
+					logger.Warning($"Unable to read workbench {workbenchIndex.Value.Name}");
+					continue;
+				}
+				workbenchMap.Add(workbenchIndex.Value.Name, workbenchInfo);
+			}
+
+			WriteRecipeIcons(recipeMap, config, logger);
+			WriteWorkbenchIcons(workbenchMap, config, logger);
+
+			WriteRecipeCsv(recipeMap, config, logger);
+			WriteWorkbenchCsv(workbenchMap, config, logger);
+
+			WriteRecipeSql(recipeMap, sqlWriter, logger);
+			sqlWriter.WriteEmptyLine();
+			WriteWorkbenchSql(workbenchMap, sqlWriter, logger);
 
 			return true;
 		}
 
-		private void WriteCsv(Dictionary<EProficiency, Dictionary<WorkbenchInfo, List<RecipeInfo>>> recipeMap, Config config, Logger logger)
+		private void WriteRecipeIcons(IReadOnlyDictionary<EProficiency, List<RecipeInfo>> recipeMap, Config config, Logger logger)
 		{
-			foreach (var profPair in recipeMap)
+			string outDir = Path.Combine(config.OutputDirectory, Name, "Icon");
+			foreach (var pair in recipeMap)
 			{
-				string outPath = Path.Combine(config.OutputDirectory, Name, $"{profPair.Key}.csv");
+				foreach (RecipeInfo recipe in pair.Value)
+				{
+					TextureExporter.ExportTexture(recipe.Icon, false, logger, outDir);
+				}
+			}
+		}
+
+		private void WriteWorkbenchIcons(IReadOnlyDictionary<string, WorkbenchInfo> workbenchMap, Config config, Logger logger)
+		{
+			string outDir = Path.Combine(config.OutputDirectory, Name, "BenchIcon");
+			foreach (var pair in workbenchMap)
+			{
+				if (pair.Value.Icon is null) continue;
+
+				TextureExporter.ExportTexture(pair.Value.Icon, false, logger, outDir);
+			}
+		}
+
+		private void WriteRecipeCsv(IReadOnlyDictionary<EProficiency, List<RecipeInfo>> recipeMap, Config config, Logger logger)
+		{
+			foreach (var pair in recipeMap)
+			{
+				string outPath = Path.Combine(config.OutputDirectory, Name, $"{pair.Key}.csv");
 				using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
 				using (StreamWriter writer = new(outFile))
 				{
 					writer.WriteLine("id,bench,name,description,icon,level,time,exp,profexp,inputs,output,hiddenmodes");
-					foreach (var benchPair in profPair.Value)
+					foreach (RecipeInfo r in pair.Value)
 					{
-						foreach (RecipeInfo r in benchPair.Value)
-						{
-							string inputs = string.Join(" + ", r.InputItems.Select(i => $"{i.Quantity} [{string.Join(" | ", i.Names)}]"));
-							string hiddenInModes = string.Join(", ", r.HiddenInGameModes);
-							writer.WriteLine($"{CsvStr(r.UniqueID)},{CsvStr(benchPair.Key.Name)},{CsvStr(r.Name)},{CsvStr(r.Description)},{CsvStr(r.Icon.Name)},{r.Level},{r.CraftTime},{r.ExpGain},{r.ProficiencyExpGain},{CsvStr(inputs)},{CsvStr(r.OutputItem)},{CsvStr(hiddenInModes)}");
-						}
+						string workbenches = string.Join(", ", r.Workbenches.Select(w => w.Name));
+						string inputs = string.Join(" + ", r.InputItems.Select(i => $"{i.Quantity} [{string.Join(" | ", i.Names)}]"));
+						string hiddenInModes = string.Join(", ", r.HiddenInGameModes);
+						writer.WriteLine($"{CsvStr(r.UniqueID)},{CsvStr(workbenches)},{CsvStr(r.Name)},{CsvStr(r.Description)},{CsvStr(r.Icon.Name)},{r.Level},{r.CraftTime},{r.ExpGain},{r.ProficiencyExpGain},{CsvStr(inputs)},{CsvStr(r.OutputItem)},{CsvStr(hiddenInModes)}");
 					}
 				}
 			}
 		}
 
-		private void WriteSql(Dictionary<EProficiency, Dictionary<WorkbenchInfo, List<RecipeInfo>>> recipeMap, ISqlWriter sqlWriter, Logger logger)
+		private void WriteWorkbenchCsv(IReadOnlyDictionary<string, WorkbenchInfo> workbenchMap, Config config, Logger logger)
+		{
+			string outPath = Path.Combine(config.OutputDirectory, Name, "Workbenches.csv");
+			using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
+			using (StreamWriter writer = new(outFile))
+			{
+				writer.WriteLine("class,name,icon");
+				foreach (var pair in workbenchMap.OrderBy(kvp => kvp.Key))
+				{
+					writer.WriteLine($"{CsvStr(pair.Key)},{CsvStr(pair.Value.Name)},{CsvStr(pair.Value.Icon?.Name)}");
+				}
+			}
+		}
+
+		private void WriteRecipeSql(IReadOnlyDictionary<EProficiency, List<RecipeInfo>> recipeMap, ISqlWriter sqlWriter, Logger logger)
 		{
 			// Schema
 			// create table `recipe`
 			// (
-			//   TODO
+			//   `prof` int not null,
+			//   `id` varchar(127) not null,
+			//   `bench` varchar(511) not null,
+			//   `name` varchar(127) not null,
+			//   `description` varchar(511),
+			//   `icon` varchar(255),
+			//   `level` int not null,
+			//   `time` float not null,
+			//   `exp` int not null,
+			//   `profexp` float not null,
+			//   `inputs` varchar(2047) not null,
+			//   `output` varchar(255) not null,
+			//   `modemask` tinyint unsigned
 			// )
 
 			sqlWriter.WriteStartTable("recipe");
 
-			foreach (var profPair in recipeMap)
+			foreach (var pair in recipeMap.OrderBy(kvp => kvp.Key))
 			{
-				foreach (var benchPair in profPair.Value)
+				foreach (RecipeInfo r in pair.Value)
 				{
-					// TODO
+					string benches = $"[\"{string.Join("\",\"", r.Workbenches.Select(b => b.Name))}\"]";
+					StringBuilder inputBuilder = new("[");
+					foreach (RecipeIngredient ingredient in r.InputItems)
+					{
+						inputBuilder.Append("{");
+						inputBuilder.Append($"\"c\":{ingredient.Quantity},");
+						inputBuilder.Append($"\"m\":[");
+						inputBuilder.Append($"\"{string.Join("\",\"", ingredient.Names)}\"");
+						inputBuilder.Append("]},");
+					}
+					--inputBuilder.Length; // Remove trailing comma
+					inputBuilder.Append("]");
+
+					sqlWriter.WriteRow($"{(int)pair.Key}, {DbStr(r.UniqueID)}, {DbStr(benches)}, {DbStr(r.Name)}, {DbStr(r.Description)}, {DbStr(r.Icon.Name)}, {r.Level}, {r.CraftTime}, {r.ExpGain}, {r.ProficiencyExpGain}, {DbStr(inputBuilder.ToString())}, {DbStr(r.OutputItem)}, {DbVal(r.GameModeMask)}");
 				}
+			}
+			sqlWriter.WriteEndTable();
+		}
+
+		private void WriteWorkbenchSql(IReadOnlyDictionary<string, WorkbenchInfo> workbenchMap, ISqlWriter sqlWriter, Logger logger)
+		{
+			// Schema
+			// create table `bench`
+			// (
+			//   `class` varchar(255) not null,
+			//   `name` varchar(127) not null,
+			//   `icon` varchar(255)
+			// )
+
+			sqlWriter.WriteStartTable("bench");
+
+			foreach (var pair in workbenchMap.OrderBy(kvp => kvp.Key))
+			{
+				sqlWriter.WriteRow($"{DbStr(pair.Key)},{DbStr(pair.Value.Name)},{DbStr(pair.Value.Icon?.Name)}");
 			}
 			sqlWriter.WriteEndTable();
 		}
@@ -154,8 +258,9 @@ namespace SoulmaskDataMiner.Miners
 			public float ProficiencyExpGain { get; }
 			public IReadOnlyList<RecipeIngredient> InputItems { get; }
 			public string OutputItem { get; }
-			public IReadOnlyList<WorkbenchInfo> Workbenches { get; }
+			public IReadOnlyList<FPackageIndex> Workbenches { get; }
 			public IReadOnlyList<ECustomGameMode> HiddenInGameModes { get; }
+			public byte? GameModeMask { get; }
 
 			private RecipeInfo(
 				string uniqueId,
@@ -169,7 +274,7 @@ namespace SoulmaskDataMiner.Miners
 				float proficiencyExpGain,
 				IReadOnlyList<RecipeIngredient> inputItems,
 				string outputItem,
-				IReadOnlyList<WorkbenchInfo> workbenches,
+				IReadOnlyList<FPackageIndex> workbenches,
 				IReadOnlyList<ECustomGameMode> hiddenInGameModes)
 			{
 				UniqueID = uniqueId;
@@ -185,6 +290,17 @@ namespace SoulmaskDataMiner.Miners
 				OutputItem = outputItem;
 				Workbenches = workbenches;
 				HiddenInGameModes = hiddenInGameModes;
+				
+				GameModeMask = null;
+				if (hiddenInGameModes.Count > 0)
+				{
+					byte mask = 0xff;
+					foreach (ECustomGameMode mode in hiddenInGameModes)
+					{
+						mask &= (byte)~mode.CreateMask();
+					}
+					GameModeMask = mask;
+				}
 			}
 
 			public static RecipeInfo? Create(ObjectInfo info, Logger logger)
@@ -197,7 +313,7 @@ namespace SoulmaskDataMiner.Miners
 				float proficiencyExpGain = 0.0f;
 				List<RecipeIngredient> inputItems = new();
 				string? outputItem = null;
-				List<WorkbenchInfo> workbenches = new();
+				List<FPackageIndex> workbenches = new();
 				List<ECustomGameMode> hiddenInGameModes = new();
 
 				foreach (var pair in info.AdditionalProperties!)
@@ -260,15 +376,10 @@ namespace SoulmaskDataMiner.Miners
 
 										foreach (FPropertyTagType benchMatchItem in benchMatchList.Properties)
 										{
-											UObject? benchObject = benchMatchItem.GetValue<FPackageIndex>()?.Load<UBlueprintGeneratedClass>()?.ClassDefaultObject.Load();
-											WorkbenchInfo? workbench = null;
-											if (benchObject is not null)
-											{
-												workbench = WorkbenchInfo.Load(benchObject);
-											}
+											FPackageIndex? workbench = benchMatchItem.GetValue<FPackageIndex>();
 											if (workbench is null)
 											{
-												logger.Log(LogLevel.Verbose, $"Unable to read workbench for recipe \"{info.Name}\"");
+												logger.Warning($"Unable to read workbench for recipe \"{info.Name}\"");
 												continue;
 											}
 											workbenches.Add(workbench);
