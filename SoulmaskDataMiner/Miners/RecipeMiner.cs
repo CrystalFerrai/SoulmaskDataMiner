@@ -190,7 +190,7 @@ namespace SoulmaskDataMiner.Miners
 			//   `id` varchar(127) not null,
 			//   `bench` varchar(511) not null,
 			//   `name` varchar(127) not null,
-			//   `description` varchar(511),
+			//   `desc` varchar(511),
 			//   `icon` varchar(255),
 			//   `level` int not null,
 			//   `time` float not null,
@@ -207,20 +207,38 @@ namespace SoulmaskDataMiner.Miners
 			{
 				foreach (RecipeInfo r in pair.Value)
 				{
-					string benches = $"[\"{string.Join("\",\"", r.Workbenches.Select(b => b.Name))}\"]";
-					StringBuilder inputBuilder = new("[");
-					foreach (RecipeIngredient ingredient in r.InputItems)
+					string benches;
+					if (r.Workbenches.Count > 0)
 					{
-						inputBuilder.Append("{");
-						inputBuilder.Append($"\"c\":{ingredient.Quantity},");
-						inputBuilder.Append($"\"m\":[");
-						inputBuilder.Append($"\"{string.Join("\",\"", ingredient.Names)}\"");
-						inputBuilder.Append("]},");
+						benches = $"[\"{string.Join("\",\"", r.Workbenches.Select(b => b.Name))}\"]";
 					}
-					--inputBuilder.Length; // Remove trailing comma
-					inputBuilder.Append("]");
+					else
+					{
+						benches = "[]";
+					}
 
-					sqlWriter.WriteRow($"{(int)pair.Key}, {DbStr(r.UniqueID)}, {DbStr(benches)}, {DbStr(r.Name)}, {DbStr(r.Description)}, {DbStr(r.Icon.Name)}, {r.Level}, {r.CraftTime}, {r.ExpGain}, {r.ProficiencyExpGain}, {DbStr(inputBuilder.ToString())}, {DbStr(r.OutputItem)}, {DbVal(r.GameModeMask)}");
+					string inputs;
+					if (r.InputItems.Count > 0)
+					{
+						StringBuilder inputBuilder = new("[");
+						foreach (RecipeIngredient ingredient in r.InputItems)
+						{
+							inputBuilder.Append("{");
+							inputBuilder.Append($"\"c\":{ingredient.Quantity},");
+							inputBuilder.Append($"\"m\":[");
+							inputBuilder.Append($"\"{string.Join("\",\"", ingredient.Names)}\"");
+							inputBuilder.Append("]},");
+						}
+						--inputBuilder.Length; // Remove trailing comma
+						inputBuilder.Append("]");
+						inputs = inputBuilder.ToString();
+					}
+					else
+					{
+						inputs = "[]";
+					}
+
+					sqlWriter.WriteRow($"{(int)pair.Key}, {DbStr(r.UniqueID)}, {DbStr(benches)}, {DbStr(r.Name)}, {DbStr(r.Description)}, {DbStr(r.Icon.Name)}, {r.Level}, {r.CraftTime}, {r.ExpGain}, {r.ProficiencyExpGain}, {DbStr(inputs)}, {DbStr(r.OutputItem)}, {DbVal(r.GameModeMask)}");
 				}
 			}
 			sqlWriter.WriteEndTable();
