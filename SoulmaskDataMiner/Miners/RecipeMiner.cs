@@ -52,6 +52,7 @@ namespace SoulmaskDataMiner.Miners
 				"MakeProficiencyType",
 				"MakeAddProficiencyExp",
 				"DemandDaoJu",
+				"DemandMianJuNengLiang",
 				"ProduceDaoJu",
 				"MatchGongZuoTaiData",
 				"HiddenRecipeInGameMode"
@@ -105,7 +106,7 @@ namespace SoulmaskDataMiner.Miners
 				WorkbenchInfo? workbenchInfo = WorkbenchInfo.Load(workbenchObject);
 				if (workbenchInfo is null)
 				{
-					logger.Warning($"Unable to read workbench {workbenchIndex.Value.Name}");
+					logger.Debug($"Unable to read workbench {workbenchIndex.Value.Name}");
 					continue;
 				}
 				workbenchMap.Add(workbenchIndex.Value.Name, workbenchInfo);
@@ -155,13 +156,14 @@ namespace SoulmaskDataMiner.Miners
 				using (FileStream outFile = IOUtil.CreateFile(outPath, logger))
 				using (StreamWriter writer = new(outFile))
 				{
-					writer.WriteLine("id,bench,name,description,icon,level,time,exp,profexp,inputs,output,hiddenmodes");
+					writer.WriteLine("id,bench,name,description,icon,level,time,exp,profexp,inputs,energy,output,hiddenmodes");
 					foreach (RecipeInfo r in pair.Value)
 					{
 						string workbenches = string.Join(", ", r.Workbenches.Select(w => w.Name));
 						string inputs = string.Join(" + ", r.InputItems.Select(i => $"{i.Quantity} [{string.Join(" | ", i.Names)}]"));
 						string hiddenInModes = string.Join(", ", r.HiddenInGameModes);
-						writer.WriteLine($"{CsvStr(r.UniqueID)},{CsvStr(workbenches)},{CsvStr(r.Name)},{CsvStr(r.Description)},{CsvStr(r.Icon.Name)},{r.Level},{r.CraftTime},{r.ExpGain},{r.ProficiencyExpGain},{CsvStr(inputs)},{CsvStr(r.OutputItem)},{CsvStr(hiddenInModes)}");
+						string energy = r.MaskEnergy.HasValue ? r.MaskEnergy.Value.ToString() : string.Empty;
+						writer.WriteLine($"{CsvStr(r.UniqueID)},{CsvStr(workbenches)},{CsvStr(r.Name)},{CsvStr(r.Description)},{CsvStr(r.Icon.Name)},{r.Level},{r.CraftTime},{r.ExpGain},{r.ProficiencyExpGain},{CsvStr(inputs)},{energy},{CsvStr(r.OutputItem)},{CsvStr(hiddenInModes)}");
 					}
 				}
 			}
@@ -197,7 +199,8 @@ namespace SoulmaskDataMiner.Miners
 			//   `exp` int not null,
 			//   `profexp` float not null,
 			//   `inputs` varchar(2047) not null,
-			//   `output` varchar(255) not null,
+			//   `energy` int,
+			//   `output` varchar(255),
 			//   `modemask` tinyint unsigned
 			// )
 
@@ -238,7 +241,7 @@ namespace SoulmaskDataMiner.Miners
 						inputs = "[]";
 					}
 
-					sqlWriter.WriteRow($"{(int)pair.Key}, {DbStr(r.UniqueID)}, {DbStr(benches)}, {DbStr(r.Name)}, {DbStr(r.Description)}, {DbStr(r.Icon.Name)}, {r.Level}, {r.CraftTime}, {r.ExpGain}, {r.ProficiencyExpGain}, {DbStr(inputs)}, {DbStr(r.OutputItem)}, {DbVal(r.GameModeMask)}");
+					sqlWriter.WriteRow($"{(int)pair.Key}, {DbStr(r.UniqueID)}, {DbStr(benches)}, {DbStr(r.Name)}, {DbStr(r.Description)}, {DbStr(r.Icon.Name)}, {r.Level}, {r.CraftTime}, {r.ExpGain}, {r.ProficiencyExpGain}, {DbStr(inputs)}, {DbVal(r.MaskEnergy)}, {DbStr(r.OutputItem)}, {DbVal(r.GameModeMask)}");
 				}
 			}
 			sqlWriter.WriteEndTable();
@@ -275,7 +278,8 @@ namespace SoulmaskDataMiner.Miners
 			public EProficiency ProficiencyType { get; }
 			public float ProficiencyExpGain { get; }
 			public IReadOnlyList<RecipeIngredient> InputItems { get; }
-			public string OutputItem { get; }
+			public int? MaskEnergy { get; }
+			public string? OutputItem { get; }
 			public IReadOnlyList<FPackageIndex> Workbenches { get; }
 			public IReadOnlyList<ECustomGameMode> HiddenInGameModes { get; }
 			public byte? GameModeMask { get; }
@@ -291,7 +295,8 @@ namespace SoulmaskDataMiner.Miners
 				EProficiency proficiencyType,
 				float proficiencyExpGain,
 				IReadOnlyList<RecipeIngredient> inputItems,
-				string outputItem,
+				int? maskEnergy,
+				string? outputItem,
 				IReadOnlyList<FPackageIndex> workbenches,
 				IReadOnlyList<ECustomGameMode> hiddenInGameModes)
 			{
@@ -305,6 +310,7 @@ namespace SoulmaskDataMiner.Miners
 				ProficiencyType = proficiencyType;
 				ProficiencyExpGain = proficiencyExpGain;
 				InputItems = inputItems;
+				MaskEnergy = maskEnergy;
 				OutputItem = outputItem;
 				Workbenches = workbenches;
 				HiddenInGameModes = hiddenInGameModes;
@@ -330,6 +336,7 @@ namespace SoulmaskDataMiner.Miners
 				EProficiency proficiencyType = EProficiency.Max;
 				float proficiencyExpGain = 0.0f;
 				List<RecipeIngredient> inputItems = new();
+				int? maskEnergy = null;
 				string? outputItem = null;
 				List<FPackageIndex> workbenches = new();
 				List<ECustomGameMode> hiddenInGameModes = new();
@@ -379,6 +386,9 @@ namespace SoulmaskDataMiner.Miners
 								}
 							}
 							break;
+						case "DemandMianJuNengLiang":
+							maskEnergy = pair.Value.Tag?.GetValue<int>();
+							break;
 						case "ProduceDaoJu":
 							outputItem = pair.Value.Tag?.GetValue<FPackageIndex>()?.Name;
 							break;
@@ -424,15 +434,15 @@ namespace SoulmaskDataMiner.Miners
 					}
 				}
 
-				if (proficiencyType == EProficiency.Max)
+				if (info.Name is null || info.Icon is null || uniqueId is null)
 				{
-					// "Max" appears for things like portal activations and boss summons
+					logger.Log(LogLevel.Verbose, $"Missing required property for recipe \"{info.Name}\"");
 					return null;
 				}
 
-				if (info.Name is null || info.Icon is null || uniqueId is null || outputItem is null)
+				if (inputItems.Count == 0 && outputItem is null && !maskEnergy.HasValue)
 				{
-					logger.Log(LogLevel.Verbose, $"Missing required property for recipe \"{info.Name}\"");
+					logger.Debug($"Skipping recipe \"{info.Name}\" because it has no inputs or output.");
 					return null;
 				}
 
@@ -447,6 +457,7 @@ namespace SoulmaskDataMiner.Miners
 					proficiencyType,
 					proficiencyExpGain,
 					inputItems,
+					maskEnergy,
 					outputItem,
 					workbenches,
 					hiddenInGameModes);
