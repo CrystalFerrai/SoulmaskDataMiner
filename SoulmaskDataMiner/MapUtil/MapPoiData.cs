@@ -63,6 +63,8 @@ namespace SoulmaskDataMiner.MapUtil
 
 		public ISet<UTexture2D> AdditionalIconsToExport { get; }
 
+		public IDictionary<int, List<SpawnData>> EventSpawnMap { get; }
+
 		public MapPoiDatabase(MapPoiStaticData staticData, string mapName)
 		{
 			StaticData = staticData;
@@ -82,6 +84,7 @@ namespace SoulmaskDataMiner.MapUtil
 			MineralVeins = new List<MapPoi>();
 			Dungeons = new List<MapPoi>();
 			AdditionalIconsToExport = new HashSet<UTexture2D>();
+			EventSpawnMap = new Dictionary<int, List<SpawnData>>();
 		}
 
 		public IReadOnlyDictionary<string, List<MapPoi>> GetAllPois()

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using CUE4Parse.MappingsProvider;
 using CUE4Parse.UE4.Assets;
 using CUE4Parse.UE4.Assets.Exports.Engine;
 using CUE4Parse.UE4.Assets.Exports.Material;
@@ -23,6 +24,7 @@ using SoulmaskDataMiner.GameData;
 using SoulmaskDataMiner.IO;
 using SoulmaskDataMiner.MapUtil;
 using SoulmaskDataMiner.MapUtil.Processor;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -71,12 +73,24 @@ namespace SoulmaskDataMiner.Miners
 			bool success = true;
 			List<MapInfo> allMapData = new();
 			HashSet<NpcData> allBabies = new();
+			Dictionary<string, IReadOnlyDictionary<int, EventData>> eventsPerMap = new();
 			foreach (var pair in mapNameToLevelPath)
 			{
 				logger.Important($"Map: {pair.Key}");
-				if (RunMap(pair.Key, pair.Value, mapPoiStaticData, providerManager, config, logger, allBabies, out MapInfo? mapData))
+				if (RunMap(
+					pair.Key,
+					pair.Value,
+					mapPoiStaticData,
+					providerManager,
+					config,
+					logger,
+					allBabies,
+					out MapInfo? mapData,
+					out EventMap? eventsMap,
+					out IReadOnlyDictionary<int, List<SpawnData>>? eventSpawnMap))
 				{
 					allMapData.Add(mapData);
+					eventsPerMap.Add(pair.Key, EventUtil.ProcessEventMap(eventsMap, eventSpawnMap, pair.Key, logger));
 				}
 				else
 				{
@@ -84,15 +98,31 @@ namespace SoulmaskDataMiner.Miners
 				}
 			}
 
-			WriteSql(allMapData, sqlWriter, logger);
 			WriteBabies(allBabies, config, logger);
+			WriteEventsCsv(eventsPerMap, config, logger);
+
+			WriteSql(allMapData, sqlWriter, logger);
+			sqlWriter.WriteEmptyLine();
+			WriteEventSql(eventsPerMap, sqlWriter, logger);
 
 			return success;
 		}
 
-		private bool RunMap(string mapName, string mainLevelPath, MapPoiStaticData mapPoiStaticData, IProviderManager providerManager, Config config, Logger logger, ISet<NpcData> allBabies, [NotNullWhen(true)] out MapInfo? mapData)
+		private bool RunMap(
+			string mapName,
+			string mainLevelPath,
+			MapPoiStaticData mapPoiStaticData,
+			IProviderManager providerManager,
+			Config config,
+			Logger logger,
+			ISet<NpcData> allBabies,
+			[NotNullWhen(true)] out MapInfo? mapData,
+			[NotNullWhen(true)] out EventMap? eventsMap,
+			[NotNullWhen(true)] out IReadOnlyDictionary<int, List<SpawnData>>? eventSpawnMap)
 		{
 			mapData = null;
+			eventsMap = null;
+			eventSpawnMap = null;
 
 			MapLevelData? mapLevelData = MapLevelData.Load(mapName, mainLevelPath, providerManager, logger);
 			if (mapLevelData is null)
@@ -111,17 +141,17 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			logger.Information("<<< Begin processing map >>>");
-			mapData = ProcessMap(mapLevelData, mapPoiStaticData, providerManager, logger, allBabies);
+			bool processSuccess = ProcessMap(mapLevelData, mapPoiStaticData, providerManager, logger, allBabies, out mapData, out eventsMap, out eventSpawnMap);
 			logger.Information("<<< Finished processing map >>>");
-			if (mapData is null)
+			if (!processSuccess)
 			{
 				// ProcessMap prints its own error messages, so we don't need one here
 				return false;
 			}
 
 			logger.Information("Exporting data...");
-			WriteIcons(mapData, config, logger);
-			WriteCsv(mapData, config, logger);
+			WriteIcons(mapData!, config, logger);
+			WriteCsv(mapData!, config, logger);
 
 			return success;
 		}
@@ -157,15 +187,27 @@ namespace SoulmaskDataMiner.Miners
 			return success;
 		}
 
-		private MapInfo? ProcessMap(MapLevelData mapLevelData, MapPoiStaticData poiStaticData, IProviderManager providerManager, Logger logger, ISet<NpcData> allBabies)
+		private bool ProcessMap(
+			MapLevelData mapLevelData,
+			MapPoiStaticData poiStaticData,
+			IProviderManager providerManager,
+			Logger logger,
+			ISet<NpcData> allBabies,
+			[NotNullWhen(true)] out MapInfo? mapData,
+			[NotNullWhen(true)] out EventMap? eventsMap,
+			[NotNullWhen(true)] out IReadOnlyDictionary<int, List<SpawnData>>? eventSpawnMap)
 		{
+			mapData = null;
+			eventsMap = null;
+			eventSpawnMap = null;
+
 			logger.Information("Loading dependencies...");
 
 			MapPoiDatabase? poiDatabase = MapPoiLoader.Load(mapLevelData.MapName, poiStaticData, providerManager.Achievements, logger);
 			if (poiDatabase is null)
 			{
 				logger.Error("Failed to load map POIs.");
-				return null;
+				return false;
 			}
 
 			DungeonUtil dungeonUtil = new(mapLevelData);
@@ -173,13 +215,13 @@ namespace SoulmaskDataMiner.Miners
 			if (poiDatabase.DungeonMap is null)
 			{
 				logger.Error("Failed to load dungeons.");
-				return null;
+				return false;
 			}
 
 			if (!MapObjectSearcher.FindTabletData(providerManager, poiDatabase, providerManager.Achievements, logger))
 			{
 				logger.Error("Failed to load tablets.");
-				return null;
+				return false;
 			}
 
 			ChestDistributionMap chestDistributionMap = new(mapLevelData);
@@ -187,7 +229,7 @@ namespace SoulmaskDataMiner.Miners
 			if (distributedChests is null)
 			{
 				logger.Error("Failed to load chest distribution data.");
-				return null;
+				return false;
 			}
 
 			if (!MapObjectSearcher.FindMapObjects(providerManager, logger, mapLevelData, poiDatabase,
@@ -206,7 +248,7 @@ namespace SoulmaskDataMiner.Miners
 				out IReadOnlyList<FObjectExport>? eventManagerObjects))
 			{
 				logger.Error("Failed to find map objects.");
-				return null;
+				return false;
 			}
 
 			FoliageUtil foliageUtil = new(sMapData);
@@ -214,20 +256,22 @@ namespace SoulmaskDataMiner.Miners
 			if (foliageData is null)
 			{
 				logger.Error("Failed to load foliage.");
-				return null;
+				return false;
 			}
 
 			IReadOnlyDictionary<int, ArenaRewardData>? arenaRewardMap = ArenaUtil.LoadRewardData(providerManager, logger);
 			if (arenaRewardMap is null)
 			{
 				logger.Error("Failed to load arena reward data.");
-				return null;
+				return false;
 			}
+
+			eventsMap = EventUtil.BuildEventMap(eventManagerObjects, logger);
 
 			new PoiProcessor(sMapData).Process(poiDatabase, poiObjects, logger);
 			new TabletProcessor(sMapData).Process(poiDatabase, tabletObjects, logger);
 			new RespawnProcessor(sMapData).Process(poiDatabase, respawnObjects, logger);
-			new SpawnProcessor(sMapData).Process(poiDatabase, spawnerObjects, barracksObjects, eventManagerObjects, logger, allBabies);
+			new SpawnProcessor(sMapData).Process(poiDatabase, spawnerObjects, barracksObjects, eventsMap, logger, allBabies);
 			new CrowdProcessor(sMapData).Process(poiDatabase, fireflyObjects, logger);
 			new ChestProcessor(sMapData).Process(poiDatabase, chestObjects, distributedChests, logger);
 			new FoliageProcessor(sMapData).Process(poiDatabase, foliageData, logger);
@@ -239,7 +283,10 @@ namespace SoulmaskDataMiner.Miners
 
 			new PoiProcessor(sMapData).FindPoiTextures(poiDatabase, logger);
 
-			return new(mapLevelData.MapName, poiDatabase.GetAllPois(), poiDatabase.AdditionalIconsToExport.ToArray());
+			mapData = new(mapLevelData.MapName, poiDatabase.GetAllPois(), poiDatabase.AdditionalIconsToExport.ToArray());
+			eventSpawnMap = (IReadOnlyDictionary<int, List<SpawnData>>)poiDatabase.EventSpawnMap;
+
+			return true;
 		}
 
 		private void WriteIcons(MapInfo mapData, Config config, Logger logger)
@@ -431,6 +478,54 @@ namespace SoulmaskDataMiner.Miners
 			{
 				writer.WriteLine($"{CsvStr(baby.CharacterClass.Owner!.Name)},{CsvStr(baby.Name)}");
 			}
+		}
+
+		private void WriteEventsCsv(IReadOnlyDictionary<string, IReadOnlyDictionary<int, EventData>> eventsPerMap, Config config, Logger logger)
+		{
+			string outRoot = Path.Combine(config.OutputDirectory, Name);
+			foreach (var mapPair in eventsPerMap.OrderBy(p => p.Key))
+			{
+				string outPath = Path.Combine(outRoot, mapPair.Key, "Events.csv");
+				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
+				using StreamWriter writer = new(outFile, Encoding.UTF8);
+
+				writer.WriteLine("id,modes,name,npcs");
+				foreach (var eventPair in mapPair.Value.OrderBy(p => p.Key))
+				{
+					string eventNames = string.Join(",", eventPair.Value.Names);
+					string npcNames = string.Join(",", new HashSet<string>(eventPair.Value.SpawnData.SelectMany(sd => sd.NpcNames)));
+					writer.WriteLine($"{eventPair.Key},{eventPair.Value.ModeMask},{CsvStr(eventNames)},{CsvStr(npcNames)}");
+				}
+			}
+		}
+
+		private void WriteEventSql(IReadOnlyDictionary<string, IReadOnlyDictionary<int, EventData>> eventsPerMap, ISqlWriter sqlWriter, Logger logger)
+		{
+			// Schema
+			// create table `event` (
+			//   `map` varchar(63) not null,
+			//   `id` int not null,
+			//   `modes` tinyint unsigned not null,
+			//   `names` varchar(63) not null,
+			//   `npcs` varchar(1023) not null
+			// )
+
+			sqlWriter.WriteStartTable("event");
+
+			foreach (var mapPair in eventsPerMap.OrderBy(p => p.Key))
+			{
+				foreach (var eventPair in mapPair.Value.OrderBy(p => p.Key))
+				{
+					string eventNamesString = $"[\"{string.Join("\",\"", eventPair.Value.Names)}\"]";
+
+					IEnumerable<string> npcNames = new HashSet<string>(eventPair.Value.SpawnData.SelectMany(sd => sd.NpcNames));
+					string npcNamesString = npcNames.Any() ? $"[\"{string.Join("\",\"", npcNames)}\"]" : "[]";
+
+					sqlWriter.WriteRow($"{DbStr(mapPair.Key)}, {eventPair.Key}, {eventPair.Value.ModeMask}, {DbStr(eventNamesString)}, {DbStr(npcNamesString)}");
+				}
+			}
+
+			sqlWriter.WriteEndTable();
 		}
 
 		private class MapInfo

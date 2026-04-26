@@ -669,7 +669,8 @@ namespace SoulmaskDataMiner.GameData
 				ECustomGameMode.Survival => "Survival",
 				ECustomGameMode.Management => "Tribe",
 				ECustomGameMode.Action => "Warrior",
-				ECustomGameMode.PVP => "PvP",
+				ECustomGameMode.PVP => "PVP",
+				ECustomGameMode.Creative => "Casual",
 				_ => Default(value)
 			};
 		}

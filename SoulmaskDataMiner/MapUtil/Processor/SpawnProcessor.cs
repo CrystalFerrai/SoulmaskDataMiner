@@ -36,7 +36,13 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 		{
 		}
 
-		public void Process(MapPoiDatabase poiDatabase, IReadOnlyList<SpawnerObject> spawnerObjects, IReadOnlyList<FObjectExport> barracksObjects, IReadOnlyList<FObjectExport> eventManagerObjects, Logger logger, ISet<NpcData> allBabies)
+		public void Process(
+			MapPoiDatabase poiDatabase,
+			IReadOnlyList<SpawnerObject> spawnerObjects,
+			IReadOnlyList<FObjectExport> barracksObjects,
+			EventMap eventsMap,
+			Logger logger,
+			ISet<NpcData> allBabies)
 		{
 			// Process barracks
 
@@ -72,75 +78,6 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 							}
 							break;
 					}
-				}
-			}
-
-			// Process event manaagers
-
-			Dictionary<ECustomGameMode, Dictionary<int, string>> eventsMap = new();
-			foreach (FObjectExport eventManagerObject in eventManagerObjects)
-			{
-				ECustomGameMode gameMode = ECustomGameMode.Survival;
-				Dictionary<int, string>? eventNameMap = null;
-
-				foreach (FPropertyTag property in eventManagerObject.ExportObject.Value.Properties)
-				{
-					switch (property.Name.Text)
-					{
-						case "SpecailEventMap":
-							{
-								UScriptMap? eventMap = property.Tag?.GetValue<UScriptMap>();
-								if (eventMap is null) break;
-
-								eventNameMap = new();
-								foreach (var pair in eventMap.Properties)
-								{
-									FStructFallback? eventStruct = pair.Value?.GetValue<FStructFallback>();
-									if (eventStruct is null) continue;
-
-									int eventId = -1;
-									string? eventName = null;
-									foreach (FPropertyTag eventProperty in eventStruct.Properties)
-									{
-										switch (eventProperty.Name.Text)
-										{
-											case "EventID":
-												eventId = eventProperty.Tag!.GetValue<int>();
-												break;
-											case "EventDescribeText":
-												eventName = DataUtil.ReadTextProperty(eventProperty);
-												break;
-										}
-									}
-
-									if (eventId < 0 || eventName is null)
-									{
-										logger.Warning($"Failed to parse event properties for event manager {eventManagerObject.ObjectName}");
-										continue;
-									}
-
-									eventNameMap.Add(eventId, eventName);
-								}
-							}
-							break;
-						case "EventCustomGameMode":
-							if (DataUtil.TryParseEnum(property, out ECustomGameMode mode))
-							{
-								gameMode = mode;
-							}
-							break;
-					}
-				}
-
-				if (eventNameMap is null)
-				{
-					logger.Warning($"Failed to parse event manager {eventManagerObject.ObjectName}");
-					continue;
-				}
-
-				if (!eventsMap.TryAdd(gameMode, eventNameMap))
-				{
-					logger.Warning($"Duplicate event manager game mode {gameMode} found");
 				}
 			}
 
@@ -334,6 +271,15 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 
 						byte modeMask = pair.Key.CreateMask();
 						CreateSpawnPoi(poiDatabase, export.ObjectName.Text, modeMask, spawnDataCollection.DefaultSpawnData, rootComponent, spawnInterval.Value, spawnCount.Value, playerRadius.Value, buildingRadius.Value, eventName, logger);
+
+						// Record spawn data per event for later use when exporting event data
+						List<SpawnData>? eventSpawnList;
+						if (!poiDatabase.EventSpawnMap.TryGetValue(triggerEventId, out eventSpawnList))
+						{
+							eventSpawnList = new();
+							poiDatabase.EventSpawnMap.Add(triggerEventId, eventSpawnList);
+						}
+						eventSpawnList.Add(spawnDataCollection.DefaultSpawnData);
 					}
 				}
 				else
