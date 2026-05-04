@@ -20,6 +20,7 @@ using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Assets.Objects.Properties;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.UObject;
+using Org.BouncyCastle.Bcpg;
 using SoulmaskDataMiner.Data;
 using SoulmaskDataMiner.IO;
 using System.Diagnostics;
@@ -69,6 +70,8 @@ namespace SoulmaskDataMiner.GameData
 			if (!LoadLootData(provider, logger)) return false;
 			if (!LoadCollectionData(provider, logger)) return false;
 
+			ResolveDependencies(logger);
+
 			timer.Stop();
 
 			logger.Information($"Loot database load completed in {timer.ElapsedTicks / (double)Stopwatch.Frequency * 1000.0:0.##}ms");
@@ -115,6 +118,7 @@ namespace SoulmaskDataMiner.GameData
 				{
 					string? name = null;
 					UScriptArray? contentArray = null;
+					UScriptArray? extraContentArray = null;
 
 					foreach (FPropertyTag property in pair.Value.Properties)
 					{
@@ -125,6 +129,9 @@ namespace SoulmaskDataMiner.GameData
 								break;
 							case "DaoJuBaoContent":
 								contentArray = property.Tag!.GetValue<UScriptArray>();
+								break;
+							case "ExtraDropContentData":
+								extraContentArray = property.Tag!.GetValue<UScriptArray>();
 								break;
 						}
 					}
@@ -348,7 +355,43 @@ namespace SoulmaskDataMiner.GameData
 							entry.Items[i] = item;
 						}
 
-						content.Entries.Add(entry);
+						content.BaseEntries.Add(entry);
+					}
+
+					if (extraContentArray is not null)
+					{
+						foreach (FPropertyTagType extraContent in extraContentArray.Properties)
+						{
+							FStructFallback? contentStruct = extraContent.GetValue<FStructFallback>();
+							if (contentStruct is null) continue;
+
+							string? entryName = null;
+							int? entryProbability = null;
+							TRange<float>? entryAmount = null;
+							foreach (FPropertyTag contentProperty in contentStruct.Properties)
+							{
+								switch (contentProperty.Name.Text!)
+								{
+									case "DropIDName":
+										entryName = contentProperty.Tag!.GetValue<FName>().Text;
+										break;
+									case "DropProbability":
+										entryProbability = contentProperty.Tag!.GetValue<int>();
+										break;
+									case "DropMagnitude":
+										entryAmount = DataUtil.ReadRangeProperty<float>(contentProperty);
+										break;
+								}
+							}
+
+							if (entryName is null || !entryProbability.HasValue || !entryAmount.HasValue)
+							{
+								logger.Warning($"Unable to read ExtraDropContentData from {Path.GetFileNameWithoutExtension(filePair.Key)} row \"{pair.Key.Text}\"");
+								continue;
+							}
+
+							content.ExtraDrops.Add(new(entryName, entryProbability.Value, entryAmount.Value));
+						}
 					}
 
 					mLootMap.Add(name, content);
@@ -481,6 +524,27 @@ namespace SoulmaskDataMiner.GameData
 			return true;
 		}
 
+		private void ResolveDependencies(Logger logger)
+		{
+			foreach (var pair in mLootMap)
+			{
+				foreach (ExtraDropEntry extra in pair.Value.ExtraDrops)
+				{
+					if (!mLootMap.TryGetValue(extra.Name, out LootTable? table))
+					{
+						logger.Warning($"Failed to locate referenced extra loot entry {extra.Name} found in entry {pair.Key}");
+						continue;
+					}
+					extra.Table = table;
+				}
+			}
+
+			foreach (var pair in mLootMap)
+			{
+				pair.Value.Resolve(logger);
+			}
+		}
+
 		private void WriteCsvLoot(Config config, Logger logger)
 		{
 			string outPath = Path.Combine(config.OutputDirectory, "loot.csv");
@@ -491,9 +555,9 @@ namespace SoulmaskDataMiner.GameData
 
 			foreach (var pair in LootMap)
 			{
-				for (int e = 0; e < pair.Value.Entries.Count; ++e)
+				for (int e = 0; e < pair.Value.AllEntries.Count; ++e)
 				{
-					LootEntry entry = pair.Value.Entries[e];
+					LootEntry entry = pair.Value.AllEntries[e];
 					string? conditions = entry.GetConditionsJson();
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
@@ -524,9 +588,9 @@ namespace SoulmaskDataMiner.GameData
 
 			foreach (var pair in LootMap)
 			{
-				for (int e = 0; e < pair.Value.Entries.Count; ++e)
+				for (int e = 0; e < pair.Value.AllEntries.Count; ++e)
 				{
-					LootEntry entry = pair.Value.Entries[e];
+					LootEntry entry = pair.Value.AllEntries[e];
 					string? conditions = entry.GetConditionsJson();
 					for (int i = 0; i < entry.Items.Count; ++i)
 					{
@@ -556,16 +620,46 @@ namespace SoulmaskDataMiner.GameData
 	/// </summary>
 	internal class LootTable
 	{
-		public List<LootEntry> Entries { get; }
+		private bool mIsResolved;
+
+		public List<LootEntry> AllEntries { get; }
+
+		public List<LootEntry> BaseEntries { get; }
+
+		public List<ExtraDropEntry> ExtraDrops { get; }
 
 		public LootTable()
 		{
-			Entries = new();
+			mIsResolved = false;
+			AllEntries = new();
+			BaseEntries = new();
+			ExtraDrops = new();
+		}
+
+		public void Resolve(Logger logger)
+		{
+			if (mIsResolved) return;
+
+			AllEntries.AddRange(BaseEntries);
+			foreach (ExtraDropEntry extraEntry in ExtraDrops)
+			{
+				if (extraEntry.Table is null) continue;
+
+				extraEntry.Table.Resolve(logger);
+				foreach (LootEntry entry in extraEntry.Table.AllEntries)
+				{
+					LootEntry copy = entry;
+					copy.Probability = (int)(copy.Probability * (extraEntry.Probability / 100.0f));
+					AllEntries.Add(copy);
+				}
+			}
+
+			mIsResolved = true;
 		}
 
 		public override string? ToString()
 		{
-			return $"{Entries.Count} entries";
+			return $"{BaseEntries.Count} entries, {ExtraDrops.Count} extras";
 		}
 	}
 
@@ -650,6 +744,24 @@ namespace SoulmaskDataMiner.GameData
 		public override string ToString()
 		{
 			return $"{Weight}, {Amount.LowerBound.Value}-{Amount.UpperBound.Value} {Asset.Name} (Quality {(int)Quality})";
+		}
+	}
+
+	/// <summary>
+	/// A reference to an additional loot table
+	/// </summary>
+	internal class ExtraDropEntry
+	{
+		public string Name { get; }
+		public int Probability { get; }
+		public TRange<float> Amount { get; }
+		public LootTable? Table { get; set; }
+
+		public ExtraDropEntry(string name, int probability, TRange<float> amount)
+		{
+			Name = name;
+			Probability = probability;
+			Amount = amount;
 		}
 	}
 }

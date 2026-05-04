@@ -259,7 +259,7 @@ namespace SoulmaskDataMiner.MapUtil
 						}
 
 						LootEntry topEntry = new() { Probability = 0 };
-						foreach (LootEntry entry in table.Entries)
+						foreach (LootEntry entry in table.AllEntries)
 						{
 							if (entry.Probability > topEntry.Probability)
 							{

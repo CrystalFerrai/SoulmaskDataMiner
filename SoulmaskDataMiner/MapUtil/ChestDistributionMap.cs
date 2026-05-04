@@ -39,7 +39,7 @@ namespace SoulmaskDataMiner.MapUtil
 			mMapLevelData = mapLevelData;
 		}
 
-		public IReadOnlyList<ChestData>? Load(Logger logger)
+		public IReadOnlyList<DistributionChestData>? Load(Logger logger)
 		{
 			UScriptMap? levelMap = mMapLevelData.ConfigData.Properties.FirstOrDefault(p => p.Name.Text.Equals("ChestDistributionMap"))?.Tag?.GetValue<UScriptMap>();
 			if (levelMap is null)
@@ -48,7 +48,7 @@ namespace SoulmaskDataMiner.MapUtil
 				return null;
 			}
 
-			List<ChestData> chests = new();
+			List<DistributionChestData> chests = new();
 
 			foreach (var levelPair in levelMap.Properties)
 			{
@@ -86,7 +86,7 @@ namespace SoulmaskDataMiner.MapUtil
 						continue;
 					}
 
-					ChestData chestData = new()
+					DistributionChestData chestData = new()
 					{
 						ChestObject = chestObject,
 						SpawnLocations = new()
@@ -112,7 +112,7 @@ namespace SoulmaskDataMiner.MapUtil
 		}
 	}
 
-	internal struct ChestData
+	internal struct DistributionChestData
 	{
 		public UObject ChestObject;
 		public List<FVector> SpawnLocations;

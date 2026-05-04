@@ -242,72 +242,19 @@ namespace SoulmaskDataMiner.MapUtil
 			{
 				Package package = (Package)pair.Value.ThemeAsset.Load().Owner!;
 
-				List<ObjectWithDefaults> chestObjects = new();
-
 				foreach (FObjectExport export in package.ExportMap)
 				{
 					if (chestClasses.TryGetValue(export.ClassName, out UObject? defaultObj))
 					{
-						chestObjects.Add(new() { Export = export, DefaultsObject = defaultObj });
-					}
-				}
-
-				foreach (ObjectWithDefaults chestObject in chestObjects)
-				{
-					FObjectExport export = chestObject.Export;
-					UObject obj = export.ExportObject.Value;
-
-					string? lootId = null;
-					string? name = null;
-					FPackageIndex? lootItem = null;
-					void searchProperties(UObject searchObj)
-					{
-						foreach (FPropertyTag property in searchObj.Properties)
+						ChestData? chestData = ChestDataUtil.LoadChestData(export.ObjectName.Text, export.ExportObject.Value, logger);
+						if (chestData is null)
 						{
-							switch (property.Name.Text)
-							{
-								case "BaoXiangDiaoLuoID":
-									if (lootId is null)
-									{
-										lootId = property.Tag!.GetValue<FName>().Text;
-									}
-									break;
-								case "JianZhuDisplayName":
-									if (name is null)
-									{
-										name = DataUtil.ReadTextProperty(property);
-									}
-									break;
-								case "KaiQiJiaoHuDaoJuClass":
-									if (lootItem is null)
-									{
-										lootItem = property.Tag?.GetValue<FPackageIndex>();
-									}
-									break;
-							}
+							logger.Warning($"[{export.ObjectName.Text}] Unable to load data for chest");
+							continue;
 						}
+
+						pair.Value.Chests.TryAdd(new(chestData), chestData);
 					}
-
-					searchProperties(obj);
-					if ((lootItem is null && lootId is null || name is null) && obj.Class?.Load() is UBlueprintGeneratedClass objClass)
-					{
-						GameClassHeirarchy.SearchInheritance(objClass, (current) =>
-						{
-							UObject? currentObj = current.ClassDefaultObject.Load();
-							if (currentObj is null) return true;
-
-							searchProperties(currentObj);
-							return (lootItem is not null || lootId is not null) && name is not null;
-						});
-					}
-
-					if (lootId is null && lootItem is null || name is null)
-					{
-						logger.Warning($"[{export.ObjectName}] Unable to load data for chest");
-						continue;
-					}
-
-					pair.Value.Chests.TryAdd(new(lootId, lootItem?.Name), new() { ChestName = name, LootId = lootId, LootItem = lootItem?.Name });
 				}
 			}
 		}
@@ -454,7 +401,7 @@ namespace SoulmaskDataMiner.MapUtil
 			public FSoftObjectPath ThemeAsset { get; set; }
 			public DungeonEntrance Entrance { get; set; }
 			public Dictionary<string, SpawnData> Spawners { get; set; }
-			public Dictionary<ChestKey, DungeonChestData> Chests { get; set; }
+			public Dictionary<ChestKey, ChestData> Chests { get; set; }
 
 			public DungeonConfig()
 			{
@@ -488,10 +435,10 @@ namespace SoulmaskDataMiner.MapUtil
 			public readonly string? LootId;
 			public readonly string? LootItem;
 
-			public ChestKey(string? lootId, string? lootItem)
+			public ChestKey(ChestData chestData)
 			{
-				LootId = lootId;
-				LootItem = lootItem;
+				LootId = chestData.LootId;
+				LootItem = chestData.LootItem?.Name;
 			}
 
 			public override int GetHashCode()
@@ -574,7 +521,7 @@ namespace SoulmaskDataMiner.MapUtil
 		/// <summary>
 		/// Possible chests that can be found in the dungeon
 		/// </summary>
-		public IReadOnlyList<DungeonChestData> Chests { get; }
+		public IReadOnlyList<ChestData> Chests { get; }
 
 		public DungeonData(
 			string title,
@@ -588,7 +535,7 @@ namespace SoulmaskDataMiner.MapUtil
 			IReadOnlyList<RecipeComponent> entranceItemCost,
 			int entranceMaskEnergyCost,
 			IReadOnlyList<SpawnData> spawners,
-			IReadOnlyList<DungeonChestData> chests)
+			IReadOnlyList<ChestData> chests)
 		{
 			Title = title;
 			Description = description;
@@ -619,26 +566,5 @@ namespace SoulmaskDataMiner.MapUtil
 		/// How many of the item is required
 		/// </summary>
 		public int Count;
-	}
-
-	/// <summary>
-	/// A lootable object from a procedural dungeon
-	/// </summary>
-	internal struct DungeonChestData
-	{
-		/// <summary>
-		/// The name of the chest object
-		/// </summary>
-		public string ChestName;
-
-		/// <summary>
-		/// Loot table ID for chest content
-		/// </summary>
-		public string? LootId;
-
-		/// <summary>
-		/// Set if the chest has a single special loot item
-		/// </summary>
-		public string? LootItem;
 	}
 }

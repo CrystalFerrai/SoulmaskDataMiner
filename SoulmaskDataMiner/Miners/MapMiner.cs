@@ -225,7 +225,7 @@ namespace SoulmaskDataMiner.Miners
 			}
 
 			ChestDistributionMap chestDistributionMap = new(mapLevelData);
-			IReadOnlyList<ChestData>? distributedChests = chestDistributionMap.Load(logger);
+			IReadOnlyList<DistributionChestData>? distributedChests = chestDistributionMap.Load(logger);
 			if (distributedChests is null)
 			{
 				logger.Error("Failed to load chest distribution data.");

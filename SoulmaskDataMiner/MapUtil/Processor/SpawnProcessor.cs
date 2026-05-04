@@ -286,7 +286,7 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 				{
 					if (spawnDataCollection.GameModeSpawnData.Count > 0)
 					{
-						byte remainingModes = 0xff;
+						byte remainingModes = GameEnumExtensions.AllGameModesMask;
 						foreach (var pair in spawnDataCollection.GameModeSpawnData)
 						{
 							if (gameMode.HasValue && gameMode.Value != pair.Key)

@@ -17,7 +17,9 @@ using CUE4Parse.UE4.Assets.Exports.Component;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.Core.Math;
 using CUE4Parse.UE4.Objects.UObject;
+using SoulmaskDataMiner.GameData;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace SoulmaskDataMiner.MapUtil.Processor
 {
@@ -121,11 +123,50 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 						builder.Append(",\"chests\":[");
 						if (dungeonData.Chests.Count > 0)
 						{
-							foreach (DungeonChestData chest in dungeonData.Chests)
+							foreach (ChestData chest in dungeonData.Chests)
 							{
+								if (chest.LootItem is not null)
+								{
+									logger.Warning($"Dungeon chest {chest.Name} contains a LootItem. Support for this needs to be implemented.");
+								}
+
 								builder.Append("{");
-								builder.Append($"\"name\":\"{chest.ChestName}\"");
-								builder.Append($",\"loot\":{(chest.LootId is null ? "null" : $"\"{chest.LootId}\"")}");
+								builder.Append($"\"name\":\"{chest.Name}\"");
+
+								if (chest.AvailableGameModes.Count > 0)
+								{
+									logger.Warning("Dungeon chest is not available in all game modes. This has not been encountered before.");
+
+									byte mask = 0;
+									foreach (ECustomGameMode mode in chest.AvailableGameModes)
+									{
+										mask |= mode.CreateMask();
+									}
+									builder.Append($",\"modes\":{mask}");
+								}
+								else
+								{
+									builder.Append($",\"modes\":{GameEnumExtensions.AllGameModesMask}");
+								}
+
+								byte remainingModes = GameEnumExtensions.AllGameModesMask;
+								builder.Append(",\"loot\":[");
+								foreach (var pair in chest.GameModeLootIds)
+								{
+									byte mask = pair.Key.CreateMask();
+									remainingModes &= (byte)~mask;
+									builder.Append($"{{\"m\":{mask},\"l\":\"{pair.Value}\"}},");
+								}
+								if (remainingModes == 0)
+								{
+									--builder.Length; // Remove trailing comma
+								}
+								else
+								{
+									builder.Append($"{{\"m\":{remainingModes},\"l\":{(chest.LootId is null ? "null" : $"\"{chest.LootId}\"")}}}");
+								}
+								builder.Append("]");
+
 								builder.Append("},");
 							}
 							builder.Length -= 1; // Remove trailing comma

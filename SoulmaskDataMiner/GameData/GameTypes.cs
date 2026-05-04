@@ -595,6 +595,22 @@ namespace SoulmaskDataMiner.GameData
 	internal static class GameEnumExtensions
 	{
 		/// <summary>
+		/// Bitmask including all game modes
+		/// </summary>
+		public static byte AllGameModesMask;
+
+		static GameEnumExtensions()
+		{
+			byte mask = 0;
+			foreach (ECustomGameMode mode in Enum.GetValues<ECustomGameMode>())
+			{
+				if (mode == ECustomGameMode.Max) continue;
+				mask |= mode.CreateMask();
+			}
+			AllGameModesMask = mask;
+		}
+
+		/// <summary>
 		/// Return a bitmask for a game mode
 		/// </summary>
 		public static byte CreateMask(this ECustomGameMode mode)
