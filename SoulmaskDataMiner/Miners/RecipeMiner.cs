@@ -318,7 +318,7 @@ namespace SoulmaskDataMiner.Miners
 				GameModeMask = null;
 				if (hiddenInGameModes.Count > 0)
 				{
-					byte mask = 0xff;
+					byte mask = GameEnumExtensions.AllGameModesMask;
 					foreach (ECustomGameMode mode in hiddenInGameModes)
 					{
 						mask &= (byte)~mode.CreateMask();
