@@ -172,6 +172,7 @@ namespace SoulmaskDataMiner.GameData
 						}
 
 						LootEntry entry = new() { Probability = probability };
+						int modeMask = 0, notModeMask = 0;
 
 						if (conditionArray is not null)
 						{
@@ -256,19 +257,19 @@ namespace SoulmaskDataMiner.GameData
 											entry.ClanCondition = (int)EClanType.CLAN_TYPE_B;
 											break;
 										case "TJ_DL_IsActionMode_C":
-											entry.GameMode = (int)ECustomGameMode.Action;
+											modeMask |= ECustomGameMode.Action.CreateMask();
 											break;
 										case "TJ_DL_IsCreativeMode_C":
-											entry.GameMode = (int)ECustomGameMode.Creative;
+											modeMask |= ECustomGameMode.Creative.CreateMask();
 											break;
 										case "TJ_DL_IsManagementMode_C":
-											entry.GameMode = (int)ECustomGameMode.Management;
+											modeMask |= ECustomGameMode.Management.CreateMask();
 											break;
 										case "TJ_DL_IsNotPVP_C":
-											entry.NotGameMode = (int)ECustomGameMode.PVP;
+											notModeMask |= ECustomGameMode.PVP.CreateMask();
 											break;
 										case "TJ_DL_IsNotSurvival_C":
-											entry.NotGameMode = (int)ECustomGameMode.Survival;
+											notModeMask |= ECustomGameMode.Survival.CreateMask();
 											break;
 										case "TJ_DL_IsPVP_C":
 											entry.PvpOnly = true;
@@ -303,6 +304,9 @@ namespace SoulmaskDataMiner.GameData
 								}
 							}
 						}
+
+						if (modeMask != 0) entry.ModeMask = modeMask;
+						if (notModeMask != 0) entry.NotModeMask = notModeMask;
 
 						int totalWeight = 0;
 						foreach (FPropertyTagType entryItem in itemArray.Properties)
@@ -675,8 +679,8 @@ namespace SoulmaskDataMiner.GameData
 		public int? ClanCondition;
 		public bool CraftsmanOnly;
 		public List<string> AllowedMaps;
-		public int? GameMode;
-		public int? NotGameMode;
+		public int? ModeMask;
+		public int? NotModeMask;
 		public bool PvpOnly;
 		public int? PvpDayCondition;
 		public bool UnknownCondition;
@@ -689,8 +693,8 @@ namespace SoulmaskDataMiner.GameData
 			ClanCondition = null;
 			CraftsmanOnly = false;
 			AllowedMaps = new();
-			GameMode = null;
-			NotGameMode = null;
+			ModeMask = null;
+			NotModeMask = null;
 			PvpOnly = false;
 			PvpDayCondition = null;
 			UnknownCondition = false;
@@ -698,15 +702,15 @@ namespace SoulmaskDataMiner.GameData
 
 		public string? GetConditionsJson()
 		{
-			if (AreaCondition.HasValue || ClanCondition.HasValue || CraftsmanOnly || AllowedMaps.Count > 0 || GameMode.HasValue || NotGameMode.HasValue || PvpOnly || PvpDayCondition.HasValue || UnknownCondition)
+			if (AreaCondition.HasValue || ClanCondition.HasValue || CraftsmanOnly || AllowedMaps.Count > 0 || ModeMask.HasValue || NotModeMask.HasValue || PvpOnly || PvpDayCondition.HasValue || UnknownCondition)
 			{
 				StringBuilder builder = new("{");
 				if (AreaCondition.HasValue) builder.Append($"\"area\":{AreaCondition.Value},");
 				if (ClanCondition.HasValue) builder.Append($"\"clan\":{ClanCondition.Value},");
 				if (CraftsmanOnly) builder.Append($"\"craft\":1,");
 				if (AllowedMaps.Count > 0) builder.Append($"\"maps\":[\"{string.Join("\",\"", AllowedMaps)}\"],");
-				if (GameMode.HasValue) builder.Append($"\"mode\":{GameMode.Value},");
-				if (NotGameMode.HasValue) builder.Append($"\"notmode\":{NotGameMode.Value},");
+				if (ModeMask.HasValue) builder.Append($"\"mode\":{ModeMask.Value},");
+				if (NotModeMask.HasValue) builder.Append($"\"notmode\":{NotModeMask.Value},");
 				if (PvpOnly) builder.Append($"\"pvp\":1,");
 				if (PvpDayCondition.HasValue) builder.Append($"\"pvpday\":{PvpDayCondition.Value},");
 				if (UnknownCondition) builder.Append($"\"unknown\":1,");
