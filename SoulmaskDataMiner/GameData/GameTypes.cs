@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Text;
+
 namespace SoulmaskDataMiner.GameData
 {
 	/// <summary>
@@ -559,6 +561,43 @@ namespace SoulmaskDataMiner.GameData
 	}
 
 	/// <summary>
+	/// Weather type
+	/// </summary>
+	internal enum ETianQiAreaType
+	{
+		ETianQiAreaType_Normal,
+		ETianQiAreaType_Rain_Low,
+		ETianQiAreaType_Rain_Middle,
+		ETianQiAreaType_Rain_High,
+		ETianQiAreaType_Thunderstorm,
+		ETianQiAreaType_Wind_Low,
+		ETianQiAreaType_Wind_Middle,
+		ETianQiAreaType_Wind_High,
+		ETianQiAreaType_Fog_Low,
+		ETianQiAreaType_Fog_Middle,
+		ETianQiAreaType_Fog_High,
+		ETianQiAreaType_Snow_Low,
+		ETianQiAreaType_Snow_Middle,
+		ETianQiAreaType_Snow_High,
+		ETianQiAreaType_Dry,
+		ETianQiAreaType_Hail,
+		ETianQiAreaType_Heat,
+		ETianQiAreaType_Cloudy,
+		ETianQiAreaType_ColdSnap,
+		ETianQiAreaType_DustStorm,
+		ETianQiAreaType_Type1,
+		ETianQiAreaType_Type2,
+		ETianQiAreaType_Type3,
+		ETianQiAreaType_Type4,
+		ETianQiAreaType_Type5,
+		ETianQiAreaType_Type6,
+		ETianQiAreaType_Type7,
+		ETianQiAreaType_Type8,
+		ETianQiAreaType_Type9,
+		ETianQiAreaType_Max
+	}
+
+	/// <summary>
 	/// Weapon type
 	/// </summary>
 	internal enum EWuQiLeiXing
@@ -714,6 +753,17 @@ namespace SoulmaskDataMiner.GameData
 		/// <summary>
 		/// Return an English representation of the value
 		/// </summary>
+		public static string ToEn(this ETianQiAreaType value)
+		{
+			string result = value.ToString();
+			result = result.Substring(result.IndexOf('_') + 1);
+			result = AddSpaces(result);
+			return result;
+		}
+
+		/// <summary>
+		/// Return an English representation of the value
+		/// </summary>
 		public static string ToEn(this EXingBieType value)
 		{
 			return value switch
@@ -729,6 +779,40 @@ namespace SoulmaskDataMiner.GameData
 		{
 			string valueStr = value.ToString();
 			return valueStr.Substring(valueStr.LastIndexOf('_') + 1).ToLowerInvariant();
+		}
+
+		private static string AddSpaces(string text, bool preserveAcronyms = true)
+		{
+			// Based on https://stackoverflow.com/a/272929
+
+			if (string.IsNullOrWhiteSpace(text))
+				return string.Empty;
+
+			StringBuilder newText = new StringBuilder(text.Length * 2);
+			newText.Append(text[0]);
+
+			for (int i = 1; i < text.Length; i++)
+			{
+				if (char.IsUpper(text[i]))
+				{
+					if (text[i - 1] != ' ' && !char.IsUpper(text[i - 1]) ||
+						preserveAcronyms && char.IsUpper(text[i - 1]) && i < text.Length - 1 && !char.IsUpper(text[i + 1]))
+					{
+						newText.Append(' ');
+					}
+					newText.Append(text[i]);
+				}
+				else if (text[i] == '_')
+				{
+					newText.Append(' ');
+				}
+				else
+				{
+					newText.Append(text[i]);
+				}
+			}
+
+			return newText.ToString();
 		}
 	}
 }

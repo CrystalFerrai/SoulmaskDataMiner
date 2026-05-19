@@ -21,6 +21,7 @@ using CUE4Parse.UE4.Objects.Engine;
 using CUE4Parse.UE4.Objects.UObject;
 using SoulmaskDataMiner.Data;
 using SoulmaskDataMiner.GameData;
+using System.Text;
 
 namespace SoulmaskDataMiner.MapUtil.Processor
 {
@@ -112,7 +113,9 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 					LootId = chestData.LootId,
 					LootItem = chestData.LootItem?.Name,
 					SpawnInterval = chestData.RespawnTime,
-					PlayerExclusionRadius = chestData.RespawnExclusionRadius
+					PlayerExclusionRadius = chestData.RespawnExclusionRadius,
+					BuildingExclusionRadius = chestData.WeatherRule?.BuildingExclusionRadius ?? 0.0f,
+					ChestWeatherRule = GetChestWeatherRuleData(chestData)
 				};
 
 				foreach (MapPoi modePoi in GetPoisForAllGameModes(poi, chestData))
@@ -162,6 +165,24 @@ namespace SoulmaskDataMiner.MapUtil.Processor
 				};
 				yield return remainingModesPoi;
 			}
+		}
+
+		private static string? GetChestWeatherRuleData(ChestData chest)
+		{
+			if (chest.WeatherRule is null || !chest.WeatherRule.IsEnabled) return null;
+
+			StringBuilder builder = new();
+
+			builder.Append("{");
+
+			builder.Append($"\"wea\":\"{string.Join(", ", chest.WeatherRule.WeatherTypes.Select(wt => wt.ToEn()))}\"");
+			builder.Append($",\"del\":{chest.WeatherRule.SpawnDelay}");
+			builder.Append($",\"cha\":{chest.WeatherRule.SpawnChance}");
+			builder.Append($",\"dur\":{chest.WeatherRule.Duration}");
+
+			builder.Append("}");
+
+			return builder.ToString();
 		}
 
 		private class ChestCompareData

@@ -333,7 +333,7 @@ namespace SoulmaskDataMiner.Miners
 				using FileStream outFile = IOUtil.CreateFile(outPath, logger);
 				using StreamWriter writer = new(outFile, Encoding.UTF8);
 
-				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,region,npc,m,f,stat,occ,clantype,clanarea,clanocc,num,max,intr,player,building,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo");
+				writer.WriteLine("modes,gpIdx,gpName,key,type,posX,posY,posZ,mapX,mapY,mapR,title,name,desc,extra,region,npc,m,f,stat,occ,clantype,clanarea,clanocc,num,max,intr,player,building,loot,lootitem,lootmap,equipmap,collectmap,unlocks,icon,ach,achDesc,achIcon,inDun,dunInfo,bossInfo,arenaInfo,chestWeather");
 
 				foreach (MapPoi poi in pair.Value)
 				{
@@ -366,7 +366,7 @@ namespace SoulmaskDataMiner.Miners
 
 					writer.WriteLine(
 						$"{gameMode},{(int)poi.GroupIndex},{CsvStr(MapStringUtil.GetGroupName(poi.GroupIndex))},{poi.Key},{CsvStr(poi.Type)},{posSegment},{poi.MapLocation.X:0},{poi.MapLocation.Y:0},{valOrNull(poi.MapRadius)},{CsvStr(poi.Title)},{CsvStr(poi.Name)},{CsvStr(poi.Description)},{CsvStr(poi.Extra)}," +
-						$"{CsvStr(poi.Region)},{spawnerSegment},{lootSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)},{CsvStr(poi.ArenaInfo)}");
+						$"{CsvStr(poi.Region)},{spawnerSegment},{lootSegment},{CsvStr(poi.Unlocks)},{CsvStr(poi.Icon?.Name)},{poiSegment},{poi.InDungeon},{CsvStr(poi.DungeonInfo)},{CsvStr(poi.BossInfo)},{CsvStr(poi.ArenaInfo)},{CsvStr(poi.ChestWeatherRule)}");
 				}
 			}
 		}
@@ -418,8 +418,9 @@ namespace SoulmaskDataMiner.Miners
 			//   `achIcon` varchar(127),
 			//   `inDun` bool,
 			//   `dunInfo` varchar(1535),
-			//   `bossInfo` varchar(1535)
-			//   `arenaInfo` varchar(4095)
+			//   `bossInfo` varchar(1535),
+			//   `arenaInfo` varchar(4095),
+			//   `chestWeather` varchar(255)
 			// )
 
 			string valOrNull(float value)
@@ -459,7 +460,7 @@ namespace SoulmaskDataMiner.Miners
 
 						sqlWriter.WriteRow(
 							$"{DbStr(mapData.MapName)}, {DbVal(poi.GameModeMask)}, {(int)poi.GroupIndex}, {DbStr(MapStringUtil.GetGroupName(poi.GroupIndex))}, {DbVal(poi.Key)}, {DbStr(poi.Type)}, {posSegment}, {poi.MapLocation.X:0}, {poi.MapLocation.Y:0}, {valOrNull(poi.MapRadius)}, {DbStr(poi.Title)}, {DbStr(poi.Name)}, {DbStr(poi.Description)}, {DbStr(poi.Extra)}, " +
-							$"{DbStr(poi.Region)}, {spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}");
+							$"{DbStr(poi.Region)}, {spawnerSegment}, {lootSegment}, {DbStr(poi.Unlocks)}, {DbStr(poi.Icon?.Name)}, {poiSegment}, {DbBool(poi.InDungeon)}, {DbStr(poi.DungeonInfo)}, {DbStr(poi.BossInfo)}, {DbStr(poi.ArenaInfo)}, {DbStr(poi.ChestWeatherRule)}");
 					}
 				}
 			}

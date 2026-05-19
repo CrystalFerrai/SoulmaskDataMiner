@@ -466,6 +466,7 @@ namespace SoulmaskDataMiner.MapUtil
 		public string? DungeonInfo { get; set; }
 		public string? BossInfo { get; set; }
 		public string? ArenaInfo { get; set; }
+		public string? ChestWeatherRule { get; set; }
 
 		public MapPoi()
 		{
@@ -510,6 +511,7 @@ namespace SoulmaskDataMiner.MapUtil
 			DungeonInfo = other.DungeonInfo;
 			BossInfo = other.BossInfo;
 			ArenaInfo = other.ArenaInfo;
+			ChestWeatherRule = other.ChestWeatherRule;
 		}
 
 		public object Clone()

@@ -40,6 +40,8 @@ namespace SoulmaskDataMiner.MapUtil
 
 		public Package GameplayLevel3 { get; }
 
+		public Package? IntrusionLevel { get; }
+
 		public IReadOnlyList<Package> CrowdNpcLevels { get; }
 
 		public IReadOnlyList<Package> Sublevels { get; }
@@ -56,6 +58,10 @@ namespace SoulmaskDataMiner.MapUtil
 				yield return GameplayLevel1;
 				yield return GameplayLevel2;
 				yield return GameplayLevel3;
+				if (IntrusionLevel is not null)
+				{
+					yield return IntrusionLevel;
+				}
 				foreach (Package crowdNpcLevel in CrowdNpcLevels)
 				{
 					yield return crowdNpcLevel;
@@ -74,6 +80,7 @@ namespace SoulmaskDataMiner.MapUtil
 			Package gameplayLevel1,
 			Package gameplayLevel2,
 			Package gameplayLevel3,
+			Package? intrusionLevel,
 			IReadOnlyList<Package> crowdNpcLevels,
 			IReadOnlyList<Package> subLevels,
 			UObject worldSettings,
@@ -85,6 +92,7 @@ namespace SoulmaskDataMiner.MapUtil
 			GameplayLevel1 = gameplayLevel1;
 			GameplayLevel2 = gameplayLevel2;
 			GameplayLevel3 = gameplayLevel3;
+			IntrusionLevel = intrusionLevel;
 			CrowdNpcLevels = crowdNpcLevels;
 			Sublevels = subLevels;
 			WorldSettings = worldSettings;
@@ -104,6 +112,8 @@ namespace SoulmaskDataMiner.MapUtil
 			Package? gameplayLevel1 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay.umap", providerManager, logger);
 			Package? gameplayLevel2 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay2.umap", providerManager, logger);
 			Package? gameplayLevel3 = LoadLevel($"{hubDir}/{mapBaseName}_GamePlay3.umap", providerManager, logger);
+
+			Package? intrusionLevel = LoadLevel($"{mapDir}/{mapBaseName}_Intrusion.umap", providerManager, logger, false);
 
 			if (mainLevel is null || gameplayLevel1 is null || gameplayLevel2 is null || gameplayLevel3 is null)
 			{
@@ -165,15 +175,18 @@ namespace SoulmaskDataMiner.MapUtil
 				}
 			}
 
-			return new(mapName, mapDir, mainLevel, gameplayLevel1, gameplayLevel2, gameplayLevel3, crowdNpcLevels, subLevels, worldSettings, configData);
+			return new(mapName, mapDir, mainLevel, gameplayLevel1, gameplayLevel2, gameplayLevel3, intrusionLevel, crowdNpcLevels, subLevels, worldSettings, configData);
 		}
 
-		private static Package? LoadLevel(string path, IProviderManager providerManager, Logger logger)
+		private static Package? LoadLevel(string path, IProviderManager providerManager, Logger logger, bool warnOnMissing = true)
 		{
 			providerManager.Provider.TryGetGameFile(path, out GameFile? file);
 			if (file is null)
 			{
-				logger.Warning($"Failed to find level asset {path}");
+				if (warnOnMissing)
+				{
+					logger.Warning($"Failed to find level asset {path}");
+				}
 				return null;
 			}
 			return (Package)providerManager.Provider.LoadPackage(file);
