@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using CUE4Parse.UE4.Assets.Objects;
-using CUE4Parse.UE4.Assets.Objects.Properties;
-using CUE4Parse.UE4.Objects.Core.Math;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
@@ -46,7 +43,7 @@ namespace SoulmaskDataMiner.Data
 
 		public bool Equals(Range<T> other)
 		{
-			return Min.Equals(Min) && Max.Equals(Max);
+			return Min.Equals(other.Min) && Max.Equals(other.Max);
 		}
 
 		public override string ToString()
